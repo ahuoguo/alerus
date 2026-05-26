@@ -7,6 +7,3 @@ pub mod num_d;
 pub mod smart_sum;
 pub mod sparse_vector;
 pub mod num_sparse_vector;
-pub mod privacy_filter;
-pub mod interactive_svt;
-pub mod report_noisy_max;
