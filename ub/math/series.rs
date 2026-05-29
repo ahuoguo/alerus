@@ -343,6 +343,93 @@ pub proof fn lemma_limit_average(
     };
 }
 
+/// If s1 → L1 and s2 → L2 then s1 + s2 → L1 + L2.
+pub proof fn lemma_limit_add(
+    s1: spec_fn(nat) -> real, s2: spec_fn(nat) -> real, l1: real, l2: real,
+)
+    requires converges_to(s1, l1), converges_to(s2, l2),
+    ensures converges_to(|n: nat| seq_at(s1, n) + seq_at(s2, n), l1 + l2),
+{
+    let sum = |n: nat| seq_at(s1, n) + seq_at(s2, n);
+    let l_sum = l1 + l2;
+    assert forall |epsilon: real| epsilon > 0real
+        implies #[trigger] exists_close_suffix(sum, l_sum, epsilon) by {
+        let half: real = epsilon / 2real;
+        assert(half > 0real) by(nonlinear_arith) requires epsilon > 0real, half == epsilon / 2real;
+        assert(exists_close_suffix(s1, l1, half));
+        assert(exists_close_suffix(s2, l2, half));
+        let n1 = choose |start: nat| suffix_is_close(s1, l1, half, start);
+        let n2 = choose |start: nat| suffix_is_close(s2, l2, half, start);
+        let start: nat = if n1 >= n2 { n1 } else { n2 };
+        assert(suffix_is_close(sum, l_sum, epsilon, start)) by {
+            assert forall |n: nat| n >= start implies
+                dist(#[trigger] seq_at(sum, n), l_sum) < epsilon by {
+                assert(n >= n1);
+                assert(n >= n2);
+                assert(dist(seq_at(s1, n), l1) < half);
+                assert(dist(seq_at(s2, n), l2) < half);
+                lemma_abs_triangle(seq_at(s1, n) - l1, seq_at(s2, n) - l2);
+                assert(dist(seq_at(sum, n), l_sum) < epsilon) by(nonlinear_arith)
+                    requires abs(seq_at(s1, n) - l1) < half,
+                        abs(seq_at(s2, n) - l2) < half,
+                        abs((seq_at(s1, n) - l1) + (seq_at(s2, n) - l2))
+                            <= abs(seq_at(s1, n) - l1) + abs(seq_at(s2, n) - l2),
+                        seq_at(sum, n) == seq_at(s1, n) + seq_at(s2, n),
+                        l_sum == l1 + l2,
+                        dist(seq_at(sum, n), l_sum) == abs(seq_at(sum, n) - l_sum),
+                        half == epsilon / 2real;
+            };
+        };
+    };
+}
+
+/// If s → L and c is any real, then c · s → c · L.
+pub proof fn lemma_limit_scale(s: spec_fn(nat) -> real, l: real, c: real)
+    requires converges_to(s, l),
+    ensures converges_to(|n: nat| c * seq_at(s, n), c * l),
+{
+    let scaled = |n: nat| c * seq_at(s, n);
+    let l_scaled = c * l;
+    assert forall |epsilon: real| epsilon > 0real
+        implies #[trigger] exists_close_suffix(scaled, l_scaled, epsilon) by {
+        // Pick δ = ε / (|c| + 1) > 0 so we don't need a case split on c = 0.
+        let abs_c_plus_one: real = abs(c) + 1real;
+        assert(abs_c_plus_one > 0real) by(nonlinear_arith)
+            requires abs_c_plus_one == abs(c) + 1real, abs(c) >= 0real;
+        let delta: real = epsilon / abs_c_plus_one;
+        assert(delta > 0real) by(nonlinear_arith)
+            requires epsilon > 0real, abs_c_plus_one > 0real,
+                delta == epsilon / abs_c_plus_one;
+        assert(exists_close_suffix(s, l, delta));
+        let start = choose |start: nat| suffix_is_close(s, l, delta, start);
+        assert(suffix_is_close(scaled, l_scaled, epsilon, start)) by {
+            assert forall |n: nat| n >= start implies
+                dist(#[trigger] seq_at(scaled, n), l_scaled) < epsilon by {
+                assert(dist(seq_at(s, n), l) < delta);
+                // |c · s(n) − c · L| = |c| · |s(n) − L|.
+                assert(seq_at(scaled, n) - l_scaled == c * (seq_at(s, n) - l))
+                    by(nonlinear_arith)
+                    requires seq_at(scaled, n) == c * seq_at(s, n),
+                        l_scaled == c * l;
+                assert(abs(c * (seq_at(s, n) - l)) == abs(c) * abs(seq_at(s, n) - l))
+                    by(nonlinear_arith);
+                assert(dist(seq_at(scaled, n), l_scaled) < epsilon) by(nonlinear_arith)
+                    requires
+                        seq_at(scaled, n) - l_scaled == c * (seq_at(s, n) - l),
+                        abs(c * (seq_at(s, n) - l)) == abs(c) * abs(seq_at(s, n) - l),
+                        dist(seq_at(scaled, n), l_scaled)
+                            == abs(seq_at(scaled, n) - l_scaled),
+                        dist(seq_at(s, n), l) == abs(seq_at(s, n) - l),
+                        abs(seq_at(s, n) - l) < delta,
+                        delta == epsilon / abs_c_plus_one,
+                        abs_c_plus_one == abs(c) + 1real,
+                        abs(c) >= 0real,
+                        epsilon > 0real;
+            };
+        };
+    };
+}
+
 /// Limit of a sequence bounded above by B is at most B.
 pub proof fn lemma_limit_le_bound(s: spec_fn(nat) -> real, limit: real, bound: real)
     requires converges_to(s, limit), is_bounded_above(s, bound),
