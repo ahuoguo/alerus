@@ -31,6 +31,10 @@ pub fn ubig_mul(a: UBig, b: UBig) -> UBig {
     a * b
 }
 
+pub fn ubig_sub(a: &UBig, b: &UBig) -> UBig {
+    a.clone() - b.clone()
+}
+
 pub fn ubig_from_u64(n: u64) -> UBig {
     UBig::from(n)
 }
@@ -106,4 +110,14 @@ pub fn ibig_lt(a: &IBig, b: &IBig) -> bool {
 
 pub fn ibig_clone(n: &IBig) -> IBig {
     n.clone()
+}
+
+pub fn ibig_mul(a: &IBig, b: &IBig) -> IBig {
+    a.clone() * b.clone()
+}
+
+/// Absolute value of an IBig as a UBig.
+pub fn ibig_abs(n: &IBig) -> UBig {
+    use dashu::base::Abs;
+    n.clone().abs().into_parts().1
 }

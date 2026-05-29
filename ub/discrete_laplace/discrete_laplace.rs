@@ -33,6 +33,7 @@ use crate::rand_primitives::thin_air;
 use crate::discrete_laplace::bernoulli_rational::bernoulli_weighted_sum;
 use crate::discrete_laplace::bernoulli_rational::sample_bernoulli_rational;
 use crate::discrete_laplace::geometric_exp::sample_geometric_exp;
+use crate::discrete_laplace::geometric_exp_fast::sample_geometric_exp_fast;
 #[cfg(verus_keep_ghost)]
 use crate::discrete_laplace::geometric_exp::{geo_exp_series_bounded_by, geo_exp_partial_sum, geo_exp_summand};
 #[cfg(verus_keep_ghost)]
@@ -584,6 +585,190 @@ pub fn sample_discrete_laplace(
                 assert(g_eps + g_slack == rc);
 
                 // Termination: g_slack * pow(2, g_depth) >= 1
+                assert(pow(2real, old_depth) == 2real * pow(2real, (old_depth - 1) as nat));
+                real_assoc_mult(old_slack, 2real, pow(2real, (old_depth - 1) as nat));
+            }
+        }
+    }
+}
+
+/// Fast variant of [`sample_discrete_laplace`]: identical Hoare rule and proof,
+/// but draws each magnitude with `sample_geometric_exp_fast` instead of the slow
+/// `sample_geometric_exp`.  The fast geometric sampler proves the same
+/// expectation-preservation rule, so the credit-split machinery
+/// (`lemma_dl_credit_split` etc.) is reused verbatim; the only contract change
+/// is `inv_denom > 1` (the fast sampler's residue-rejection step needs d > 1).
+pub fn sample_discrete_laplace_fast(
+    inv_numer: u64,
+    inv_denom: u64,
+    Ghost(p): Ghost<real>,
+    Ghost(e): Ghost<spec_fn(int) -> real>,
+    Tracked(input_credit): Tracked<ErrorCreditResource>,
+    Ghost(eps): Ghost<real>,
+) -> (ret: (IBig, Tracked<ErrorCreditResource>))
+    requires
+        inv_numer > 0,
+        inv_denom > 1,
+        0real < p < 1real,
+        p == exp(-(inv_numer as real / inv_denom as real)),
+        forall |x: int| (#[trigger] e(x)) >= 0real,
+        eps > 0real,
+        input_credit.view() =~= (ErrorCreditCarrier::Value { car: eps }),
+        dl_series_bounded_by(p, e, eps),
+    ensures
+        ret.1@.view() =~= (ErrorCreditCarrier::Value { car: e(ibig_view(&ret.0)) }),
+{
+    // Get slack for termination
+    let Tracked(slack_credit) = thin_air();
+    let ghost slack: real;
+    let ghost depth: nat;
+    proof {
+        slack = choose |v: real| v > 0real &&
+            (ErrorCreditCarrier::Value { car: v } =~= slack_credit.view());
+        archimedean_exp_growth(slack, 2real);
+        depth = choose |k: nat| slack * #[trigger] pow(2real, k) >= 1real;
+    }
+
+    let tracked combined = ec_combine(input_credit, slack_credit, eps, slack);
+
+    let tracked mut credit = combined;
+    let ghost mut g_eps = eps;
+    let ghost mut g_slack = slack;
+    let ghost mut g_depth = depth;
+
+    loop
+        invariant
+            inv_numer > 0,
+            inv_denom > 1,
+            0real < p < 1real,
+            p == exp(-(inv_numer as real / inv_denom as real)),
+            forall |x: int| (#[trigger] e(x)) >= 0real,
+            g_eps > 0real,
+            g_slack > 0real,
+            credit.view() =~= (ErrorCreditCarrier::Value { car: g_eps + g_slack }),
+            dl_series_bounded_by(p, e, g_eps),
+            g_slack * pow(2real, g_depth) >= 1real,
+        decreases g_depth,
+    {
+        proof {
+            if g_depth == 0nat {
+                assert(pow(2real, 0nat) == 1real);
+                ec_contradict(&credit);
+            }
+        }
+
+        let ghost sign_total = g_eps + g_slack;
+        let ghost rc = g_eps + 2real * g_slack;
+
+        // Credit split (shared with the slow variant).
+        proof {
+            assert((1real + p) * g_eps + (1real - p) * rc <= 2real * sign_total)
+                by(nonlinear_arith)
+                requires
+                    rc == g_eps + 2real * g_slack,
+                    sign_total == g_eps + g_slack,
+                    0real < p < 1real,
+                    g_slack > 0real;
+            assert(sign_total > 0real) by(nonlinear_arith)
+                requires g_eps > 0real, g_slack > 0real, sign_total == g_eps + g_slack;
+            lemma_dl_credit_split(p, e, g_eps, rc, sign_total);
+        }
+
+        let ghost pos_bound: real;
+        let ghost neg_bound: real;
+        proof {
+            let pair: (real, real) = choose |pb: real, nb: real| {
+                &&& pb >= 0real
+                &&& nb >= 0real
+                &&& pb + nb <= 2real * sign_total
+                &&& geo_exp_series_bounded_by(p, dl_e_pos(e), pb)
+                &&& geo_exp_series_bounded_by(p, dl_e_neg(e, rc), nb)
+            };
+            pos_bound = pair.0;
+            neg_bound = pair.1;
+        }
+
+        let ghost sign_e: spec_fn(bool) -> real = |b: bool| if b { pos_bound } else { neg_bound };
+
+        proof {
+            assert(bernoulli_weighted_sum(0.5real, sign_e)
+                == 0.5real * pos_bound + 0.5real * neg_bound);
+            assert(sign_total >= bernoulli_weighted_sum(0.5real, sign_e))
+                by(nonlinear_arith)
+                requires
+                    bernoulli_weighted_sum(0.5real, sign_e) == 0.5real * pos_bound + 0.5real * neg_bound,
+                    pos_bound + neg_bound <= 2real * sign_total;
+        }
+
+        // Step 1: Flip sign
+        let one = ubig_from_u64(1u64);
+        let two = ubig_from_u64(2u64);
+        let (positive, Tracked(branch_credit)) = sample_bernoulli_rational(
+            &one,
+            &two,
+            Ghost(sign_e),
+            Tracked(credit),
+            Ghost(sign_total),
+        );
+
+        if positive {
+            // Step 2a: fast Geometric with positive postcondition
+            let ghost e_pos = dl_e_pos(e);
+
+            let (magnitude, Tracked(out_credit)) = sample_geometric_exp_fast(
+                inv_numer,
+                inv_denom,
+                Ghost(p),
+                Ghost(e_pos),
+                Tracked(branch_credit),
+                Ghost(pos_bound),
+            );
+
+            let result = ibig_from_ubig(magnitude);
+            return (result, Tracked(out_credit));
+        } else {
+            // Step 2b: fast Geometric with negative postcondition
+            let ghost e_neg = dl_e_neg(e, rc);
+
+            let (magnitude, Tracked(out_credit)) = sample_geometric_exp_fast(
+                inv_numer,
+                inv_denom,
+                Ghost(p),
+                Ghost(e_neg),
+                Tracked(branch_credit),
+                Ghost(neg_bound),
+            );
+
+            let mag_ibig = ibig_from_ubig(magnitude);
+            let is_zero = ibig_is_zero(&mag_ibig);
+
+            if !is_zero {
+                // Accept: return -magnitude
+                let result = ibig_neg(mag_ibig);
+                proof {
+                    assert(ibig_view(&mag_ibig) == ubig_view(&magnitude) as int);
+                    assert(ibig_view(&mag_ibig) != 0int);
+                    assert(ubig_view(&magnitude) != 0nat);
+                }
+                return (result, Tracked(out_credit));
+            }
+
+            // Rejected (-, 0): amplify slack and retry.
+            proof {
+                let old_slack = g_slack;
+                let old_depth = g_depth;
+
+                assert(ibig_view(&mag_ibig) == ubig_view(&magnitude) as int);
+                assert(ibig_view(&mag_ibig) == 0int);
+                assert(ubig_view(&magnitude) == 0nat);
+                assert(dl_e_neg(e, rc)(0nat) == rc);
+                assert(rc == g_eps + 2real * old_slack);
+
+                credit = out_credit;
+                g_slack = 2real * old_slack;
+                g_depth = (old_depth - 1) as nat;
+
+                assert(g_eps + g_slack == rc);
                 assert(pow(2real, old_depth) == 2real * pow(2real, (old_depth - 1) as nat));
                 real_assoc_mult(old_slack, 2real, pow(2real, (old_depth - 1) as nat));
             }
