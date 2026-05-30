@@ -39,7 +39,8 @@
 
 use vstd::prelude::*;
 
-use random::{IBig, ubig_from_u64, ubig_mul, ibig_from_ubig, ibig_sub, ibig_mul, ibig_abs};
+use random::{IBig, ubig_from_u64, ubig_mul, ibig_from_ubig, ibig_sub, ibig_mul, ibig_abs,
+    RBig, rbig_into_parts, rbig_floor, rbig_from_parts, ibig_add, ibig_from_i64};
 #[cfg(verus_keep_ghost)]
 use random::{UBig};
 
@@ -47,10 +48,10 @@ verus! {
 
 use crate::ub::*;
 use crate::rand_primitives::thin_air;
-use crate::discrete_laplace::discrete_laplace::sample_discrete_laplace;
+use crate::discrete_laplace::discrete_laplace::sample_discrete_laplace_fast;
 use crate::discrete_laplace::bernoulli_exp::sample_bernoulli_exp_ubig;
 #[cfg(verus_keep_ghost)]
-use crate::extern_spec::{ibig_view, ubig_view};
+use crate::extern_spec::{ibig_view, ubig_view, rbig_view, ExRBig};
 #[cfg(verus_keep_ghost)]
 use crate::math::pow::archimedean_exp_growth;
 #[cfg(verus_keep_ghost)]
@@ -1404,7 +1405,8 @@ pub proof fn lemma_dg_dl_bound(
     }
 }
 
-/// Sample from the discrete Gaussian N_ℤ(0, σ²),  σ = scale_numer/scale_denom.
+/// Sample from the discrete Gaussian N_ℤ(0, σ²),  σ = scale  (an arbitrary-precision
+/// rational `RBig`, matching opendp's `sample_discrete_gaussian(scale: RBig)`).
 ///
 /// Expectation Preservation Rule:
 ///   ε ≥ Σ_{x∈ℤ} gauss_pmf(x)·ℰ(x)        (as gauss_expectation_bounded_by)
@@ -1412,56 +1414,85 @@ pub proof fn lemma_dg_dl_bound(
 ///   [{ ↯(ε) }] sample_discrete_gaussian(σ) [{ v. ↯(ℰ(v)) }]
 #[verifier::spinoff_prover]
 pub fn sample_discrete_gaussian(
-    scale_numer: u64,
-    scale_denom: u64,
+    scale: &RBig,
     Ghost(e): Ghost<spec_fn(int) -> real>,
     Tracked(input_credit): Tracked<ErrorCreditResource>,
     Ghost(eps): Ghost<real>,
 ) -> (ret: (IBig, Tracked<ErrorCreditResource>))
     requires
-        scale_numer > 0,
-        scale_denom > 0,
-        scale_numer < u64::MAX,
+        rbig_view(scale) > 0real,
         forall |x: int| (#[trigger] e(x)) >= 0real,
         eps > 0real,
         input_credit.view() =~= (ErrorCreditCarrier::Value { car: eps }),
         gauss_expectation_bounded_by(
-            exp(-(1real / (scale_numer / scale_denom + 1) as real)),
-            (scale_numer as real * scale_numer as real) / (scale_denom as real * scale_denom as real),
-            (scale_numer / scale_denom + 1) as real, e, eps),
+            exp(-(1real / ((rbig_view(scale).floor() + 1) as real))),
+            rbig_view(scale) * rbig_view(scale),
+            (rbig_view(scale).floor() + 1) as real, e, eps),
     ensures
         ret.1@.view() =~= (ErrorCreditCarrier::Value { car: e(ibig_view(&ret.0)) }),
 {
-    let t: u64 = scale_numer / scale_denom + 1;
-    let ghost tr = t as real;
+    // scale = sn/sd  (sn ≥ 1 since scale > 0, sd ≥ 1).
+    let parts = rbig_into_parts(scale);
+    let sn_signed = parts.0;
+    let sd = parts.1;
+    let sn = ibig_abs(&sn_signed);
+    // t = ⌊σ⌋ + 1  (a positive integer), as a UBig and as an RBig.
+    let floor_i = rbig_floor(scale);
+    let t_i = ibig_add(&floor_i, &ibig_from_i64(1i64));
+    let t_ubig = ibig_abs(&t_i);
+    let t_rbig = rbig_from_parts(ibig_from_ubig(t_ubig.clone()), ubig_from_u64(1u64));
+
+    let ghost snr = ubig_view(&sn) as real;
+    let ghost sdr = ubig_view(&sd) as real;
+    let ghost tr = ubig_view(&t_ubig) as real;
     let ghost p = exp(-(1real / tr));
-    let ghost sigma2 = (scale_numer as real * scale_numer as real)
-        / (scale_denom as real * scale_denom as real);
+    let ghost sigma2 = rbig_view(scale) * rbig_view(scale);
     let ghost cst = gauss_const(p, sigma2, tr);
     let ghost amp = 1real / (1real - cst);
 
     proof {
+        // sn, sd > 0  (scale = sn/sd > 0).
+        assert(rbig_view(scale) == ibig_view(&sn_signed) as real / sdr);
+        assert(ubig_view(&sd) > 0);
+        assert(ibig_view(&sn_signed) > 0) by(nonlinear_arith)
+            requires rbig_view(scale) == ibig_view(&sn_signed) as real / sdr,
+                rbig_view(scale) > 0real, sdr == ubig_view(&sd) as real, ubig_view(&sd) > 0;
+        assert(ubig_view(&sn) as int == ibig_view(&sn_signed));   // ibig_abs, sn_signed ≥ 0
+        assert(ubig_view(&sn) > 0);
+        // σ = sn/sd ;  σ² = sn²/sd² = sigma2.
+        assert(rbig_view(scale) == snr / sdr);
+        assert(sigma2 == (snr * snr) / (sdr * sdr)) by(nonlinear_arith)
+            requires sigma2 == rbig_view(scale) * rbig_view(scale),
+                rbig_view(scale) == snr / sdr, sdr > 0real;
+        assert(sigma2 > 0real) by(nonlinear_arith)
+            requires sigma2 == (snr * snr) / (sdr * sdr), snr > 0real, sdr > 0real;
+        // t = ⌊σ⌋ + 1 ≥ 1  (floor ≥ 0 since σ > 0).
+        assert(ibig_view(&floor_i) == rbig_view(scale).floor());
+        assert(rbig_view(scale).floor() >= 0) by(nonlinear_arith)
+            requires rbig_view(scale) > 0real,
+                rbig_view(scale) < (rbig_view(scale).floor() + 1) as real;
+        assert(ibig_view(&t_i) == rbig_view(scale).floor() + 1);
+        assert(ubig_view(&t_ubig) as int == ibig_view(&t_i));   // ibig_abs, t_i ≥ 1
+        assert(tr == (rbig_view(scale).floor() + 1) as real);
         assert(tr >= 1real);
+        assert(rbig_view(&t_rbig) == tr);   // t_rbig = t_ubig / 1
+        // p, cst, amp.
         assert(1real / tr > 0real) by(nonlinear_arith) requires tr >= 1real;
         axiom_exp_neg_range(1real / tr);
         axiom_exp_neg_strict(1real / tr);
-        assert(sigma2 > 0real) by(nonlinear_arith)
-            requires sigma2 == (scale_numer as real * scale_numer as real)
-                / (scale_denom as real * scale_denom as real),
-                scale_numer > 0u64, scale_denom > 0u64;
         lemma_gauss_const_pos(p, sigma2, tr);
         lemma_gauss_const_lt_one(p, sigma2, tr);
         assert(amp > 1real) by(nonlinear_arith) requires amp == 1real / (1real - cst), 0real < cst < 1real;
-        // The public precondition is the genuine expectation bound under gauss_pmf;
-        // convert it to the kernel-partial form used internally by the loop.
+        // The public precondition is the genuine expectation bound under gauss_pmf
+        // (with this exact p, σ², t);  convert it to the internal kernel-partial form.
         lemma_dg_series_iff(p, sigma2, tr, e, eps);
         assert(dg_series_bounded_by(p, sigma2, tr, e, eps));
     }
 
     // Bignum constants:  sn², sd², den = 2·sn²·sd²·t².
-    let sn2 = ubig_mul(ubig_from_u64(scale_numer), ubig_from_u64(scale_numer));
-    let sd2 = ubig_mul(ubig_from_u64(scale_denom), ubig_from_u64(scale_denom));
-    let t2 = ubig_mul(ubig_from_u64(t), ubig_from_u64(t));
+    let sn2 = ubig_mul(sn.clone(), sn.clone());
+    let sd2 = ubig_mul(sd.clone(), sd.clone());
+    let t2 = ubig_mul(t_ubig.clone(), t_ubig.clone());
     let den = ubig_mul(ubig_mul(ubig_mul(sn2.clone(), sd2.clone()), t2), ubig_from_u64(2u64));
 
     // Thin-air slack + termination depth.
@@ -1480,20 +1511,22 @@ pub fn sample_discrete_gaussian(
 
     loop
         invariant
-            scale_numer > 0, scale_denom > 0, t == scale_numer / scale_denom + 1,
-            tr == t as real, p == exp(-(1real / tr)),
-            sigma2 == (scale_numer as real * scale_numer as real)
-                / (scale_denom as real * scale_denom as real),
+            ubig_view(&sn) > 0, ubig_view(&sd) > 0, ubig_view(&t_ubig) >= 1,
+            snr == ubig_view(&sn) as real, sdr == ubig_view(&sd) as real,
+            tr == ubig_view(&t_ubig) as real,
+            rbig_view(&t_rbig) == tr,
+            p == exp(-(1real / tr)),
+            sigma2 == (snr * snr) / (sdr * sdr),
             cst == gauss_const(p, sigma2, tr), amp == 1real / (1real - cst),
-            t >= 1,
             0real < p < 1real, sigma2 > 0real, tr >= 1real, 0real < cst < 1real, amp > 1real,
             forall |x: int| (#[trigger] e(x)) >= 0real,
             eps > 0real, g_slack > 0real,
             credit.view() =~= (ErrorCreditCarrier::Value { car: eps + g_slack }),
             dg_series_bounded_by(p, sigma2, tr, e, eps),
-            ubig_view(&sn2) == scale_numer as nat * scale_numer as nat,
-            ubig_view(&sd2) == scale_denom as nat * scale_denom as nat,
-            ubig_view(&den) == ubig_view(&sn2) * ubig_view(&sd2) * (t as nat * t as nat) * 2,
+            ubig_view(&sn2) == ubig_view(&sn) * ubig_view(&sn),
+            ubig_view(&sd2) == ubig_view(&sd) * ubig_view(&sd),
+            ubig_view(&den) == ubig_view(&sn2) * ubig_view(&sd2)
+                * (ubig_view(&t_ubig) * ubig_view(&t_ubig)) * 2,
             g_slack * pow(amp, g_depth) >= 1real,
         decreases g_depth,
     {
@@ -1515,15 +1548,15 @@ pub fn sample_discrete_gaussian(
             lemma_dg_dl_bound(p, sigma2, tr, e, eps, g_slack, rc);
         }
 
-        // Proposal draw  Y ~ L_ℤ(0, t).
-        let (cand, Tracked(dl_credit)) = sample_discrete_laplace(
-            1u64, t, Ghost(p), Ghost(g_dl), Tracked(credit), Ghost(eps + g_slack),
+        // Proposal draw  Y ~ L_ℤ(0, t)  via the fast (RBig) discrete-Laplace sampler.
+        let (cand, Tracked(dl_credit)) = sample_discrete_laplace_fast(
+            &t_rbig, Ghost(p), Ghost(g_dl), Tracked(credit), Ghost(eps + g_slack),
         );
         let ghost cand_i = ibig_view(&cand);
 
         // bias = (|cand|·sd²·t − sn²)² / (2·sn²·sd²·t²)
         let a_ubig = ibig_abs(&cand);
-        let asdt = ubig_mul(ubig_mul(a_ubig, sd2.clone()), ubig_from_u64(t));
+        let asdt = ubig_mul(ubig_mul(a_ubig, sd2.clone()), t_ubig.clone());
         let base_i = ibig_sub(&ibig_from_ubig(asdt), &ibig_from_ubig(sn2.clone()));
         let num_i = ibig_mul(&base_i, &base_i);
         let num = ibig_abs(&num_i);
@@ -1542,23 +1575,23 @@ pub fn sample_discrete_gaussian(
             assert(ubig_view(&a_ubig) as int == a_int);   // ibig_abs spec
             assert(imag(cand_i) == a);
             // base_int = |cand|·sd²·t − sn²  (integer).
-            assert(ubig_view(&asdt) == ubig_view(&a_ubig) * ubig_view(&sd2) * (t as nat));
+            assert(ubig_view(&asdt) == ubig_view(&a_ubig) * ubig_view(&sd2) * ubig_view(&t_ubig));
             assert(base_int == ubig_view(&asdt) as int - ubig_view(&sn2) as int);
-            assert(base_int == a_int * (scale_denom as int * scale_denom as int) * (t as int)
-                - scale_numer as int * scale_numer as int) by(nonlinear_arith)
+            assert(base_int == a_int * (ubig_view(&sd) as int * ubig_view(&sd) as int) * (ubig_view(&t_ubig) as int)
+                - ubig_view(&sn) as int * ubig_view(&sn) as int) by(nonlinear_arith)
                 requires
                     base_int == ubig_view(&asdt) as int - ubig_view(&sn2) as int,
-                    ubig_view(&asdt) == ubig_view(&a_ubig) * ubig_view(&sd2) * (t as nat),
+                    ubig_view(&asdt) == ubig_view(&a_ubig) * ubig_view(&sd2) * ubig_view(&t_ubig),
                     ubig_view(&a_ubig) as int == a_int,
-                    ubig_view(&sd2) == scale_denom as nat * scale_denom as nat,
-                    ubig_view(&sn2) == scale_numer as nat * scale_numer as nat;
+                    ubig_view(&sd2) == ubig_view(&sd) * ubig_view(&sd),
+                    ubig_view(&sn2) == ubig_view(&sn) * ubig_view(&sn);
             // cast to real:  base_r = a·sd²·t − sn².
-            assert(base_r == a * (scale_denom as real * scale_denom as real) * tr
-                - scale_numer as real * scale_numer as real) by(nonlinear_arith)
+            assert(base_r == a * (sdr * sdr) * tr - snr * snr) by(nonlinear_arith)
                 requires
-                    base_r == base_int as real, a == a_int as real, tr == t as real,
-                    base_int == a_int * (scale_denom as int * scale_denom as int) * (t as int)
-                        - scale_numer as int * scale_numer as int;
+                    base_r == base_int as real, a == a_int as real,
+                    tr == ubig_view(&t_ubig) as real, snr == ubig_view(&sn) as real, sdr == ubig_view(&sd) as real,
+                    base_int == a_int * (ubig_view(&sd) as int * ubig_view(&sd) as int) * (ubig_view(&t_ubig) as int)
+                        - ubig_view(&sn) as int * ubig_view(&sn) as int;
             // num = base²  (as real).
             assert(ibig_view(&num_i) == base_int * base_int);
             assert(base_int * base_int >= 0) by(nonlinear_arith);
@@ -1567,21 +1600,24 @@ pub fn sample_discrete_gaussian(
                 requires num_r == ubig_view(&num) as real,
                     ubig_view(&num) as int == base_int * base_int, base_r == base_int as real;
             // den = D  (as real).
-            assert(den_r == 2real * (scale_numer as real * scale_numer as real)
-                * (scale_denom as real * scale_denom as real) * (tr * tr)) by(nonlinear_arith)
+            assert(den_r == 2real * (snr * snr) * (sdr * sdr) * (tr * tr)) by(nonlinear_arith)
                 requires den_r == ubig_view(&den) as real,
-                    ubig_view(&den) == ubig_view(&sn2) * ubig_view(&sd2) * (t as nat * t as nat) * 2,
-                    ubig_view(&sn2) == scale_numer as nat * scale_numer as nat,
-                    ubig_view(&sd2) == scale_denom as nat * scale_denom as nat,
-                    tr == t as real;
+                    ubig_view(&den) == ubig_view(&sn2) * ubig_view(&sd2)
+                        * (ubig_view(&t_ubig) * ubig_view(&t_ubig)) * 2,
+                    ubig_view(&sn2) == ubig_view(&sn) * ubig_view(&sn),
+                    ubig_view(&sd2) == ubig_view(&sd) * ubig_view(&sd),
+                    snr == ubig_view(&sn) as real, sdr == ubig_view(&sd) as real,
+                    tr == ubig_view(&t_ubig) as real;
             assert(ubig_view(&den) > 0) by(nonlinear_arith)
-                requires ubig_view(&den) == ubig_view(&sn2) * ubig_view(&sd2) * (t as nat * t as nat) * 2,
-                    ubig_view(&sn2) == scale_numer as nat * scale_numer as nat,
-                    ubig_view(&sd2) == scale_denom as nat * scale_denom as nat,
-                    scale_numer > 0u64, scale_denom > 0u64, t >= 1u64;
+                requires ubig_view(&den) == ubig_view(&sn2) * ubig_view(&sd2)
+                        * (ubig_view(&t_ubig) * ubig_view(&t_ubig)) * 2,
+                    ubig_view(&sn2) == ubig_view(&sn) * ubig_view(&sn),
+                    ubig_view(&sd2) == ubig_view(&sd) * ubig_view(&sd),
+                    ubig_view(&sn) > 0, ubig_view(&sd) > 0, ubig_view(&t_ubig) >= 1;
             assert(den_r > 0real) by(nonlinear_arith) requires den_r == ubig_view(&den) as real, ubig_view(&den) > 0;
             // gauss_bias·D == base² == num,  D == den > 0  ⇒  num/den == gauss_bias.
-            lemma_gauss_bias_eq(scale_numer as real, scale_denom as real, tr, a, base_r);
+            //   (sigma2 == sn²/sd², so lemma_gauss_bias_eq's gauss_bias(sn²/sd², …) is gauss_bias(σ², …).)
+            lemma_gauss_bias_eq(snr, sdr, tr, a, base_r);
             assert(gauss_bias(sigma2, tr, a) == num_r / den_r) by(nonlinear_arith)
                 requires
                     gauss_bias(sigma2, tr, a) * den_r == base_r * base_r,
@@ -1643,7 +1679,8 @@ proof fn lemma_gauss_kernel_partial_zero(sigma2: real, e: spec_fn(int) -> real, 
 }
 
 /// Entry point: sample the discrete Gaussian with no caller preconditions
-/// beyond a positive rational scale (uses the trivial postcondition ℰ ≡ 0).
+/// beyond a positive rational scale σ = scale_numer/scale_denom (uses the trivial
+/// postcondition ℰ ≡ 0).  Builds the `RBig` scale and calls `sample_discrete_gaussian`.
 pub fn sample_discrete_gaussian_entry(
     scale_numer: u64,
     scale_denom: u64,
@@ -1651,26 +1688,33 @@ pub fn sample_discrete_gaussian_entry(
     requires
         scale_numer > 0,
         scale_denom > 0,
-        scale_numer < u64::MAX,
 {
+    let scale = rbig_from_parts(
+        ibig_from_ubig(ubig_from_u64(scale_numer)), ubig_from_u64(scale_denom));
     let ghost e: spec_fn(int) -> real = |_x: int| 0real;
     let Tracked(cred) = thin_air();
     let ghost eps: real;
     proof {
         eps = choose |v: real| v > 0real &&
             (ErrorCreditCarrier::Value { car: v } =~= cred.view());
-        let tr = (scale_numer / scale_denom + 1) as real;
+        // rbig_view(scale) = scale_numer/scale_denom > 0.
+        assert(rbig_view(&scale) == scale_numer as real / scale_denom as real);
+        assert(rbig_view(&scale) > 0real) by(nonlinear_arith)
+            requires rbig_view(&scale) == scale_numer as real / scale_denom as real,
+                scale_numer > 0u64, scale_denom > 0u64;
+        let tr = (rbig_view(&scale).floor() + 1) as real;
         let p = exp(-(1real / tr));
-        let sigma2 = (scale_numer as real * scale_numer as real)
-            / (scale_denom as real * scale_denom as real);
+        let sigma2 = rbig_view(&scale) * rbig_view(&scale);
+        // ⌊σ⌋ ≥ 0 (σ > 0), so tr ≥ 1.
+        assert(rbig_view(&scale).floor() >= 0) by(nonlinear_arith)
+            requires rbig_view(&scale) > 0real,
+                rbig_view(&scale) < (rbig_view(&scale).floor() + 1) as real;
         assert(tr >= 1real);
         assert(1real / tr > 0real) by(nonlinear_arith) requires tr >= 1real;
         axiom_exp_neg_range(1real / tr);
         axiom_exp_neg_strict(1real / tr);
         assert(sigma2 > 0real) by(nonlinear_arith)
-            requires sigma2 == (scale_numer as real * scale_numer as real)
-                / (scale_denom as real * scale_denom as real),
-                scale_numer > 0u64, scale_denom > 0u64;
+            requires sigma2 == rbig_view(&scale) * rbig_view(&scale), rbig_view(&scale) > 0real;
         lemma_gauss_const_pos(p, sigma2, tr);
         lemma_gauss_accept_prob(p, sigma2, tr);   // const ≤ a ≤ 1, so a·eps ≥ 0
         // ε ≥ Σ gauss_pmf·ℰ holds trivially since ℰ ≡ 0  (kernel partial sums are 0).
@@ -1686,9 +1730,7 @@ pub fn sample_discrete_gaussian_entry(
         lemma_dg_series_iff(p, sigma2, tr, e, eps);
         assert(gauss_expectation_bounded_by(p, sigma2, tr, e, eps));
     }
-    let (v, _out) = sample_discrete_gaussian(
-        scale_numer, scale_denom, Ghost(e), Tracked(cred), Ghost(eps),
-    );
+    let (v, _out) = sample_discrete_gaussian(&scale, Ghost(e), Tracked(cred), Ghost(eps));
     v
 }
 

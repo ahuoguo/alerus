@@ -42,10 +42,14 @@ use crate::math::pow::{pow, archimedean_exp_growth};
 use crate::math::real::real_assoc_mult;
 #[cfg(verus_keep_ghost)]
 use crate::math::exp::{exp, axiom_exp_zero, axiom_exp_neg_range, axiom_exp_neg_strict, axiom_exp_add};
-use crate::rand_primitives::{thin_air, rand_u64};
+use crate::rand_primitives::{thin_air, rand_ubig};
 #[cfg(verus_keep_ghost)]
-use crate::rand_primitives::{average, sum_credit};
-use crate::discrete_laplace::bernoulli_exp::sample_bernoulli_exp;
+use crate::rand_primitives::{average_nat, sum_credit};
+use crate::discrete_laplace::bernoulli_exp::sample_bernoulli_exp_ubig;
+use random::{UBig, ubig_from_u64};
+use crate::extern_spec::ubig_lt;
+#[cfg(verus_keep_ghost)]
+use crate::extern_spec::ubig_view;
 #[cfg(verus_keep_ghost)]
 use crate::discrete_laplace::bernoulli_rational::bernoulli_weighted_sum;
 
@@ -347,7 +351,7 @@ proof fn lemma_rej_sum_split(
 
 /// h(i) ≥ 0 for all i, given ℰ ≥ 0 and rej_credit ≥ 0.
 pub proof fn lemma_rej_alloc_nonneg(
-    d: u64, e: spec_fn(nat) -> real, rej_credit: real,
+    d: nat, e: spec_fn(nat) -> real, rej_credit: real,
 )
     requires
         d > 0,
@@ -355,14 +359,14 @@ pub proof fn lemma_rej_alloc_nonneg(
         forall |u: nat| (#[trigger] e(u)) >= 0real,
     ensures
         forall |i: nat|
-            (#[trigger] rej_credit_alloc(d as nat, e, rej_credit)(i as real)) >= 0real,
+            (#[trigger] rej_credit_alloc(d, e, rej_credit)(i as real)) >= 0real,
 {
-    let alloc = rej_credit_alloc(d as nat, e, rej_credit);
+    let alloc = rej_credit_alloc(d, e, rej_credit);
     assert forall |i: nat| (#[trigger] alloc(i as real)) >= 0real by {
         let ir = i as real;
         let w = exp(-(ir / d as real));
         assert(ir.floor() as nat == i);
-        lemma_rej_weight_pos(d as nat, i);
+        lemma_rej_weight_pos(d, i);
         assert(alloc(ir) >= 0real) by(nonlinear_arith)
             requires
                 alloc(ir) == w * e(i) + (1real - w) * rej_credit,
@@ -387,32 +391,31 @@ pub proof fn lemma_rej_alloc_nonneg(
 ///                     = eps_avg + R·amp·ε
 ///                     = eps_avg + ε                  [amp·R = 1]
 pub proof fn lemma_rej_average(
-    d: u64, e: spec_fn(nat) -> real, eps: real, eps_avg: real,
+    d: nat, e: spec_fn(nat) -> real, eps: real, eps_avg: real,
 )
     requires
         d > 1,
         eps > 0real,
         eps_avg >= 0real,
-        eps_avg >= rej_weighted_avg(d as nat, e),
+        eps_avg >= rej_weighted_avg(d, e),
         forall |u: nat| (#[trigger] e(u)) >= 0real,
     ensures
-        average(d, rej_credit_alloc(
-            d as nat, e, rej_amp(d as nat) * eps + eps_avg,
+        average_nat(d, rej_credit_alloc(
+            d, e, rej_amp(d) * eps + eps_avg,
         )) <= eps + eps_avg,
 {
-    let dn = d as nat;
-    let rej_credit = rej_amp(dn) * eps + eps_avg;
-    let alloc = rej_credit_alloc(dn, e, rej_credit);
-    let n_const = rej_norm_const(dn);
-    let r = rej_rate(dn);
-    let amp = rej_amp(dn);
+    let rej_credit = rej_amp(d) * eps + eps_avg;
+    let alloc = rej_credit_alloc(d, e, rej_credit);
+    let n_const = rej_norm_const(d);
+    let r = rej_rate(d);
+    let amp = rej_amp(d);
 
-    lemma_rej_rate_range(dn);
-    lemma_rej_weight_sum_lt_d(dn, dn);
-    lemma_rej_sum_split(dn, e, rej_credit, dn);
+    lemma_rej_rate_range(d);
+    lemma_rej_weight_sum_lt_d(d, d);
+    lemma_rej_sum_split(d, e, rej_credit, d);
 
-    let sum = sum_credit(alloc, dn);
-    let wsum = rej_weighted_sum(dn, e, dn);
+    let sum = sum_credit(alloc, d);
+    let wsum = rej_weighted_sum(d, e, d);
 
     // Bridge facts:  rej_credit ≥ 0;  wsum ≤ N·eps_avg;  r·amp = 1;
     //                r = (d − N)/d.  Then the final inequality follows.
@@ -423,19 +426,19 @@ pub proof fn lemma_rej_average(
     assert(r * amp == 1real) by(nonlinear_arith)
         requires amp == 1real / r, r > 0real;
     assert(r == (d as real - n_const) / d as real) by(nonlinear_arith)
-        requires r == 1real - n_const / d as real, d > 1u64;
+        requires r == 1real - n_const / d as real, d > 1;
 
-    assert(average(d, alloc) <= eps + eps_avg) by(nonlinear_arith)
+    assert(average_nat(d, alloc) <= eps + eps_avg) by(nonlinear_arith)
         requires
             sum == wsum + rej_credit * (d as real - n_const),
             wsum <= n_const * eps_avg,
-            average(d, alloc) == sum / d as real,
+            average_nat(d, alloc) == sum / d as real,
             rej_credit == amp * eps + eps_avg,
             r * amp == 1real,
             r == (d as real - n_const) / d as real,
             0real < r < 1real,
             0real < n_const, n_const < d as real,
-            d > 1u64,
+            d > 1,
             eps > 0real, eps_avg >= 0real;
 }
 
@@ -454,24 +457,98 @@ proof fn lemma_rej_bws(
     ) == rej_credit_alloc(d, e, rej_credit)(u as real),
 {}
 
-// TODO: switch to UBig? Is that necessary?
+/// rej_credit_alloc(d,e,rc)(0) = e(0):  acceptance at u = 0 is e^{−0/d} = 1.
+proof fn lemma_rej_alloc_at_zero(d: nat, e: spec_fn(nat) -> real, rc: real)
+    requires d > 0,
+    ensures rej_credit_alloc(d, e, rc)(0real) == e(0nat),
+{
+    let alloc = rej_credit_alloc(d, e, rc);
+    assert(0real / d as real == 0real) by(nonlinear_arith) requires d > 0;
+    assert(-(0real / d as real) == 0real) by(nonlinear_arith) requires 0real / d as real == 0real;
+    axiom_exp_zero();
+    assert(exp(-(0real / d as real)) == 1real);
+    assert(0real.floor() == 0int);
+    assert(alloc(0real) == e(0nat)) by(nonlinear_arith)
+        requires
+            alloc(0real) == exp(-(0real / d as real)) * e(0real.floor() as nat)
+                + (1real - exp(-(0real / d as real))) * rc,
+            exp(-(0real / d as real)) == 1real,
+            0real.floor() as nat == 0nat;
+}
+
+/// average over Uniform{0} (d = 1) of rej_credit_alloc = e(0).
+proof fn lemma_rej_avg_one_alloc(e: spec_fn(nat) -> real, rc: real)
+    ensures average_nat(1nat, rej_credit_alloc(1nat, e, rc)) == e(0nat),
+{
+    let alloc = rej_credit_alloc(1nat, e, rc);
+    lemma_rej_alloc_at_zero(1nat, e, rc);   // alloc(0) == e(0)
+    assert(sum_credit(alloc, 1nat) == alloc(0real)) by {
+        reveal_with_fuel(sum_credit, 2);
+    }
+    assert(average_nat(1nat, alloc) == e(0nat)) by(nonlinear_arith)
+        requires average_nat(1nat, alloc) == sum_credit(alloc, 1nat) / (1nat as real),
+            sum_credit(alloc, 1nat) == alloc(0real), alloc(0real) == e(0nat);
+}
+
+/// For d = 1 the rejection average collapses to e(0):  rej_weighted_avg(1, e) = e(0).
+/// (Only outcome is u = 0, with acceptance e^{−0/1} = 1.)
+proof fn lemma_rej_avg_one(e: spec_fn(nat) -> real)
+    ensures rej_weighted_avg(1nat, e) == e(0nat),
+{
+    lemma_rej_weight_zero(1nat);   // rej_weight(1, 0) == 1
+    assert(rej_weighted_sum(1nat, e, 1nat)
+        == rej_weighted_sum(1nat, e, 0nat) + rej_weight(1nat, 0nat) * e(0nat));
+    assert(rej_weighted_sum(1nat, e, 1nat) == e(0nat)) by(nonlinear_arith)
+        requires rej_weighted_sum(1nat, e, 1nat) == 0real + rej_weight(1nat, 0nat) * e(0nat),
+            rej_weight(1nat, 0nat) == 1real;
+    assert(rej_weight_sum(1nat, 1nat) == rej_weight_sum(1nat, 0nat) + rej_weight(1nat, 0nat));
+    assert(rej_norm_const(1nat) == 1real);
+    assert(rej_weighted_avg(1nat, e) == e(0nat)) by(nonlinear_arith)
+        requires rej_weighted_avg(1nat, e) == rej_weighted_sum(1nat, e, 1nat) / rej_norm_const(1nat),
+            rej_weighted_sum(1nat, e, 1nat) == e(0nat), rej_norm_const(1nat) == 1real;
+}
+
 pub fn sample_exp_rejection(
-    denom: u64,
+    denom: &UBig,
     Ghost(e): Ghost<spec_fn(nat) -> real>,
     Tracked(input_credit): Tracked<ErrorCreditResource>,
     Ghost(eps_avg): Ghost<real>,
-) -> (ret: (u64, Tracked<ErrorCreditResource>))
+) -> (ret: (UBig, Tracked<ErrorCreditResource>))
     requires
-        denom > 1,
+        ubig_view(denom) > 0,
         forall |u: nat| (#[trigger] e(u)) >= 0real,
         eps_avg >= 0real,
         input_credit.view() =~= (ErrorCreditCarrier::Value { car: eps_avg }),
-        eps_avg >= rej_weighted_avg(denom as nat, e),
+        eps_avg >= rej_weighted_avg(ubig_view(denom), e),
     ensures
-        ret.0 < denom,
-        ret.1@.view() =~= (ErrorCreditCarrier::Value { car: e(ret.0 as nat) }),
+        ubig_view(&ret.0) < ubig_view(denom),
+        ret.1@.view() =~= (ErrorCreditCarrier::Value { car: e(ubig_view(&ret.0)) }),
 {
-    let ghost amp = rej_amp(denom as nat);
+    let ghost d = ubig_view(denom);
+
+    // d == 1: the only outcome is u = 0, accepted with certainty (e^{−0/1} = 1).
+    // No rejection occurs, so the amplification machinery (which needs d > 1) is
+    // bypassed — we draw u = 0 directly with the plain credit allocation ℰ.
+    let one_ub = ubig_from_u64(1u64);
+    if !ubig_lt(&one_ub, denom) {
+        proof { assert(d == 1); }
+        let ghost alloc = rej_credit_alloc(d, e, 0real);
+        proof {
+            lemma_rej_avg_one(e);                 // rej_weighted_avg(1,e) == e(0)
+            lemma_rej_avg_one_alloc(e, 0real);    // average_nat(1, alloc) == e(0)
+            lemma_rej_alloc_nonneg(d, e, 0real);  // forall i. alloc(i as real) >= 0
+        }
+        let (u_val, Tracked(u_credit)) = rand_ubig(denom, Tracked(input_credit), Ghost(alloc));
+        proof {
+            assert(ubig_view(&u_val) == 0);                 // < d == 1
+            assert(ubig_view(&u_val) as real == 0real);
+            lemma_rej_alloc_at_zero(d, e, 0real);           // alloc(0) == e(0)
+        }
+        return (u_val, Tracked(u_credit));
+    }
+    proof { assert(d > 1); }
+
+    let ghost amp = rej_amp(d);
 
     let Tracked(eps_credit) = thin_air();
     let ghost init_eps: real;
@@ -485,29 +562,30 @@ pub fn sample_exp_rejection(
     let ghost mut g_depth: nat;
 
     proof {
-        lemma_rej_rate_range(denom as nat);
+        lemma_rej_rate_range(d);
         archimedean_exp_growth(init_eps, amp);
         g_depth = choose |k: nat| init_eps * pow(amp, k) >= 1real;
     }
 
-    let mut u: u64 = 0;
+    let mut u: UBig = ubig_from_u64(0u64);
     let mut accepted: bool = false;
 
     while !accepted
         invariant
-            denom > 1,
+            ubig_view(denom) > 1,
+            d == ubig_view(denom),
             forall |u: nat| (#[trigger] e(u)) >= 0real,
             eps_avg >= 0real,
-            eps_avg >= rej_weighted_avg(denom as nat, e),
+            eps_avg >= rej_weighted_avg(d, e),
             amp > 1real,
-            amp == rej_amp(denom as nat),
+            amp == rej_amp(d),
             // Credit invariant (still rejecting).
             !accepted ==> g_eps > 0real,
             !accepted ==> credit.view() =~= (ErrorCreditCarrier::Value { car: g_eps + eps_avg }),
             !accepted ==> g_eps * pow(amp, g_depth) >= 1real,
             // Accept postcondition.
-            accepted ==> u < denom,
-            accepted ==> credit.view() =~= (ErrorCreditCarrier::Value { car: e(u as nat) }),
+            accepted ==> ubig_view(&u) < ubig_view(denom),
+            accepted ==> credit.view() =~= (ErrorCreditCarrier::Value { car: e(ubig_view(&u)) }),
         decreases g_depth,
     {
         proof {
@@ -520,32 +598,33 @@ pub fn sample_exp_rejection(
         }
 
         let ghost rej_credit = amp * g_eps + eps_avg;
-        let ghost alloc = rej_credit_alloc(denom as nat, e, rej_credit);
+        let ghost alloc = rej_credit_alloc(d, e, rej_credit);
 
         proof {
             assert(rej_credit >= 0real) by(nonlinear_arith)
                 requires rej_credit == amp * g_eps + eps_avg,
                     amp > 1real, g_eps > 0real, eps_avg >= 0real;
-            lemma_rej_average(denom, e, g_eps, eps_avg);
-            lemma_rej_alloc_nonneg(denom, e, rej_credit);
+            lemma_rej_average(d, e, g_eps, eps_avg);
+            lemma_rej_alloc_nonneg(d, e, rej_credit);
         }
 
-        let (u_val, Tracked(u_credit)) = rand_u64(
+        let (u_val, Tracked(u_credit)) = rand_ubig(
             denom, Tracked(credit), Ghost(alloc),
         );
 
-        let ghost g_flip_e = rej_flip_e(e, u_val as nat, rej_credit);
-        let ghost g_h_val = alloc(u_val as real);
+        let ghost uvn = ubig_view(&u_val);
+        let ghost g_flip_e = rej_flip_e(e, uvn, rej_credit);
+        let ghost g_h_val = alloc(uvn as real);
 
         proof {
-            assert(u_val as real / denom as real >= 0real) by(nonlinear_arith)
-                requires denom > 0u64;
-            axiom_exp_neg_range(u_val as real / denom as real);
-            lemma_rej_bws(denom as nat, u_val as nat, e, rej_credit);
+            assert(uvn as real / d as real >= 0real) by(nonlinear_arith)
+                requires d > 0;
+            axiom_exp_neg_range(uvn as real / d as real);
+            lemma_rej_bws(d, uvn, e, rej_credit);
         }
 
-        let (heads, Tracked(flip_out)) = sample_bernoulli_exp(
-            u_val, denom, Ghost(g_flip_e), Tracked(u_credit), Ghost(g_h_val),
+        let (heads, Tracked(flip_out)) = sample_bernoulli_exp_ubig(
+            &u_val, denom, Ghost(g_flip_e), Tracked(u_credit), Ghost(g_h_val),
         );
 
         if heads {

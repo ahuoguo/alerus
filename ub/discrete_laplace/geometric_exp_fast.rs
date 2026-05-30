@@ -112,7 +112,7 @@
 
 use vstd::prelude::*;
 
-use random::{UBig, ubig_div_u64, ubig_add_u64, ubig_mul_u64};
+use random::{UBig, ubig_div, ubig_add, ubig_mul};
 
 verus! {
 
@@ -760,7 +760,7 @@ proof fn lemma_pow_partial_bound(
     numer: nat, denom: nat, e: spec_fn(nat) -> real, dist_bound: real, r_max: nat,
 )
     requires
-        numer > 0, denom > 1,
+        numer > 0, denom > 0,
         forall |k: nat| (#[trigger] e(k)) >= 0real,
         dist_bound >= 0real,
         geo_exp_series_bounded_by(
@@ -850,7 +850,7 @@ pub proof fn lemma_partial_weighted_avg_bound(
     numer: nat, denom: nat, e: spec_fn(nat) -> real, dist_bound: real, m: nat,
 )
     requires
-        numer > 0, denom > 1,
+        numer > 0, denom > 0,
         forall |k: nat| (#[trigger] e(k)) >= 0real,
         dist_bound >= 0real,
         geo_exp_series_bounded_by(exp(-(numer as real / denom as real)), e, dist_bound),
@@ -884,7 +884,7 @@ pub proof fn lemma_partial_weighted_avg_bound(
 
     // Sign facts:  1 − p > 0 (since p < 1),  1 − e^{−1} ≥ 0,  s ≥ 0,  nc ≥ 0.
     assert(0real < numer as real / denom as real) by(nonlinear_arith)
-        requires numer > 0, denom > 1;
+        requires numer > 0, denom > 0;
     axiom_exp_neg_strict(numer as real / denom as real);
     axiom_exp_neg_range(1real);
     crate::discrete_laplace::exp_rejection::lemma_rej_weight_sum_bounds(denom, numer);
@@ -1051,7 +1051,7 @@ proof fn lemma_inner_partial_sum_bounded(
     u: nat, m: nat,
 )
     requires
-        numer > 0, denom > 1, u < denom as nat,
+        numer > 0, denom > 0, u < denom as nat,
         forall |k: nat| (#[trigger] e(k)) >= 0real,
         dist_bound >= 0real,
         geo_exp_series_bounded_by(exp(-(numer as real / denom as real)), e, dist_bound),
@@ -1128,7 +1128,7 @@ proof fn lemma_inner_seq_converges(
     numer: nat, denom: nat, e: spec_fn(nat) -> real, dist_bound: real, u: nat,
 )
     requires
-        numer > 0, denom > 1, u < denom as nat,
+        numer > 0, denom > 0, u < denom as nat,
         forall |k: nat| (#[trigger] e(k)) >= 0real,
         dist_bound >= 0real,
         geo_exp_series_bounded_by(exp(-(numer as real / denom as real)), e, dist_bound),
@@ -1163,7 +1163,7 @@ proof fn lemma_f_is_limit(
     numer: nat, denom: nat, e: spec_fn(nat) -> real, dist_bound: real, u: nat,
 )
     requires
-        numer > 0, denom > 1, u < denom as nat,
+        numer > 0, denom > 0, u < denom as nat,
         forall |k: nat| (#[trigger] e(k)) >= 0real,
         dist_bound >= 0real,
         geo_exp_series_bounded_by(exp(-(numer as real / denom as real)), e, dist_bound),
@@ -1220,7 +1220,7 @@ proof fn lemma_f_nonneg(
     numer: nat, denom: nat, e: spec_fn(nat) -> real, dist_bound: real, u: nat,
 )
     requires
-        numer > 0, denom > 1, u < denom as nat,
+        numer > 0, denom > 0, u < denom as nat,
         forall |k: nat| (#[trigger] e(k)) >= 0real,
         dist_bound >= 0real,
         geo_exp_series_bounded_by(exp(-(numer as real / denom as real)), e, dist_bound),
@@ -1249,7 +1249,7 @@ proof fn lemma_f_bounds_inner(
     numer: nat, denom: nat, e: spec_fn(nat) -> real, dist_bound: real, u: nat,
 )
     requires
-        numer > 0, denom > 1, u < denom as nat,
+        numer > 0, denom > 0, u < denom as nat,
         forall |k: nat| (#[trigger] e(k)) >= 0real,
         dist_bound >= 0real,
         geo_exp_series_bounded_by(exp(-(numer as real / denom as real)), e, dist_bound),
@@ -1289,7 +1289,7 @@ proof fn lemma_weighted_joint_helper_converges(
     numer: nat, denom: nat, e: spec_fn(nat) -> real, dist_bound: real, u_max: nat,
 )
     requires
-        numer > 0, denom > 1, u_max <= denom as nat,
+        numer > 0, denom > 0, u_max <= denom as nat,
         forall |k: nat| (#[trigger] e(k)) >= 0real,
         dist_bound >= 0real,
         geo_exp_series_bounded_by(exp(-(numer as real / denom as real)), e, dist_bound),
@@ -1366,7 +1366,7 @@ proof fn lemma_weighted_avg_bound(
     numer: nat, denom: nat, e: spec_fn(nat) -> real, dist_bound: real,
 )
     requires
-        numer > 0, denom > 1,
+        numer > 0, denom > 0,
         forall |k: nat| (#[trigger] e(k)) >= 0real,
         dist_bound >= 0real,
         geo_exp_series_bounded_by(exp(-(numer as real / denom as real)), e, dist_bound),
@@ -1397,7 +1397,7 @@ proof fn lemma_weighted_avg_bound(
     lemma_norm_const_identity(denom);
     assert(1nat as real / denom as real == 1real / denom as real) by(nonlinear_arith)
         requires denom > 0;
-    assert(1real / denom as real > 0real) by(nonlinear_arith) requires denom > 1;
+    assert(1real / denom as real > 0real) by(nonlinear_arith) requires denom > 0;
     axiom_exp_neg_strict(1real / denom as real);
     axiom_exp_neg_strict(1real);
     assert(nc > 0real) by(nonlinear_arith)
@@ -1432,17 +1432,17 @@ proof fn lemma_weighted_avg_bound(
 ///   ─────────────────────────────────────────────────────
 ///   [{ ↯(ε) }] sample_geometric_exp_fast(n/d) [{ r. ↯(F(r)) }]
 pub fn sample_geometric_exp_fast(
-    numer_x: u64,
-    denom_x: u64,
+    numer_x: &UBig,
+    denom_x: &UBig,
     Ghost(p): Ghost<real>,
     Ghost(e): Ghost<spec_fn(nat) -> real>,
     Tracked(input_credit): Tracked<ErrorCreditResource>,
     Ghost(dist_bound): Ghost<real>,
 ) -> (ret: (UBig, Tracked<ErrorCreditResource>))
     requires
-        numer_x > 0, denom_x > 1,
+        ubig_view(numer_x) > 0, ubig_view(denom_x) > 0,
         0real < p < 1real,
-        p == exp(-(numer_x as real / denom_x as real)),
+        p == exp(-(ubig_view(numer_x) as real / ubig_view(denom_x) as real)),
         forall |k: nat| (#[trigger] e(k)) >= 0real,
         dist_bound >= 0real,
         input_credit.view() =~= (ErrorCreditCarrier::Value { car: dist_bound }),
@@ -1450,9 +1450,10 @@ pub fn sample_geometric_exp_fast(
     ensures
         ret.1@.view() =~= (ErrorCreditCarrier::Value { car: e(ubig_view(&ret.0)) }),
 {
+    let ghost nx = ubig_view(numer_x);
+    let ghost dx = ubig_view(denom_x);
     // f packaged as a spec_fn, used as the postcondition handed to L(d).
-    let ghost f_of_u: spec_fn(nat) -> real =
-        |u: nat| f(numer_x as nat, denom_x as nat, u, e);
+    let ghost f_of_u: spec_fn(nat) -> real = |u: nat| f(nx, dx, u, e);
 
     // Ingredients needed for the L(d) call: f(u) ≥ 0 for all u, and
     // dist_bound ≥ E_{u ~ μ_{L(d)}}[f(u)].
@@ -1460,13 +1461,13 @@ pub fn sample_geometric_exp_fast(
         // Nonneg for u < d via the per-residue limit lemma; for u ≥ d the
         // 0-default in `f` gives nonneg trivially.
         assert forall |u: nat| (#[trigger] f_of_u(u)) >= 0real by {
-            if u < denom_x as nat {
-                lemma_f_nonneg(numer_x as nat, denom_x as nat, e, dist_bound, u);
+            if u < dx {
+                lemma_f_nonneg(nx, dx, e, dist_bound, u);
             } else {
                 assert(f_of_u(u) == 0real);
             }
         };
-        lemma_weighted_avg_bound(numer_x as nat, denom_x as nat, e, dist_bound);
+        lemma_weighted_avg_bound(nx, dx, e, dist_bound);
     }
 
     // E5 step: L(d) call, handing f as postcondition with eps_avg = dist_bound.
@@ -1477,10 +1478,11 @@ pub fn sample_geometric_exp_fast(
         Ghost(dist_bound),
     );
     // Post: ↯(f(u))
+    let ghost un = ubig_view(&u);
 
     // E4 step: slow Geom call, handing g(u, ·) as postcondition.
-    let ghost g_at_u = g(numer_x as nat, denom_x as nat, u as nat, e);
-    let ghost f_at_u = f(numer_x as nat, denom_x as nat, u as nat, e);
+    let ghost g_at_u = g(nx, dx, un, e);
+    let ghost f_at_u = f(nx, dx, un, e);
     let ghost p1 = exp(-1real);
 
     proof {
@@ -1490,7 +1492,7 @@ pub fn sample_geometric_exp_fast(
         assert forall |v: nat| (#[trigger] g_at_u(v)) >= 0real by {};
         // f(u) bounds every inner Geom partial sum at this specific u.
         //   f(u) ≥ Σ_{v<m} (e^{−1})^v (1 − e^{−1}) g(u, v)  ∀m
-        lemma_f_bounds_inner(numer_x as nat, denom_x as nat, e, dist_bound, u as nat);
+        lemma_f_bounds_inner(nx, dx, e, dist_bound, un);
     }
 
     let (v, Tracked(v_credit)) = sample_geometric_exp_slow(
@@ -1500,14 +1502,14 @@ pub fn sample_geometric_exp_fast(
 
     // Algorithmic step: z = u + d·v; return z / n.
     // Postcondition: e((v·d + u) / n) = e(result), so we get ↯(F(result)).
-    let v_scaled = ubig_mul_u64(&v, denom_x);
-    let sum = ubig_add_u64(v_scaled, u);
-    let result = ubig_div_u64(sum, numer_x);
+    let ghost vn = ubig_view(&v);
+    let v_scaled = ubig_mul(v, denom_x.clone());
+    let sum = ubig_add(v_scaled, u);
+    let result = ubig_div(sum, numer_x.clone());
     proof {
-        let vn = ubig_view(&v);
-        assert(ubig_view(&v_scaled) == vn * denom_x as nat);
-        assert(ubig_view(&sum) == vn * denom_x as nat + u as nat);
-        assert(ubig_view(&result) == (vn * denom_x as nat + u as nat) / numer_x as nat);
+        assert(ubig_view(&v_scaled) == vn * dx);
+        assert(ubig_view(&sum) == vn * dx + un);
+        assert(ubig_view(&result) == (vn * dx + un) / nx);
     }
     (result, Tracked(v_credit))
 }
