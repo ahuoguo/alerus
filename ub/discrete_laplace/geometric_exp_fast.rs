@@ -355,24 +355,42 @@ proof fn lemma_outer_partial_block_scaled(
         lemma_rej_weight_shift(denom, k, m);
         // Index match: (denom*m + k) / numer == (k + denom*m) / numer
         assert(denom * m + k == k + denom * m) by(nonlinear_arith);
-        // Combine via nonlinear_arith.
+        // Combine: bind the spec-fn values to plain reals and finish via the
+        // small linear-combine helper (keeps the SMT query off the big terms).
         let pwr = pow(exp(-1real), m);
         let wk = rej_weight(denom, k);
         let ev = e((denom * m + k) / numer);
         assert((k + denom * m) / numer == (denom * m + k) / numer);
-        assert(outer_partial(numer, denom, e, denom * m + u_max)
-            == outer_partial(numer, denom, e, denom * m)
-                + pwr * outer_row_partial(numer, denom, e, m, u_max))
-            by(nonlinear_arith)
-            requires
-                outer_partial(numer, denom, e, denom * m + u_max)
-                    == outer_partial(numer, denom, e, denom * m + k) + (wk * pwr) * ev,
-                outer_partial(numer, denom, e, denom * m + k)
-                    == outer_partial(numer, denom, e, denom * m) + pwr * outer_row_partial(numer, denom, e, m, k),
-                outer_row_partial(numer, denom, e, m, u_max)
-                    == outer_row_partial(numer, denom, e, m, k) + wk * ev,
+        let ghost op_full = outer_partial(numer, denom, e, denom * m + u_max);
+        let ghost op_k = outer_partial(numer, denom, e, denom * m + k);
+        let ghost op_0 = outer_partial(numer, denom, e, denom * m);
+        let ghost orp_full = outer_row_partial(numer, denom, e, m, u_max);
+        let ghost orp_k = outer_row_partial(numer, denom, e, m, k);
+        // A:  op_full = op_k + (wk·pwr)·ev   (def step + the rej_weight shift).
+        assert(op_full == op_k + (wk * pwr) * ev) by(nonlinear_arith)
+            requires op_full == op_k + rej_weight(denom, denom * m + k) * ev,
                 rej_weight(denom, denom * m + k) == wk * pwr;
+        lemma_block_combine(op_full, op_k, op_0, orp_full, orp_k, pwr, wk, ev);
     }
+}
+
+/// Linear combine for the block-scaling step (plain reals, no spec-fn terms):
+///   op_full = op_k + (wk·pwr)·ev,  op_k = op_0 + pwr·orp_k,  orp_full = orp_k + wk·ev
+///   ⟹  op_full = op_0 + pwr·orp_full.
+proof fn lemma_block_combine(
+    op_full: real, op_k: real, op_0: real, orp_full: real, orp_k: real,
+    pwr: real, wk: real, ev: real,
+)
+    requires
+        op_full == op_k + (wk * pwr) * ev,
+        op_k == op_0 + pwr * orp_k,
+        orp_full == orp_k + wk * ev,
+    ensures
+        op_full == op_0 + pwr * orp_full,
+{
+    assert(pwr * orp_full == pwr * orp_k + pwr * (wk * ev)) by(nonlinear_arith)
+        requires orp_full == orp_k + wk * ev;
+    assert((wk * pwr) * ev == pwr * (wk * ev)) by(nonlinear_arith);
 }
 
 // ----------------------------------------------------------------------------

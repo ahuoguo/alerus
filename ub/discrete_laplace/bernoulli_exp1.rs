@@ -18,10 +18,7 @@
 // Termination: slack · Π amp_j ≥ 1, tracked via slack_product.
 
 use vstd::prelude::*;
-
-use random::{ubig_from_u64, ubig_succ, ubig_mul_u64, ubig_mul, ubig_is_odd};
-#[cfg(verus_keep_ghost)]
-use random::UBig;
+use random::{ubig_from_u64, ubig_succ, ubig_mul_u64, ubig_mul, ubig_is_odd, UBig};
 
 verus! {
 
@@ -29,6 +26,8 @@ use crate::ub::*;
 use crate::rand_primitives::thin_air;
 #[cfg(verus_keep_ghost)]
 use crate::math::pow::{pow, archimedean_exp_growth};
+#[cfg(verus_keep_ghost)]
+use crate::math::real::real_assoc_mult;
 #[cfg(verus_keep_ghost)]
 use crate::math::series::{lemma_pow_nonneg, partial_sum};
 #[cfg(verus_keep_ghost)]
@@ -556,11 +555,6 @@ proof fn lemma_slack_product_k1_bound(x: real, depth: nat)
     lemma_pow_nonneg(2real, (depth - 1) as nat);
     real_mul_ineq(a, sp, 1real, pow(2real, (depth - 1) as nat));
 }
-
-#[verifier::nonlinear]
-proof fn real_assoc_mult(a: real, b: real, c: real)
-    ensures a * (b * c) == (a * b) * c,
-{}
 
 #[verifier::nonlinear]
 proof fn real_mul_ineq(a: real, b: real, a_lb: real, b_lb: real)

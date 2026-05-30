@@ -39,6 +39,8 @@ use crate::ub::*;
 #[cfg(verus_keep_ghost)]
 use crate::math::pow::{pow, archimedean_exp_growth};
 #[cfg(verus_keep_ghost)]
+use crate::math::real::real_assoc_mult;
+#[cfg(verus_keep_ghost)]
 use crate::math::exp::{exp, axiom_exp_zero, axiom_exp_neg_range, axiom_exp_neg_strict, axiom_exp_add};
 use crate::rand_primitives::{thin_air, rand_u64};
 #[cfg(verus_keep_ghost)]
@@ -450,11 +452,6 @@ proof fn lemma_rej_bws(
         exp(-(u as real / d as real)),
         rej_flip_e(e, u, rej_credit),
     ) == rej_credit_alloc(d, e, rej_credit)(u as real),
-{}
-
-#[verifier::nonlinear]
-proof fn real_assoc_mult(a: real, b: real, c: real)
-    ensures a * (b * c) == (a * b) * c,
 {}
 
 // TODO: switch to UBig? Is that necessary?

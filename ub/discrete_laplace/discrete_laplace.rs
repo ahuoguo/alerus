@@ -25,6 +25,8 @@ use crate::ub::*;
 #[cfg(verus_keep_ghost)]
 use crate::math::pow::{pow, archimedean_exp_growth};
 #[cfg(verus_keep_ghost)]
+use crate::math::real::real_assoc_mult;
+#[cfg(verus_keep_ghost)]
 use crate::math::series::*;
 #[cfg(verus_keep_ghost)]
 use crate::math::exp::{exp, axiom_exp_neg_range, axiom_exp_neg_strict};
@@ -392,11 +394,6 @@ proof fn lemma_dl_credit_split(
 }
 
 /// Associativity: a * (b * c) == (a * b) * c.
-#[verifier::nonlinear]
-proof fn real_assoc_mult(a: real, b: real, c: real)
-    ensures a * (b * c) == (a * b) * c,
-{}
-
 /// Sample from Discrete Laplace DL(0, scale) where 1/scale = inv_numer/inv_denom.
 pub fn sample_discrete_laplace(
     inv_numer: u64,
