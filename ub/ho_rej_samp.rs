@@ -22,6 +22,8 @@ use crate::rand_primitives::{rand_u64, thin_air};
 use crate::rand_primitives::{average, sum_credit};
 #[cfg(verus_keep_ghost)]
 use crate::math::pow::{pow, archimedean_exp_growth};
+#[cfg(verus_keep_ghost)]
+use crate::math::real::real_assoc_mult;
 
 verus! {
 
@@ -206,13 +208,6 @@ pub fn rejection_sampler<S: SamplingScheme>(
 // ============================================================================
 // Helper lemmas
 // ============================================================================
-
-#[verifier::nonlinear]
-proof fn real_assoc_mult(a: real, b: real, c: real)
-    ensures
-        a * (b * c) == (a * b) * c,
-{
-}
 
 #[verifier::nonlinear]
 proof fn lemma_pos_mult(a: real, b: real)

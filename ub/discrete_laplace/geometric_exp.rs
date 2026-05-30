@@ -21,6 +21,8 @@ use crate::extern_spec::{ExUBig, ubig_view};
 #[cfg(verus_keep_ghost)]
 use crate::math::pow::{pow, archimedean_exp_growth};
 #[cfg(verus_keep_ghost)]
+use crate::math::real::real_assoc_mult;
+#[cfg(verus_keep_ghost)]
 use crate::math::series::shift_e;
 #[cfg(verus_keep_ghost)]
 use crate::math::exp::exp;
@@ -168,11 +170,6 @@ proof fn lemma_flip_true_nonneg(p: real, e: spec_fn(nat) -> real, eps: real)
 }
 
 /// Associativity: a * (b * c) == (a * b) * c.
-#[verifier::nonlinear]
-proof fn real_assoc_mult(a: real, b: real, c: real)
-    ensures a * (b * c) == (a * b) * c,
-{}
-
 // ============================================================================
 // Sampler
 // ============================================================================

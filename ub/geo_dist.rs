@@ -32,6 +32,8 @@ use crate::rand_primitives::{rand_1_u64, thin_air};
 #[cfg(verus_keep_ghost)]
 use crate::math::pow::{pow, archimedean_exp_growth};
 #[cfg(verus_keep_ghost)]
+use crate::math::real::real_assoc_mult;
+#[cfg(verus_keep_ghost)]
 use crate::math::series::*;
 #[cfg(verus_keep_ghost)]
 use crate::extern_spec::ExUBig;
@@ -164,11 +166,6 @@ proof fn lemma_geo_dist_average(e: spec_fn(nat) -> real, eps: real)
     ensures
         eps >= (geo_dist_credit_alloc(e, eps)(0real)
               + geo_dist_credit_alloc(e, eps)(1real)) / 2real,
-{}
-
-#[verifier::nonlinear]
-proof fn real_assoc_mult(a: real, b: real, c: real)
-    ensures a * (b * c) == (a * b) * c,
 {}
 
 /// ℰ(v) = 0 if v == 0, else 1. Series = 0.5.

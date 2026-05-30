@@ -7,7 +7,7 @@ use vstd::prelude::*;
 
 use random::{UBig, IBig};
 #[cfg(verus_keep_ghost)]
-use random::{ubig_zero, ubig_succ, ubig_pred, ubig_is_zero, ubig_add, ubig_mul, ubig_mul_u64, ubig_from_u64, ubig_is_odd, ubig_div_u64, ubig_add_u64, ibig_from_ubig, ibig_neg, ibig_is_zero, ibig_from_i64, ibig_add, ibig_ge, ibig_lt, ibig_clone, ibig_mul, ibig_abs, ubig_sub};
+use random::{ubig_zero, ubig_succ, ubig_pred, ubig_is_zero, ubig_add, ubig_mul, ubig_mul_u64, ubig_from_u64, ubig_is_odd, ubig_div_u64, ubig_add_u64, ibig_from_ubig, ibig_neg, ibig_is_zero, ibig_from_i64, ibig_add, ibig_sub, ibig_ge, ibig_lt, ibig_clone, ibig_mul, ibig_abs, ubig_sub};
 
 verus! {
 
@@ -94,6 +94,9 @@ pub assume_specification[ random::ibig_from_i64 ](n: i64) -> (ret: IBig)
 
 pub assume_specification[ random::ibig_add ](a: &IBig, b: &IBig) -> (ret: IBig)
     ensures ibig_view(&ret) == ibig_view(a) + ibig_view(b);
+
+pub assume_specification[ random::ibig_sub ](a: &IBig, b: &IBig) -> (ret: IBig)
+    ensures ibig_view(&ret) == ibig_view(a) - ibig_view(b);
 
 pub assume_specification[ random::ibig_ge ](a: &IBig, b: &IBig) -> (ret: bool)
     ensures ret == (ibig_view(a) >= ibig_view(b));
