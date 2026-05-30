@@ -5,9 +5,7 @@
 
 use vstd::prelude::*;
 
-use random::{UBig, IBig};
-#[cfg(verus_keep_ghost)]
-use random::{ubig_zero, ubig_succ, ubig_pred, ubig_is_zero, ubig_add, ubig_mul, ubig_mul_u64, ubig_from_u64, ubig_is_odd, ubig_div_u64, ubig_add_u64, ibig_from_ubig, ibig_neg, ibig_is_zero, ibig_from_i64, ibig_add, ibig_sub, ibig_ge, ibig_lt, ibig_clone, ibig_mul, ibig_abs, ubig_sub};
+use random::{UBig, IBig, RBig};
 
 verus! {
 
@@ -54,12 +52,9 @@ pub assume_specification[ random::ubig_from_u64 ](n: u64) -> (ret: UBig)
 pub assume_specification[ random::ubig_is_odd ](n: &UBig) -> (ret: bool)
     ensures ret == (ubig_view(n) % 2 == 1);
 
-pub assume_specification[ random::ubig_div_u64 ](a: UBig, b: u64) -> (ret: UBig)
-    requires b > 0,
-    ensures ubig_view(&ret) == ubig_view(&a) / b as nat;
-
-pub assume_specification[ random::ubig_add_u64 ](a: UBig, b: u64) -> (ret: UBig)
-    ensures ubig_view(&ret) == ubig_view(&a) + b as nat;
+pub assume_specification[ random::ubig_div ](a: UBig, b: UBig) -> (ret: UBig)
+    requires ubig_view(&b) > 0,
+    ensures ubig_view(&ret) == ubig_view(&a) / ubig_view(&b);
 
 #[verifier::external_body]
 pub fn ubig_lt(a: &UBig, b: &UBig) -> (ret: bool)
@@ -113,5 +108,29 @@ pub assume_specification[ random::ibig_mul ](a: &IBig, b: &IBig) -> (ret: IBig)
 /// |n| as a UBig:  ubig_view(result) == |ibig_view(n)|.
 pub assume_specification[ random::ibig_abs ](n: &IBig) -> (ret: UBig)
     ensures ubig_view(&ret) as int == (if ibig_view(n) >= 0 { ibig_view(n) } else { -ibig_view(n) });
+
+#[verifier::external_type_specification]
+#[verifier::external_body]
+#[allow(dead_code)]
+pub struct ExRBig(RBig);
+
+pub uninterp spec fn rbig_view(r: &RBig) -> real;
+
+/// Reduced parts:  rbig_view(r) = numer / denom,  denom > 0.
+pub assume_specification[ random::rbig_into_parts ](r: &RBig) -> (ret: (IBig, UBig))
+    ensures
+        ubig_view(&ret.1) > 0,
+        rbig_view(r) == ibig_view(&ret.0) as real / ubig_view(&ret.1) as real;
+
+pub assume_specification[ random::rbig_from_parts ](numer: IBig, denom: UBig) -> (ret: RBig)
+    requires ubig_view(&denom) > 0,
+    ensures rbig_view(&ret) == ibig_view(&numer) as real / ubig_view(&denom) as real;
+
+/// ⌊r⌋:  ibig_view(ret) == ⌊rbig_view(r)⌋,  and the defining bracketing.
+pub assume_specification[ random::rbig_floor ](r: &RBig) -> (ret: IBig)
+    ensures
+        ibig_view(&ret) == rbig_view(r).floor(),
+        ibig_view(&ret) as real <= rbig_view(r),
+        rbig_view(r) < (ibig_view(&ret) + 1) as real;
 
 } // verus!

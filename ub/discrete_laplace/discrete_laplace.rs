@@ -15,7 +15,7 @@
 
 use vstd::prelude::*;
 
-use random::{IBig, ubig_from_u64, ibig_from_ubig, ibig_neg, ibig_is_zero};
+use random::{IBig, ubig_from_u64, ibig_from_ubig, ibig_neg, ibig_is_zero, RBig, rbig_into_parts, ibig_abs};
 #[cfg(verus_keep_ghost)]
 use random::UBig;
 
@@ -39,7 +39,7 @@ use crate::discrete_laplace::geometric_exp_fast::sample_geometric_exp_fast;
 #[cfg(verus_keep_ghost)]
 use crate::discrete_laplace::geometric_exp::{geo_exp_series_bounded_by, geo_exp_partial_sum, geo_exp_summand};
 #[cfg(verus_keep_ghost)]
-use crate::extern_spec::{ExUBig, ExIBig, ubig_view, ibig_view};
+use crate::extern_spec::{ExUBig, ExIBig, ExRBig, ubig_view, ibig_view, rbig_view};
 
 /// Summand for |x| = k ≥ 1: P[+k]·ℰ(+k) + P[-k]·ℰ(-k).
 pub open spec fn dl_symmetric_summand(p: real, e: spec_fn(int) -> real, k: nat) -> real {
@@ -589,25 +589,25 @@ pub fn sample_discrete_laplace(
     }
 }
 
-/// Fast variant of [`sample_discrete_laplace`]: identical Hoare rule and proof,
-/// but draws each magnitude with `sample_geometric_exp_fast` instead of the slow
-/// `sample_geometric_exp`.  The fast geometric sampler proves the same
-/// expectation-preservation rule, so the credit-split machinery
-/// (`lemma_dl_credit_split` etc.) is reused verbatim; the only contract change
-/// is `inv_denom > 1` (the fast sampler's residue-rejection step needs d > 1).
+/// Fast variant of [`sample_discrete_laplace`] taking an arbitrary-precision
+/// rational `scale` (matching opendp's `sample_discrete_laplace(scale: RBig)`):
+/// identical Hoare rule and proof, but draws each magnitude with
+/// `sample_geometric_exp_fast` instead of the slow `sample_geometric_exp`.
+/// The credit-split machinery (`lemma_dl_credit_split` etc.) is reused verbatim.
+///
+///   p = e^{−1/scale};  scale = sn/sd, so 1/scale = sd/sn and the fast geometric
+///   sampler is fed numerator `sd`, denominator `sn`.
 pub fn sample_discrete_laplace_fast(
-    inv_numer: u64,
-    inv_denom: u64,
+    scale: &RBig,
     Ghost(p): Ghost<real>,
     Ghost(e): Ghost<spec_fn(int) -> real>,
     Tracked(input_credit): Tracked<ErrorCreditResource>,
     Ghost(eps): Ghost<real>,
 ) -> (ret: (IBig, Tracked<ErrorCreditResource>))
     requires
-        inv_numer > 0,
-        inv_denom > 1,
+        rbig_view(scale) > 0real,
         0real < p < 1real,
-        p == exp(-(inv_numer as real / inv_denom as real)),
+        p == exp(-(1real / rbig_view(scale))),
         forall |x: int| (#[trigger] e(x)) >= 0real,
         eps > 0real,
         input_credit.view() =~= (ErrorCreditCarrier::Value { car: eps }),
@@ -615,6 +615,30 @@ pub fn sample_discrete_laplace_fast(
     ensures
         ret.1@.view() =~= (ErrorCreditCarrier::Value { car: e(ibig_view(&ret.0)) }),
 {
+    // scale = sn/sd (sn ≥ 1 since scale > 0, sd ≥ 1); 1/scale = sd/sn.
+    let parts = rbig_into_parts(scale);
+    let sn_signed = parts.0;
+    let sd = parts.1;
+    let sn = ibig_abs(&sn_signed);
+    proof {
+        // rbig_view(scale) = sn_signed / sd, denom sd > 0  (from rbig_into_parts).
+        assert(rbig_view(scale) == ibig_view(&sn_signed) as real / ubig_view(&sd) as real);
+        assert(ubig_view(&sd) > 0);
+        assert(ibig_view(&sn_signed) > 0) by(nonlinear_arith)
+            requires rbig_view(scale) == ibig_view(&sn_signed) as real / ubig_view(&sd) as real,
+                rbig_view(scale) > 0real, ubig_view(&sd) > 0;
+        // sn = |sn_signed| = sn_signed (≥ 0), so sn > 0.
+        assert(ubig_view(&sn) as int == ibig_view(&sn_signed));   // ibig_abs, sn_signed ≥ 0
+        assert(ubig_view(&sn) > 0);
+        assert(rbig_view(scale) == ubig_view(&sn) as real / ubig_view(&sd) as real);
+        // 1/scale = sd/sn, so p = e^{−1/scale} = e^{−sd/sn}.
+        assert(1real / rbig_view(scale) == ubig_view(&sd) as real / ubig_view(&sn) as real)
+            by(nonlinear_arith)
+            requires rbig_view(scale) == ubig_view(&sn) as real / ubig_view(&sd) as real,
+                ubig_view(&sn) > 0, ubig_view(&sd) > 0;
+        assert(p == exp(-(ubig_view(&sd) as real / ubig_view(&sn) as real)));
+    }
+
     // Get slack for termination
     let Tracked(slack_credit) = thin_air();
     let ghost slack: real;
@@ -635,10 +659,10 @@ pub fn sample_discrete_laplace_fast(
 
     loop
         invariant
-            inv_numer > 0,
-            inv_denom > 1,
+            ubig_view(&sn) > 0,
+            ubig_view(&sd) > 0,
             0real < p < 1real,
-            p == exp(-(inv_numer as real / inv_denom as real)),
+            p == exp(-(ubig_view(&sd) as real / ubig_view(&sn) as real)),
             forall |x: int| (#[trigger] e(x)) >= 0real,
             g_eps > 0real,
             g_slack > 0real,
@@ -713,8 +737,8 @@ pub fn sample_discrete_laplace_fast(
             let ghost e_pos = dl_e_pos(e);
 
             let (magnitude, Tracked(out_credit)) = sample_geometric_exp_fast(
-                inv_numer,
-                inv_denom,
+                &sd,
+                &sn,
                 Ghost(p),
                 Ghost(e_pos),
                 Tracked(branch_credit),
@@ -728,8 +752,8 @@ pub fn sample_discrete_laplace_fast(
             let ghost e_neg = dl_e_neg(e, rc);
 
             let (magnitude, Tracked(out_credit)) = sample_geometric_exp_fast(
-                inv_numer,
-                inv_denom,
+                &sd,
+                &sn,
                 Ghost(p),
                 Ghost(e_neg),
                 Tracked(branch_credit),
