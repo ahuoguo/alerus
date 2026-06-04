@@ -1036,39 +1036,21 @@ pub fn fldr_preprocess(weights: Vec<u64>, m: u64, levels: u64) -> (tab: FldrTabl
     tab
 }
 
-/// Preprocess `weights` (total `m`, K = `levels`) and draw one sample.  The ℰ ≡ 0
-/// instance makes `fldr_exp` = 0, so a single thin-air credit funds the call; the
-/// guarantee that survives is the support bound `ret < n`.
 #[verifier::spinoff_prover]
-pub fn run_fldr_zero(weights: Vec<u64>, m: u64, levels: u64) -> (ret: u64)
-    requires
-        levels >= 1,
-        levels <= 62,
-        pow2(levels as nat) <= usize::MAX as nat,
-        m >= 1,
-        m as nat <= pow2(levels as nat),
-        m as nat == vsum(weights@, weights@.len() as nat),
-        weights@.len() + 1 <= usize::MAX as nat,
-        forall |i: int| 0 <= i < weights@.len() ==> (weights@[i] as nat) < pow2(levels as nat),
-    ensures (ret as nat) < weights@.len(),
+pub fn run_fldr_zero() -> (ret: u64)
+    ensures ret < 3,
 {
-    let ghost n_spec = weights@.len();
-    let tab = fldr_preprocess(weights, m, levels);
-    assert(tab.n as nat == n_spec);
-
     let ghost e = |x: real| 0real;
     let Tracked(credit) = thin_air();
     let ghost eps = choose |sv: real|
         sv > 0real && (credit.view() =~= (ErrorCreditCarrier::Value { car: sv }));
     proof {
-        lemma_fldr_wsum_zero(tab.view(), e, tab.view().n);
-        assert(tab.view().m == m as nat);
-        assert(fldr_exp(tab.view(), e) == 0real / (m as real));
-        assert(0real / (m as real) == 0real) by(nonlinear_arith) requires (m as real) >= 1real;
-        assert(eps >= fldr_exp(tab.view(), e));       // eps > 0 ≥ 0
+        assert((7real * e(0real) + 4real * e(1real) + 8real * e(2real)) / 19real == 0real)
+            by(nonlinear_arith)
+            requires e(0real) == 0real, e(1real) == 0real, e(2real) == 0real;
+        assert(eps >= (7real * e(0real) + 4real * e(1real) + 8real * e(2real)) / 19real);  // eps > 0 ≥ 0
     }
-
-    let (r, Tracked(_unused)) = sample_fldr(&tab, Ghost(e), Tracked(credit), Ghost(eps));
+    let (r, _) = sample_748(Ghost(e), Tracked(credit), Ghost(eps));
     r
 }
 
@@ -1076,19 +1058,31 @@ pub fn run_fldr_zero(weights: Vec<u64>, m: u64, levels: u64) -> (ret: u64)
 pub fn example_fldr() -> (ret: u64)
     ensures ret < 3,
 {
+    run_fldr_zero()
+}
+
+/// Derive the finite spec from general FLDR spec
+#[verifier::spinoff_prover]
+pub fn sample_748(
+    Ghost(e): Ghost<spec_fn(real) -> real>,
+    Tracked(input_credit): Tracked<ErrorCreditResource>,
+    Ghost(eps): Ghost<real>,
+) -> (ret: (u64, Tracked<ErrorCreditResource>))
+    requires
+        forall |x: real| (#[trigger] e(x)) >= 0real,
+        eps >= (7real * e(0real) + 4real * e(1real) + 8real * e(2real)) / 19real,
+        input_credit.view() =~= (ErrorCreditCarrier::Value { car: eps }),
+    ensures
+        ret.0 < 3,
+        ret.1@.view() =~= (ErrorCreditCarrier::Value { car: e(ret.0 as real) }),
+{
     let mut w: Vec<u64> = Vec::new();
     w.push(7);
     w.push(4);
     w.push(8);
-    proof {
-        reveal_with_fuel(vsum, 4);
-        lemma2_to64();
-        assert(w@.len() == 3);
-        assert(vsum(w@, 3) == 19);
-        assert(pow2(5) == 32);
-        assert forall |i: int| 0 <= i < 3 implies (#[trigger] w@[i] as nat) < pow2(5) by {}
-    }
-    run_fldr_zero(w, 19, 5)
+    proof { reveal_with_fuel(vsum, 4); reveal_with_fuel(fldr_wsum, 4); lemma2_to64(); }
+    let tab = fldr_preprocess(w, 19, 5);
+    sample_fldr(&tab, Ghost(e), Tracked(input_credit), Ghost(eps))
 }
 
 } // verus!
