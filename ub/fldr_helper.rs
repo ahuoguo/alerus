@@ -75,12 +75,12 @@ pub proof fn lemma_fldr_v_vfsum_half_vpairsum(t: Ddg, e: spec_fn(real) -> real, 
         let ghost ga = fldr_g(t, e, c + 1, (2 * ((j - 1) as nat)) as nat, k);
         let ghost gb = fldr_g(t, e, c + 1, (2 * ((j - 1) as nat) + 1) as nat, k);
         let ghost pf = fldr_vfsum(t, e, c, (j - 1) as nat, (k + 1) as nat);
-        let ghost pp = fldr_vpairsum(t, e, c + 1, (j - 1) as nat, k);
+        let ghost p = fldr_vpairsum(t, e, c + 1, (j - 1) as nat, k);
         assert(fldr_f(t, e, c, (j - 1) as nat, (k + 1) as nat) == (ga + gb) / 2real);
-        assert(pf == (1real / 2real) * pp);
-        assert(fldr_vpairsum(t, e, c + 1, j, k) == pp + ga + gb);
-        assert(pf + (ga + gb) / 2real == (1real / 2real) * (pp + ga + gb)) by(nonlinear_arith)
-            requires pf == (1real / 2real) * pp;
+        assert(pf == (1real / 2real) * p);
+        assert(fldr_vpairsum(t, e, c + 1, j, k) == p + ga + gb);
+        assert(pf + (ga + gb) / 2real == (1real / 2real) * (p + ga + gb)) by(nonlinear_arith)
+            requires pf == (1real / 2real) * p;
     }
 }
 
@@ -109,31 +109,31 @@ pub proof fn lemma_fldr_vs_leaf(t: Ddg, e: spec_fn(real) -> real, c: nat, j: nat
     }
 }
 
-pub proof fn lemma_fldr_vs_internal(t: Ddg, e: spec_fn(real) -> real, c: nat, mm: nat, k: nat)
+pub proof fn lemma_fldr_vs_internal(t: Ddg, e: spec_fn(real) -> real, c: nat, m: nat, k: nat)
     ensures
-        fldr_vs(t, e, c, ((t.h)(c) + mm) as nat, k)
-            == fldr_vs(t, e, c, (t.h)(c), k) + fldr_vfsum(t, e, c, mm, k),
-    decreases mm,
+        fldr_vs(t, e, c, ((t.h)(c) + m) as nat, k)
+            == fldr_vs(t, e, c, (t.h)(c), k) + fldr_vfsum(t, e, c, m, k),
+    decreases m,
 {
-    if mm > 0 {
-        lemma_fldr_vs_internal(t, e, c, (mm - 1) as nat, k);
-        assert((((t.h)(c) + (mm - 1) as nat) - (t.h)(c)) as nat == (mm - 1) as nat);
+    if m > 0 {
+        lemma_fldr_vs_internal(t, e, c, (m - 1) as nat, k);
+        assert((((t.h)(c) + (m - 1) as nat) - (t.h)(c)) as nat == (m - 1) as nat);
     }
 }
 
 /// Adding leaf d=j−1 (label L = lab(c,j−1)) bumps count(c,L,·) by 1, so the
-/// grouped sum gains ℰ(L) iff L < nn.
-pub proof fn lemma_fldr_sumlab_step(t: Ddg, e: spec_fn(real) -> real, c: nat, j: nat, nn: nat)
+/// grouped sum gains ℰ(L) iff L < n.
+pub proof fn lemma_fldr_sumlab_step(t: Ddg, e: spec_fn(real) -> real, c: nat, j: nat, n: nat)
     requires j >= 1,
     ensures
-        fldr_sumlab(t, e, c, j, nn)
-            == fldr_sumlab(t, e, c, (j - 1) as nat, nn)
-               + (if (t.lab)(c, (j - 1) as nat) < nn { e((t.lab)(c, (j - 1) as nat) as real) } else { 0real }),
-    decreases nn,
+        fldr_sumlab(t, e, c, j, n)
+            == fldr_sumlab(t, e, c, (j - 1) as nat, n)
+               + (if (t.lab)(c, (j - 1) as nat) < n { e((t.lab)(c, (j - 1) as nat) as real) } else { 0real }),
+    decreases n,
 {
-    if nn > 0 {
-        lemma_fldr_sumlab_step(t, e, c, j, (nn - 1) as nat);
-        let ghost lbl = (nn - 1) as nat;
+    if n > 0 {
+        lemma_fldr_sumlab_step(t, e, c, j, (n - 1) as nat);
+        let ghost lbl = (n - 1) as nat;
         // count(c,lbl,j) = count(c,lbl,j-1) + [lab(c,j-1) == lbl]
         assert(l_lbl_cnt_upto(t, c, lbl, j)
             == l_lbl_cnt_upto(t, c, lbl, (j - 1) as nat)
@@ -148,16 +148,16 @@ pub proof fn lemma_fldr_sumlab_step(t: Ddg, e: spec_fn(real) -> real, c: nat, j:
 }
 
 /// At j = 0 every count is 0, so the grouped sum is 0.
-pub proof fn lemma_fldr_sumlab_zero(t: Ddg, e: spec_fn(real) -> real, c: nat, nn: nat)
-    ensures fldr_sumlab(t, e, c, 0, nn) == 0real,
-    decreases nn,
+pub proof fn lemma_fldr_sumlab_zero(t: Ddg, e: spec_fn(real) -> real, c: nat, n: nat)
+    ensures fldr_sumlab(t, e, c, 0, n) == 0real,
+    decreases n,
 {
-    if nn > 0 {
-        lemma_fldr_sumlab_zero(t, e, c, (nn - 1) as nat);
-        assert(l_lbl_cnt_upto(t, c, (nn - 1) as nat, 0) == 0);
-        assert((l_lbl_cnt_upto(t, c, (nn - 1) as nat, 0) as real) * e((nn - 1) as real) == 0real)
+    if n > 0 {
+        lemma_fldr_sumlab_zero(t, e, c, (n - 1) as nat);
+        assert(l_lbl_cnt_upto(t, c, (n - 1) as nat, 0) == 0);
+        assert((l_lbl_cnt_upto(t, c, (n - 1) as nat, 0) as real) * e((n - 1) as real) == 0real)
             by(nonlinear_arith)
-            requires l_lbl_cnt_upto(t, c, (nn - 1) as nat, 0) == 0;
+            requires l_lbl_cnt_upto(t, c, (n - 1) as nat, 0) == 0;
     }
 }
 
@@ -194,98 +194,98 @@ pub proof fn lemma_fldr_v_level(t: Ddg, e: spec_fn(real) -> real, c: nat, k: nat
                + (1real / 2real) * fldr_vs(t, e, c + 1, ddg_nodes(t, c + 1), (k - 1) as nat),
 {
     let ghost hh = (t.h)(c);
-    let ghost mm = (ddg_nodes(t, c) - hh) as nat;
-    assert(ddg_nodes(t, c) == (hh + mm) as nat);
-    lemma_fldr_vs_internal(t, e, c, mm, k);
+    let ghost m = (ddg_nodes(t, c) - hh) as nat;
+    assert(ddg_nodes(t, c) == (hh + m) as nat);
+    lemma_fldr_vs_internal(t, e, c, m, k);
     lemma_fldr_vs_leaf(t, e, c, hh, k);
-    lemma_fldr_v_vfsum_half_vpairsum(t, e, c, mm, (k - 1) as nat);
+    lemma_fldr_v_vfsum_half_vpairsum(t, e, c, m, (k - 1) as nat);
     assert(((k - 1) as nat + 1) as nat == k);
-    lemma_fldr_v_pairsum_eq_vs(t, e, c + 1, mm, (k - 1) as nat);
-    assert(ddg_nodes(t, c + 1) == 2 * mm);
+    lemma_fldr_v_pairsum_eq_vs(t, e, c + 1, m, (k - 1) as nat);
+    assert(ddg_nodes(t, c + 1) == 2 * m);
 }
 
-/// rhs_acc(cc,nn) = rhs_acc(cc−1,nn) + 2^{K−cc}·sumlab(cc,h(cc),nn)   (induction on nn).
-pub proof fn lemma_fldr_rhs_acc_step(t: Ddg, e: spec_fn(real) -> real, cc: nat, nn: nat)
-    requires cc >= 1,
+/// rhs_acc(c,n) = rhs_acc(c−1,n) + 2^{K−c}·sumlab(c,h(c),n)   (induction on n).
+pub proof fn lemma_fldr_rhs_acc_step(t: Ddg, e: spec_fn(real) -> real, c: nat, n: nat)
+    requires c >= 1,
     ensures
-        fldr_rhs_acc(t, e, cc, nn)
-            == fldr_rhs_acc(t, e, (cc - 1) as nat, nn)
-               + (pow2((t.levels - cc) as nat) as real) * fldr_sumlab(t, e, cc, (t.h)(cc), nn),
-    decreases nn,
+        fldr_rhs_acc(t, e, c, n)
+            == fldr_rhs_acc(t, e, (c - 1) as nat, n)
+               + (pow2((t.levels - c) as nat) as real) * fldr_sumlab(t, e, c, (t.h)(c), n),
+    decreases n,
 {
-    if nn > 0 {
-        lemma_fldr_rhs_acc_step(t, e, cc, (nn - 1) as nat);
-        let ghost lbl = (nn - 1) as nat;
-        let ghost p = pow2((t.levels - cc) as nat) as real;
-        let ghost cnt = l_lbl_cnt_upto(t, cc, lbl, (t.h)(cc));
-        // wenc(lbl,cc) = wenc(lbl,cc-1) + count(cc,lbl,h(cc))·2^{K-cc}   (def + cast)
-        assert(w_of_lbl_to_l(t, lbl, cc)
-            == w_of_lbl_to_l(t, lbl, (cc - 1) as nat) + cnt * pow2((t.levels - cc) as nat));
-        lemma_nat_mul_real_cast(cnt, pow2((t.levels - cc) as nat));
-        assert((w_of_lbl_to_l(t, lbl, cc) as real)
-            == (w_of_lbl_to_l(t, lbl, (cc - 1) as nat) as real) + (cnt as real) * p);
-        assert(fldr_rhs_acc(t, e, cc, nn)
-                == fldr_rhs_acc(t, e, (cc - 1) as nat, nn)
-                   + p * fldr_sumlab(t, e, cc, (t.h)(cc), nn))
+    if n > 0 {
+        lemma_fldr_rhs_acc_step(t, e, c, (n - 1) as nat);
+        let ghost lbl = (n - 1) as nat;
+        let ghost p = pow2((t.levels - c) as nat) as real;
+        let ghost cnt = l_lbl_cnt_upto(t, c, lbl, (t.h)(c));
+        // wenc(lbl,c) = wenc(lbl,c-1) + count(c,lbl,h(c))·2^{K-c}   (def + cast)
+        assert(w_of_lbl_to_l(t, lbl, c)
+            == w_of_lbl_to_l(t, lbl, (c - 1) as nat) + cnt * pow2((t.levels - c) as nat));
+        lemma_nat_mul_real_cast(cnt, pow2((t.levels - c) as nat));
+        assert((w_of_lbl_to_l(t, lbl, c) as real)
+            == (w_of_lbl_to_l(t, lbl, (c - 1) as nat) as real) + (cnt as real) * p);
+        assert(fldr_rhs_acc(t, e, c, n)
+                == fldr_rhs_acc(t, e, (c - 1) as nat, n)
+                   + p * fldr_sumlab(t, e, c, (t.h)(c), n))
             by(nonlinear_arith)
             requires
-                fldr_rhs_acc(t, e, cc, nn)
-                    == fldr_rhs_acc(t, e, cc, lbl) + (w_of_lbl_to_l(t, lbl, cc) as real) * e(lbl as real),
-                fldr_rhs_acc(t, e, cc, lbl)
-                    == fldr_rhs_acc(t, e, (cc - 1) as nat, lbl) + p * fldr_sumlab(t, e, cc, (t.h)(cc), lbl),
-                (w_of_lbl_to_l(t, lbl, cc) as real)
-                    == (w_of_lbl_to_l(t, lbl, (cc - 1) as nat) as real) + (cnt as real) * p,
-                fldr_rhs_acc(t, e, (cc - 1) as nat, nn)
-                    == fldr_rhs_acc(t, e, (cc - 1) as nat, lbl) + (w_of_lbl_to_l(t, lbl, (cc - 1) as nat) as real) * e(lbl as real),
-                fldr_sumlab(t, e, cc, (t.h)(cc), nn)
-                    == fldr_sumlab(t, e, cc, (t.h)(cc), lbl) + (cnt as real) * e(lbl as real);
+                fldr_rhs_acc(t, e, c, n)
+                    == fldr_rhs_acc(t, e, c, lbl) + (w_of_lbl_to_l(t, lbl, c) as real) * e(lbl as real),
+                fldr_rhs_acc(t, e, c, lbl)
+                    == fldr_rhs_acc(t, e, (c - 1) as nat, lbl) + p * fldr_sumlab(t, e, c, (t.h)(c), lbl),
+                (w_of_lbl_to_l(t, lbl, c) as real)
+                    == (w_of_lbl_to_l(t, lbl, (c - 1) as nat) as real) + (cnt as real) * p,
+                fldr_rhs_acc(t, e, (c - 1) as nat, n)
+                    == fldr_rhs_acc(t, e, (c - 1) as nat, lbl) + (w_of_lbl_to_l(t, lbl, (c - 1) as nat) as real) * e(lbl as real),
+                fldr_sumlab(t, e, c, (t.h)(c), n)
+                    == fldr_sumlab(t, e, c, (t.h)(c), lbl) + (cnt as real) * e(lbl as real);
     }
 }
 
-/// At cc = K, the per-label encoding is the weight (validity), so rhs_acc(K,nn) = wsum(nn).
-pub proof fn lemma_fldr_rhs_acc_eq_wsum(t: Ddg, e: spec_fn(real) -> real, nn: nat)
-    requires valid_ddg(t), nn <= t.n,
-    ensures fldr_rhs_acc(t, e, t.levels, nn) == fldr_wsum(t, e, nn),
-    decreases nn,
+/// At c = K, the per-label encoding is the weight (validity), so rhs_acc(K,n) = wsum(n).
+pub proof fn lemma_fldr_rhs_acc_eq_wsum(t: Ddg, e: spec_fn(real) -> real, n: nat)
+    requires valid_ddg(t), n <= t.n,
+    ensures fldr_rhs_acc(t, e, t.levels, n) == fldr_wsum(t, e, n),
+    decreases n,
 {
-    if nn > 0 {
-        lemma_fldr_rhs_acc_eq_wsum(t, e, (nn - 1) as nat);
-        assert(w_of_lbl_to_l(t, (nn - 1) as nat, t.levels) == (t.weights)((nn - 1) as nat));  // validity
+    if n > 0 {
+        lemma_fldr_rhs_acc_eq_wsum(t, e, (n - 1) as nat);
+        assert(w_of_lbl_to_l(t, (n - 1) as nat, t.levels) == (t.weights)((n - 1) as nat));  // validity
     }
 }
 
-/// At cc = 0 every encoding is 0, so rhs_acc(0,nn) = 0.
-pub proof fn lemma_fldr_rhs_acc_zero(t: Ddg, e: spec_fn(real) -> real, nn: nat)
-    ensures fldr_rhs_acc(t, e, 0, nn) == 0real,
-    decreases nn,
+/// At c = 0 every encoding is 0, so rhs_acc(0,n) = 0.
+pub proof fn lemma_fldr_rhs_acc_zero(t: Ddg, e: spec_fn(real) -> real, n: nat)
+    ensures fldr_rhs_acc(t, e, 0, n) == 0real,
+    decreases n,
 {
-    if nn > 0 {
-        lemma_fldr_rhs_acc_zero(t, e, (nn - 1) as nat);
-        assert(w_of_lbl_to_l(t, (nn - 1) as nat, 0) == 0);
-        assert((w_of_lbl_to_l(t, (nn - 1) as nat, 0) as real) * e((nn - 1) as real) == 0real)
+    if n > 0 {
+        lemma_fldr_rhs_acc_zero(t, e, (n - 1) as nat);
+        assert(w_of_lbl_to_l(t, (n - 1) as nat, 0) == 0);
+        assert((w_of_lbl_to_l(t, (n - 1) as nat, 0) as real) * e((n - 1) as real) == 0real)
             by(nonlinear_arith)
-            requires w_of_lbl_to_l(t, (nn - 1) as nat, 0) == 0;
+            requires w_of_lbl_to_l(t, (n - 1) as nat, 0) == 0;
     }
 }
 
-/// ewenc(cc) = rhs_acc(cc,n)   (induction on cc, using AC = sumlab per level).
-pub proof fn lemma_fldr_ewenc_eq_rhs(t: Ddg, e: spec_fn(real) -> real, cc: nat)
-    requires valid_ddg(t), cc <= t.levels,
-    ensures fldr_ewenc(t, e, cc) == fldr_rhs_acc(t, e, cc, t.n),
-    decreases cc,
+/// ewenc(c) = rhs_acc(c,n)   (induction on c, using AC = sumlab per level).
+pub proof fn lemma_fldr_ewenc_eq_rhs(t: Ddg, e: spec_fn(real) -> real, c: nat)
+    requires valid_ddg(t), c <= t.levels,
+    ensures fldr_ewenc(t, e, c) == fldr_rhs_acc(t, e, c, t.n),
+    decreases c,
 {
-    if cc == 0 {
+    if c == 0 {
         lemma_fldr_rhs_acc_zero(t, e, t.n);
     } else {
-        lemma_fldr_ewenc_eq_rhs(t, e, (cc - 1) as nat);
-        lemma_fldr_rhs_acc_step(t, e, cc, t.n);
-        assert(forall |d: nat| d < (t.h)(cc) ==> #[trigger] (t.lab)(cc, d) <= t.n);  // validity
-        lemma_fldr_ac_eq_sumlab(t, e, cc, (t.h)(cc));
-        let ghost p = pow2((t.levels - cc) as nat) as real;
-        assert(fldr_ewenc(t, e, cc) == fldr_ewenc(t, e, (cc - 1) as nat) + fldr_ac(t, e, cc, (t.h)(cc)) * p);
-        assert(fldr_ac(t, e, cc, (t.h)(cc)) * p == p * fldr_sumlab(t, e, cc, (t.h)(cc), t.n))
+        lemma_fldr_ewenc_eq_rhs(t, e, (c - 1) as nat);
+        lemma_fldr_rhs_acc_step(t, e, c, t.n);
+        assert(forall |d: nat| d < (t.h)(c) ==> #[trigger] (t.lab)(c, d) <= t.n);  // validity
+        lemma_fldr_ac_eq_sumlab(t, e, c, (t.h)(c));
+        let ghost p = pow2((t.levels - c) as nat) as real;
+        assert(fldr_ewenc(t, e, c) == fldr_ewenc(t, e, (c - 1) as nat) + fldr_ac(t, e, c, (t.h)(c)) * p);
+        assert(fldr_ac(t, e, c, (t.h)(c)) * p == p * fldr_sumlab(t, e, c, (t.h)(c), t.n))
             by(nonlinear_arith)
-            requires fldr_ac(t, e, cc, (t.h)(cc)) == fldr_sumlab(t, e, cc, (t.h)(cc), t.n);
+            requires fldr_ac(t, e, c, (t.h)(c)) == fldr_sumlab(t, e, c, (t.h)(c), t.n);
     }
 }
 
@@ -377,12 +377,12 @@ pub proof fn lemma_fldr_fail_fsum_half_pairsum(t: Ddg, c: nat, j: nat, k: nat)
         let ghost ga = fldr_fail_g(t, c + 1, (2 * ((j - 1) as nat)) as nat, k);
         let ghost gb = fldr_fail_g(t, c + 1, (2 * ((j - 1) as nat) + 1) as nat, k);
         let ghost pf = fldr_fail_fsum(t, c, (j - 1) as nat, (k + 1) as nat);
-        let ghost pp = fldr_fail_pairsum(t, c + 1, (j - 1) as nat, k);
+        let ghost p = fldr_fail_pairsum(t, c + 1, (j - 1) as nat, k);
         assert(fldr_fail_f(t, c, (j - 1) as nat, (k + 1) as nat) == (ga + gb) / 2real);
-        assert(pf == (1real / 2real) * pp);
-        assert(fldr_fail_pairsum(t, c + 1, j, k) == pp + ga + gb);
-        assert(pf + (ga + gb) / 2real == (1real / 2real) * (pp + ga + gb)) by(nonlinear_arith)
-            requires pf == (1real / 2real) * pp;
+        assert(pf == (1real / 2real) * p);
+        assert(fldr_fail_pairsum(t, c + 1, j, k) == p + ga + gb);
+        assert(pf + (ga + gb) / 2real == (1real / 2real) * (p + ga + gb)) by(nonlinear_arith)
+            requires pf == (1real / 2real) * p;
     }
 }
 
@@ -412,17 +412,17 @@ pub proof fn lemma_fldr_fail_ffs_leaf(t: Ddg, c: nat, j: nat, k: nat)
     }
 }
 
-/// Internal part:  positions [h(c), h(c)+mm) are internal, so summing fail_g there
-/// equals summing fail_f over [0, mm).
-pub proof fn lemma_fldr_fail_ffs_internal(t: Ddg, c: nat, mm: nat, k: nat)
+/// Internal part:  positions [h(c), h(c)+m) are internal, so summing fail_g there
+/// equals summing fail_f over [0, m).
+pub proof fn lemma_fldr_fail_ffs_internal(t: Ddg, c: nat, m: nat, k: nat)
     ensures
-        fldr_fail_ffs(t, c, ((t.h)(c) + mm) as nat, k)
-            == fldr_fail_ffs(t, c, (t.h)(c), k) + fldr_fail_fsum(t, c, mm, k),
-    decreases mm,
+        fldr_fail_ffs(t, c, ((t.h)(c) + m) as nat, k)
+            == fldr_fail_ffs(t, c, (t.h)(c), k) + fldr_fail_fsum(t, c, m, k),
+    decreases m,
 {
-    if mm > 0 {
-        lemma_fldr_fail_ffs_internal(t, c, (mm - 1) as nat, k);
-        assert((((t.h)(c) + (mm - 1) as nat) - (t.h)(c)) as nat == (mm - 1) as nat);
+    if m > 0 {
+        lemma_fldr_fail_ffs_internal(t, c, (m - 1) as nat, k);
+        assert((((t.h)(c) + (m - 1) as nat) - (t.h)(c)) as nat == (m - 1) as nat);
     }
 }
 
@@ -439,14 +439,14 @@ pub proof fn lemma_fldr_fail_level(t: Ddg, c: nat, k: nat)
                + (1real / 2real) * fldr_fail_ffs(t, c + 1, ddg_nodes(t, c + 1), (k - 1) as nat),
 {
     let ghost hh = (t.h)(c);
-    let ghost mm = (ddg_nodes(t, c) - hh) as nat;
-    assert(ddg_nodes(t, c) == (hh + mm) as nat);
-    lemma_fldr_fail_ffs_internal(t, c, mm, k);          // ffs(c,N(c)) = ffs(c,hh) + fsum(c,mm)
+    let ghost m = (ddg_nodes(t, c) - hh) as nat;
+    assert(ddg_nodes(t, c) == (hh + m) as nat);
+    lemma_fldr_fail_ffs_internal(t, c, m, k);          // ffs(c,N(c)) = ffs(c,hh) + fsum(c,m)
     lemma_fldr_fail_ffs_leaf(t, c, hh, k);              // ffs(c,hh) = RJ(c)·Fail_k
-    lemma_fldr_fail_fsum_half_pairsum(t, c, mm, (k - 1) as nat);  // fsum(c,mm,k) = ½ pairsum(c+1,mm,k-1)
+    lemma_fldr_fail_fsum_half_pairsum(t, c, m, (k - 1) as nat);  // fsum(c,m,k) = ½ pairsum(c+1,m,k-1)
     assert(((k - 1) as nat + 1) as nat == k);
-    lemma_fldr_fail_pairsum_eq_ffs(t, c + 1, mm, (k - 1) as nat); // pairsum(c+1,mm,k-1) = ffs(c+1,2mm,k-1)
-    assert(ddg_nodes(t, c + 1) == 2 * mm);
+    lemma_fldr_fail_pairsum_eq_ffs(t, c + 1, m, (k - 1) as nat); // pairsum(c+1,m,k-1) = ffs(c+1,2mm,k-1)
+    assert(ddg_nodes(t, c + 1) == 2 * m);
 }
 
 // ── Epoch decay:  Fail_{(j+1)K} ≤ ρ·Fail_{jK} with ρ < 1 ──────────────────────
@@ -540,33 +540,33 @@ pub proof fn lemma_fldr_tr_wenc(t: Ddg, c: nat)
             == w_of_lbl_to_l(t, t.n, t.levels) as real,
     decreases t.levels - c,
 {
-    let ghost kk = t.levels;
+    let ghost k = t.levels;
     let ghost rjr = l_lbl_cnt_upto(t, c, t.n, (t.h)(c)) as real;
-    let ghost pk = pow2((kk - c) as nat) as real;
+    let ghost pk = pow2((k - c) as nat) as real;
     // wenc(c) = wenc(c-1) + RJ(c)·2^{K-c}   (definitional + cast distribution)
     assert(w_of_lbl_to_l(t, t.n, c)
         == w_of_lbl_to_l(t, t.n, (c - 1) as nat)
-            + l_lbl_cnt_upto(t, c, t.n, (t.h)(c)) * pow2((kk - c) as nat));
-    lemma_nat_mul_real_cast(l_lbl_cnt_upto(t, c, t.n, (t.h)(c)), pow2((kk - c) as nat));
+            + l_lbl_cnt_upto(t, c, t.n, (t.h)(c)) * pow2((k - c) as nat));
+    lemma_nat_mul_real_cast(l_lbl_cnt_upto(t, c, t.n, (t.h)(c)), pow2((k - c) as nat));
     assert((w_of_lbl_to_l(t, t.n, c) as real) == (w_of_lbl_to_l(t, t.n, (c - 1) as nat) as real) + rjr * pk);
-    if c == kk {
+    if c == k {
         assert(fldr_tr(t, c + 1) == 0real);
         lemma2_to64();
-        assert(pow2((kk - c) as nat) == 1);
+        assert(pow2((k - c) as nat) == 1);
     } else {
         lemma_fldr_tr_wenc(t, c + 1);
-        let ghost aa = fldr_tr(t, c + 1);
-        let ghost pp = pow2((kk - c - 1) as nat) as real;
-        assert((kk - (c + 1)) as nat == (kk - c - 1) as nat);
-        assert(pow2((kk - c) as nat) == 2 * pow2((kk - c - 1) as nat));  // pow2 step
-        assert(pk == 2real * pp);
-        // aa·pp + wenc(c) == wenc(K)  (IH);  goal: (rjr+½aa)·pk + wenc(c-1) == wenc(K)
+        let ghost a = fldr_tr(t, c + 1);
+        let ghost p = pow2((k - c - 1) as nat) as real;
+        assert((k - (c + 1)) as nat == (k - c - 1) as nat);
+        assert(pow2((k - c) as nat) == 2 * pow2((k - c - 1) as nat));  // pow2 step
+        assert(pk == 2real * p);
+        // a·p + wenc(c) == wenc(K)  (IH);  goal: (rjr+½a)·pk + wenc(c-1) == wenc(K)
         assert(fldr_tr(t, c) * pk + (w_of_lbl_to_l(t, t.n, (c - 1) as nat) as real)
-                == w_of_lbl_to_l(t, t.n, kk) as real) by(nonlinear_arith)
+                == w_of_lbl_to_l(t, t.n, k) as real) by(nonlinear_arith)
             requires
-                fldr_tr(t, c) == rjr + (1real / 2real) * aa,
-                pk == 2real * pp,
-                aa * pp + (w_of_lbl_to_l(t, t.n, c) as real) == (w_of_lbl_to_l(t, t.n, kk) as real),
+                fldr_tr(t, c) == rjr + (1real / 2real) * a,
+                pk == 2real * p,
+                a * p + (w_of_lbl_to_l(t, t.n, c) as real) == (w_of_lbl_to_l(t, t.n, k) as real),
                 (w_of_lbl_to_l(t, t.n, c) as real) == (w_of_lbl_to_l(t, t.n, (c - 1) as nat) as real) + rjr * pk;
     }
 }
@@ -696,7 +696,7 @@ pub proof fn lemma_pow_lt(rho: real, delta: real)
     assert(pow(rho, j) < delta);
 }
 
-// ── (5) CORRECTNESS bound:  fldr_f(0,0,F) ≤ target ───────────────────────────
+// ── CORRECTNESS bound:  fldr_f(0,0,F) ≤ target ───────────────────────────
 // Mirrors the termination decay bound, with an accept tail.  atr(c) is the accept
 // analogue of tr(c).  Because a reject restarts at the root with strictly smaller
 // fuel, Val_F ≤ T follows by (strong) induction on F — no limits.
@@ -716,12 +716,12 @@ pub proof fn lemma_fldr_ac_nonneg(t: Ddg, e: spec_fn(real) -> real, c: nat, j: n
 }
 
 /// vfsum at fuel 0 is 0  (fldr_f(·,0) = 0).
-pub proof fn lemma_fldr_vfsum_zero(t: Ddg, e: spec_fn(real) -> real, c: nat, mm: nat)
-    ensures fldr_vfsum(t, e, c, mm, 0) == 0real,
-    decreases mm,
+pub proof fn lemma_fldr_vfsum_zero(t: Ddg, e: spec_fn(real) -> real, c: nat, m: nat)
+    ensures fldr_vfsum(t, e, c, m, 0) == 0real,
+    decreases m,
 {
-    if mm > 0 {
-        lemma_fldr_vfsum_zero(t, e, c, (mm - 1) as nat);
+    if m > 0 {
+        lemma_fldr_vfsum_zero(t, e, c, (m - 1) as nat);
     }
 }
 
@@ -733,11 +733,11 @@ pub proof fn lemma_fldr_vs_base_zero(t: Ddg, e: spec_fn(real) -> real, c: nat)
     ensures fldr_vs(t, e, c, ddg_nodes(t, c), 0) == fldr_ac(t, e, c, (t.h)(c)),
 {
     let ghost hh = (t.h)(c);
-    let ghost mm = (ddg_nodes(t, c) - hh) as nat;
-    assert(ddg_nodes(t, c) == (hh + mm) as nat);
-    lemma_fldr_vs_internal(t, e, c, mm, 0);          // VS(c,N(c),0) = VS(c,hh,0) + vfsum(c,mm,0)
+    let ghost m = (ddg_nodes(t, c) - hh) as nat;
+    assert(ddg_nodes(t, c) == (hh + m) as nat);
+    lemma_fldr_vs_internal(t, e, c, m, 0);          // VS(c,N(c),0) = VS(c,hh,0) + vfsum(c,m,0)
     lemma_fldr_vs_leaf(t, e, c, hh, 0);              // VS(c,hh,0) = AC(c,hh) + RJ·fldr_f(0,0,0)
-    lemma_fldr_vfsum_zero(t, e, c, mm);              // vfsum(c,mm,0) = 0
+    lemma_fldr_vfsum_zero(t, e, c, m);              // vfsum(c,m,0) = 0
     // fldr_f(t,e,0,0,0) == 0
 }
 
@@ -760,27 +760,27 @@ pub proof fn lemma_fldr_atr_wenc(t: Ddg, e: spec_fn(real) -> real, c: nat)
             + fldr_ewenc(t, e, (c - 1) as nat) == fldr_ewenc(t, e, t.levels),
     decreases t.levels - c,
 {
-    let ghost kk = t.levels;
+    let ghost k = t.levels;
     let ghost ac = fldr_ac(t, e, c, (t.h)(c));
-    let ghost pk = pow2((kk - c) as nat) as real;
+    let ghost pk = pow2((k - c) as nat) as real;
     assert(fldr_ewenc(t, e, c) == fldr_ewenc(t, e, (c - 1) as nat) + ac * pk);
-    if c == kk {
+    if c == k {
         assert(fldr_atr(t, e, c + 1) == 0real);
         lemma2_to64();
-        assert(pow2((kk - c) as nat) == 1);
+        assert(pow2((k - c) as nat) == 1);
     } else {
         lemma_fldr_atr_wenc(t, e, c + 1);
-        let ghost aa = fldr_atr(t, e, c + 1);
-        let ghost pp = pow2((kk - c - 1) as nat) as real;
-        assert((kk - (c + 1)) as nat == (kk - c - 1) as nat);
-        assert(pow2((kk - c) as nat) == 2 * pow2((kk - c - 1) as nat));
-        assert(pk == 2real * pp);
+        let ghost a = fldr_atr(t, e, c + 1);
+        let ghost p = pow2((k - c - 1) as nat) as real;
+        assert((k - (c + 1)) as nat == (k - c - 1) as nat);
+        assert(pow2((k - c) as nat) == 2 * pow2((k - c - 1) as nat));
+        assert(pk == 2real * p);
         assert(fldr_atr(t, e, c) * pk + fldr_ewenc(t, e, (c - 1) as nat)
-                == fldr_ewenc(t, e, kk)) by(nonlinear_arith)
+                == fldr_ewenc(t, e, k)) by(nonlinear_arith)
             requires
-                fldr_atr(t, e, c) == ac + (1real / 2real) * aa,
-                pk == 2real * pp,
-                aa * pp + fldr_ewenc(t, e, c) == fldr_ewenc(t, e, kk),
+                fldr_atr(t, e, c) == ac + (1real / 2real) * a,
+                pk == 2real * p,
+                a * p + fldr_ewenc(t, e, c) == fldr_ewenc(t, e, k),
                 fldr_ewenc(t, e, c) == fldr_ewenc(t, e, (c - 1) as nat) + ac * pk;
     }
 }
@@ -880,8 +880,8 @@ pub proof fn lemma_fldr_val_le_target(t: Ddg, e: spec_fn(real) -> real, ff: nat)
             (#[trigger] fldr_f(t, e, 0, 0, g2)) <= fldr_exp(t, e) by {
             lemma_fldr_val_le_target(t, e, g2);
         }
-        let ghost tt = fldr_exp(t, e);
-        lemma_fldr_vs_bound(t, e, 1, (ff - 1) as nat, tt);
+        let ghost v = fldr_exp(t, e);
+        lemma_fldr_vs_bound(t, e, 1, (ff - 1) as nat, v);
         // root unfold: Val_ff = ½·VS(1,2,ff-1),  N(1) = 2
         reveal_with_fuel(ddg_nodes, 2);
         assert(ddg_nodes(t, 1) == 2);
@@ -904,23 +904,23 @@ pub proof fn lemma_fldr_val_le_target(t: Ddg, e: spec_fn(real) -> real, ff: nat)
         assert(fldr_exp(t, e) * (t.m as real) == fldr_wsum(t, e, t.n)) by(nonlinear_arith)
             requires fldr_exp(t, e) == fldr_wsum(t, e, t.n) / (t.m as real), (t.m as real) >= 1real;
         // VS(1, N(1), ff−1) ≤ atr(1) + tr(1)·T  (vs_bound, with N(1) = 2)
-        let ghost bb = fldr_atr(t, e, 1) + fldr_tr(t, 1) * tt;
-        assert(fldr_vs(t, e, 1, 2, (ff - 1) as nat) <= bb);
-        // bb·p = atr(1)·p + tr(1)·tt·p = wsum + tt·(2p−m) = 2p·tt  (since tt·m = wsum)
-        assert(fldr_tr(t, 1) * tt * p == tt * (2real * p - (t.m as real))) by(nonlinear_arith)
+        let ghost b = fldr_atr(t, e, 1) + fldr_tr(t, 1) * v;
+        assert(fldr_vs(t, e, 1, 2, (ff - 1) as nat) <= b);
+        // b·p = atr(1)·p + tr(1)·v·p = wsum + v·(2p−m) = 2p·v  (since v·m = wsum)
+        assert(fldr_tr(t, 1) * v * p == v * (2real * p - (t.m as real))) by(nonlinear_arith)
             requires fldr_tr(t, 1) * p == 2real * p - (t.m as real);
-        assert(bb * p == 2real * p * tt) by(nonlinear_arith)
+        assert(b * p == 2real * p * v) by(nonlinear_arith)
             requires
-                bb == fldr_atr(t, e, 1) + fldr_tr(t, 1) * tt,
+                b == fldr_atr(t, e, 1) + fldr_tr(t, 1) * v,
                 fldr_atr(t, e, 1) * p == fldr_wsum(t, e, t.n),
-                fldr_tr(t, 1) * tt * p == tt * (2real * p - (t.m as real)),
-                tt * (t.m as real) == fldr_wsum(t, e, t.n);
-        assert(bb == 2real * tt) by(nonlinear_arith) requires bb * p == 2real * p * tt, p >= 1real;
-        assert(fldr_f(t, e, 0, 0, ff) <= tt) by(nonlinear_arith)
+                fldr_tr(t, 1) * v * p == v * (2real * p - (t.m as real)),
+                v * (t.m as real) == fldr_wsum(t, e, t.n);
+        assert(b == 2real * v) by(nonlinear_arith) requires b * p == 2real * p * v, p >= 1real;
+        assert(fldr_f(t, e, 0, 0, ff) <= v) by(nonlinear_arith)
             requires
                 fldr_f(t, e, 0, 0, ff) == (1real / 2real) * fldr_vs(t, e, 1, 2, (ff - 1) as nat),
-                fldr_vs(t, e, 1, 2, (ff - 1) as nat) <= bb,
-                bb == 2real * tt;
+                fldr_vs(t, e, 1, 2, (ff - 1) as nat) <= b,
+                b == 2real * v;
     }
 }
 
@@ -1053,48 +1053,48 @@ pub proof fn lemma_bitval_eq(x: nat, k: nat)
 }
 
 /// For x < 2^K the bits reconstruct x exactly.
-pub proof fn lemma_bitval_full(x: nat, kk: nat)
-    requires x < pow2(kk),
-    ensures bitval(x, kk) == x,
+pub proof fn lemma_bitval_full(x: nat, k: nat)
+    requires x < pow2(k),
+    ensures bitval(x, k) == x,
 {
-    lemma_bitval_eq(x, kk);
-    lemma_pow2_pos(kk);
-    lemma_fundamental_div_mod_converse(x as int, pow2(kk) as int, 0, x as int);
+    lemma_bitval_eq(x, k);
+    lemma_pow2_pos(k);
+    lemma_fundamental_div_mod_converse(x as int, pow2(k) as int, 0, x as int);
 }
 
-/// Top c bits + bottom (kk−c) bits = all kk bits.
-pub proof fn lemma_topbits_bitval(x: nat, kk: nat, c: nat)
-    requires c <= kk,
-    ensures topbits(x, kk, c) + bitval(x, (kk - c) as nat) == bitval(x, kk),
+/// Top c bits + bottom (k−c) bits = all k bits.
+pub proof fn lemma_topbits_bitval(x: nat, k: nat, c: nat)
+    requires c <= k,
+    ensures topbits(x, k, c) + bitval(x, (k - c) as nat) == bitval(x, k),
     decreases c,
 {
     if c > 0 {
-        lemma_topbits_bitval(x, kk, (c - 1) as nat);
-        // bitval at (kk−c+1) unfolds:  bitval(x,kk−c+1) = bitval(x,kk−c) + bit(x,kk−c)·2^{kk−c}
-        assert((kk - (c - 1) as nat) as nat == (kk - c) as nat + 1);
-        assert(bitval(x, (kk - (c - 1) as nat) as nat)
-            == bitval(x, (kk - c) as nat) + bit(x, (kk - c) as nat) * pow2((kk - c) as nat));
+        lemma_topbits_bitval(x, k, (c - 1) as nat);
+        // bitval at (k−c+1) unfolds:  bitval(x,k−c+1) = bitval(x,k−c) + bit(x,k−c)·2^{k−c}
+        assert((k - (c - 1) as nat) as nat == (k - c) as nat + 1);
+        assert(bitval(x, (k - (c - 1) as nat) as nat)
+            == bitval(x, (k - c) as nat) + bit(x, (k - c) as nat) * pow2((k - c) as nat));
     }
 }
 
-/// Encoding:  for x < 2^kk, the top kk bits reconstruct x.
-pub proof fn lemma_topbits_full(x: nat, kk: nat)
-    requires x < pow2(kk),
-    ensures topbits(x, kk, kk) == x,
+/// Encoding:  for x < 2^k, the top k bits reconstruct x.
+pub proof fn lemma_topbits_full(x: nat, k: nat)
+    requires x < pow2(k),
+    ensures topbits(x, k, k) == x,
 {
-    lemma_topbits_bitval(x, kk, kk);
+    lemma_topbits_bitval(x, k, k);
     assert(bitval(x, 0) == 0);
-    lemma_bitval_full(x, kk);
+    lemma_bitval_full(x, k);
 }
 
 /// pcnt is non-decreasing in its range.
-pub proof fn lemma_pcnt_mono(pctx: PCtx, c: nat, a: nat, bb: nat)
-    requires a <= bb,
-    ensures pcnt(pctx, c, a) <= pcnt(pctx, c, bb),
-    decreases bb,
+pub proof fn lemma_pcnt_mono(pctx: PCtx, c: nat, a: nat, b: nat)
+    requires a <= b,
+    ensures pcnt(pctx, c, a) <= pcnt(pctx, c, b),
+    decreases b,
 {
-    if bb > a {
-        lemma_pcnt_mono(pctx, c, a, (bb - 1) as nat);
+    if b > a {
+        lemma_pcnt_mono(pctx, c, a, (b - 1) as nat);
     }
 }
 
@@ -1135,17 +1135,17 @@ pub proof fn lemma_count_built(pctx: PCtx, c: nat, l: nat, upto: nat)
 }
 
 /// The built table's per-label encoding equals the bit-histogram:
-///   w_of_lbl_to_l(built, ℓ, cc) = topbits(ew(ℓ), K, cc).
-pub proof fn lemma_wenc_eq_topbits(pctx: PCtx, l: nat, cc: nat)
-    requires l <= pctx.n, cc <= pctx.levels,
-    ensures w_of_lbl_to_l(built_ddg(pctx), l, cc) == topbits(ew(pctx, l), pctx.levels, cc),
-    decreases cc,
+///   w_of_lbl_to_l(built, ℓ, c) = topbits(ew(ℓ), K, c).
+pub proof fn lemma_wenc_eq_topbits(pctx: PCtx, l: nat, c: nat)
+    requires l <= pctx.n, c <= pctx.levels,
+    ensures w_of_lbl_to_l(built_ddg(pctx), l, c) == topbits(ew(pctx, l), pctx.levels, c),
+    decreases c,
 {
-    if cc > 0 {
-        lemma_wenc_eq_topbits(pctx, l, (cc - 1) as nat);
-        assert((built_ddg(pctx).h)(cc) == pcnt(pctx, cc, (pctx.n + 1) as nat));
-        lemma_count_built(pctx, cc, l, (pctx.n + 1) as nat);   // l_lbl_cnt_upto(built,cc,l,h(cc)) = pres(pctx,cc,l)
-        assert((built_ddg(pctx).levels - cc) as nat == (pctx.levels - cc) as nat);
+    if c > 0 {
+        lemma_wenc_eq_topbits(pctx, l, (c - 1) as nat);
+        assert((built_ddg(pctx).h)(c) == pcnt(pctx, c, (pctx.n + 1) as nat));
+        lemma_count_built(pctx, c, l, (pctx.n + 1) as nat);   // l_lbl_cnt_upto(built,c,l,h(c)) = pres(pctx,c,l)
+        assert((built_ddg(pctx).levels - c) as nat == (pctx.levels - c) as nat);
     }
 }
 
@@ -1158,44 +1158,44 @@ pub proof fn lemma_built_wenc(pctx: PCtx, l: nat)
     lemma_topbits_full(ew(pctx, l), pctx.levels);
 }
 
-/// One level of the row-sum:  rowtop(c,nn) = rowtop(c−1,nn) + pcnt(c,nn)·2^{K−c}.
-pub proof fn lemma_rowtop_step(pctx: PCtx, c: nat, nn: nat)
+/// One level of the row-sum:  rowtop(c,n) = rowtop(c−1,n) + pcnt(c,n)·2^{K−c}.
+pub proof fn lemma_rowtop_step(pctx: PCtx, c: nat, n: nat)
     requires c >= 1,
-    ensures rowtop(pctx, c, nn) == rowtop(pctx, (c - 1) as nat, nn) + pcnt(pctx, c, nn) * pow2((pctx.levels - c) as nat),
-    decreases nn,
+    ensures rowtop(pctx, c, n) == rowtop(pctx, (c - 1) as nat, n) + pcnt(pctx, c, n) * pow2((pctx.levels - c) as nat),
+    decreases n,
 {
-    if nn > 0 {
-        lemma_rowtop_step(pctx, c, (nn - 1) as nat);
-        let ghost l = (nn - 1) as nat;
+    if n > 0 {
+        lemma_rowtop_step(pctx, c, (n - 1) as nat);
+        let ghost l = (n - 1) as nat;
         let ghost p = pow2((pctx.levels - c) as nat);
         // topbits(ew(l),K,c) = topbits(ew(l),K,c-1) + pres(pctx,c,l)*p
         assert(topbits(ew(pctx, l), pctx.levels, c)
             == topbits(ew(pctx, l), pctx.levels, (c - 1) as nat) + pres(pctx, c, l) * p);
-        // pcnt(c,nn) = pcnt(c,nn-1) + pres(c,nn-1=l)
-        assert(pcnt(pctx, c, nn) == pcnt(pctx, c, l) + pres(pctx, c, l));
-        assert(rowtop(pctx, c, nn) == rowtop(pctx, c, l) + topbits(ew(pctx, l), pctx.levels, c));
-        assert(rowtop(pctx, (c - 1) as nat, nn)
+        // pcnt(c,n) = pcnt(c,n-1) + pres(c,n-1=l)
+        assert(pcnt(pctx, c, n) == pcnt(pctx, c, l) + pres(pctx, c, l));
+        assert(rowtop(pctx, c, n) == rowtop(pctx, c, l) + topbits(ew(pctx, l), pctx.levels, c));
+        assert(rowtop(pctx, (c - 1) as nat, n)
             == rowtop(pctx, (c - 1) as nat, l) + topbits(ew(pctx, l), pctx.levels, (c - 1) as nat));
-        assert(rowtop(pctx, c, nn) == rowtop(pctx, (c - 1) as nat, nn) + pcnt(pctx, c, nn) * p)
+        assert(rowtop(pctx, c, n) == rowtop(pctx, (c - 1) as nat, n) + pcnt(pctx, c, n) * p)
             by(nonlinear_arith)
             requires
-                rowtop(pctx, c, nn) == rowtop(pctx, c, l) + topbits(ew(pctx, l), pctx.levels, c),
+                rowtop(pctx, c, n) == rowtop(pctx, c, l) + topbits(ew(pctx, l), pctx.levels, c),
                 rowtop(pctx, c, l) == rowtop(pctx, (c - 1) as nat, l) + pcnt(pctx, c, l) * p,
-                rowtop(pctx, (c - 1) as nat, nn) == rowtop(pctx, (c - 1) as nat, l) + topbits(ew(pctx, l), pctx.levels, (c - 1) as nat),
+                rowtop(pctx, (c - 1) as nat, n) == rowtop(pctx, (c - 1) as nat, l) + topbits(ew(pctx, l), pctx.levels, (c - 1) as nat),
                 topbits(ew(pctx, l), pctx.levels, c) == topbits(ew(pctx, l), pctx.levels, (c - 1) as nat) + pres(pctx, c, l) * p,
-                pcnt(pctx, c, nn) == pcnt(pctx, c, l) + pres(pctx, c, l);
+                pcnt(pctx, c, n) == pcnt(pctx, c, l) + pres(pctx, c, l);
     } else {
         assert(pcnt(pctx, c, 0) == 0);
         assert(pcnt(pctx, c, 0) * pow2((pctx.levels - c) as nat) == 0);
     }
 }
 
-pub proof fn lemma_rowtop_zero(pctx: PCtx, nn: nat)
-    ensures rowtop(pctx, 0, nn) == 0,
-    decreases nn,
+pub proof fn lemma_rowtop_zero(pctx: PCtx, n: nat)
+    ensures rowtop(pctx, 0, n) == 0,
+    decreases n,
 {
-    if nn > 0 {
-        lemma_rowtop_zero(pctx, (nn - 1) as nat);
+    if n > 0 {
+        lemma_rowtop_zero(pctx, (n - 1) as nat);
     }
 }
 
@@ -1213,15 +1213,15 @@ pub proof fn lemma_filled_eq_rowtop(pctx: PCtx, c: nat)
     }
 }
 
-/// rowtop(K, nn) = Σ_{ℓ<nn} ew(ℓ)  (each label's top-K bits reconstruct its weight).
-pub proof fn lemma_rowtop_ew(pctx: PCtx, nn: nat)
-    requires forall |l: nat| l < nn ==> #[trigger] ew(pctx, l) < pow2(pctx.levels),
-    ensures rowtop(pctx, pctx.levels, nn) == ewsum(pctx, nn),
-    decreases nn,
+/// rowtop(K, n) = Σ_{ℓ<n} ew(ℓ)  (each label's top-K bits reconstruct its weight).
+pub proof fn lemma_rowtop_ew(pctx: PCtx, n: nat)
+    requires forall |l: nat| l < n ==> #[trigger] ew(pctx, l) < pow2(pctx.levels),
+    ensures rowtop(pctx, pctx.levels, n) == ewsum(pctx, n),
+    decreases n,
 {
-    if nn > 0 {
-        lemma_rowtop_ew(pctx, (nn - 1) as nat);
-        lemma_topbits_full(ew(pctx, (nn - 1) as nat), pctx.levels);
+    if n > 0 {
+        lemma_rowtop_ew(pctx, (n - 1) as nat);
+        lemma_topbits_full(ew(pctx, (n - 1) as nat), pctx.levels);
     }
 }
 
@@ -1232,13 +1232,13 @@ pub proof fn lemma_ew_bound(pctx: PCtx, l: nat)
 {
 }
 
-pub proof fn lemma_filled_mono(pctx: PCtx, a: nat, bb: nat)
-    requires a <= bb,
-    ensures filled(pctx, a) <= filled(pctx, bb),
-    decreases bb,
+pub proof fn lemma_filled_mono(pctx: PCtx, a: nat, b: nat)
+    requires a <= b,
+    ensures filled(pctx, a) <= filled(pctx, b),
+    decreases b,
 {
-    if bb > a {
-        lemma_filled_mono(pctx, a, (bb - 1) as nat);
+    if b > a {
+        lemma_filled_mono(pctx, a, (b - 1) as nat);
     }
 }
 
@@ -1406,14 +1406,6 @@ pub proof fn lemma_built_valid(pctx: PCtx)
     lemma_built_wenc(pctx, pctx.n);                          // w_of_lbl_to_l(t,n,K) = reject = 2ᴷ − m
 }
 
-/// Adding label `upper` does not change selections at counts < pcnt(c,upper).
-pub proof fn lemma_sel_stable(pctx: PCtx, c: nat, d: nat, upper: nat)
-    requires d < pcnt(pctx, c, upper),
-    ensures sel(pctx, c, d, (upper + 1) as nat) == sel(pctx, c, d, upper),
-{
-    assert(pcnt(pctx, c, upper) != d);
-}
-
 // ── Agreement: two Ddgs that match on the cells valid_ddg reads are equi-valid ──
 
 /// ddg_nodes depends only on h below c.
@@ -1438,7 +1430,7 @@ pub proof fn lemma_l_lbl_cnt_upto_agree(t1: Ddg, t2: Ddg, c: nat, l: nat, j: nat
     }
 }
 
-/// w_of_lbl_to_l depends only on (h, lab) on levels 1..cc at the live positions.
+/// w_of_lbl_to_l depends only on (h, lab) on levels 1..c at the live positions.
 pub proof fn lemma_w_of_lbl_to_l_agree(t1: Ddg, t2: Ddg, l: nat, cc: nat)
     requires
         t1.levels == t2.levels,

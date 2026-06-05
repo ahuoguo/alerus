@@ -121,7 +121,7 @@ pub struct Ddg {
     pub lab: spec_fn(nat, nat) -> nat,
 }
 
-// ── (1) VALUE: the conditional-expectation approximations ─────────────────────
+// ── VALUE: the conditional-expectation approximations ─────────────────────
 
 /// Fuel-bounded conditional expectation  E[ℰ(out) | internal DDG node (c, d)]  using
 /// ≤ `k` coin flips — the value the credit carries.  One flip turns the internal
@@ -202,46 +202,46 @@ pub open spec fn fldr_ac(t: Ddg, e: spec_fn(real) -> real, c: nat, j: nat) -> re
 // AC(c,j) = Σ_{ℓ<n} count(c,ℓ,j)·ℰ(ℓ).  Proved via the single-level grouping below;
 // the double sum over (level, position) is then accumulated by induction on levels.
 
-/// Σ_{ℓ<nn} count(c,ℓ,j)·ℰ(ℓ)  — the per-level accept sum grouped by label.
-pub open spec fn fldr_sumlab(t: Ddg, e: spec_fn(real) -> real, c: nat, j: nat, nn: nat) -> real
-    decreases nn,
+/// Σ_{ℓ<n} count(c,ℓ,j)·ℰ(ℓ)  — the per-level accept sum grouped by label.
+pub open spec fn fldr_sumlab(t: Ddg, e: spec_fn(real) -> real, c: nat, j: nat, n: nat) -> real
+    decreases n,
 {
-    if nn == 0 {
+    if n == 0 {
         0real
     } else {
-        fldr_sumlab(t, e, c, j, (nn - 1) as nat)
-            + (l_lbl_cnt_upto(t, c, (nn - 1) as nat, j) as real) * e((nn - 1) as real)
+        fldr_sumlab(t, e, c, j, (n - 1) as nat)
+            + (l_lbl_cnt_upto(t, c, (n - 1) as nat, j) as real) * e((n - 1) as real)
     }
 }
 
 // Accumulate the single-level grouping over levels:  the e-weighted accept encoding
 // ewenc(K) = Σ_{c=1}^K AC(c,h(c))·2^{K−c}  equals  Σ_{ℓ<n} weights(ℓ)·ℰ(ℓ).
 
-/// Σ_{c=1}^{cc} AC(c,h(c))·2^{K−c}  — e-weighted accept-leaf encoding over levels 1..cc.
-pub open spec fn fldr_ewenc(t: Ddg, e: spec_fn(real) -> real, cc: nat) -> real
-    decreases cc,
+/// Σ_{c=1}^{c} AC(c,h(c))·2^{K−c}  — e-weighted accept-leaf encoding over levels 1..c.
+pub open spec fn fldr_ewenc(t: Ddg, e: spec_fn(real) -> real, c: nat) -> real
+    decreases c,
 {
-    if cc == 0 {
+    if c == 0 {
         0real
     } else {
-        fldr_ewenc(t, e, (cc - 1) as nat)
-            + fldr_ac(t, e, cc, (t.h)(cc)) * (pow2((t.levels - cc) as nat) as real)
+        fldr_ewenc(t, e, (c - 1) as nat)
+            + fldr_ac(t, e, c, (t.h)(c)) * (pow2((t.levels - c) as nat) as real)
     }
 }
 
-/// Σ_{ℓ<nn} wenc(ℓ,cc)·ℰ(ℓ)  — the per-label weight encoding summed over labels.
-pub open spec fn fldr_rhs_acc(t: Ddg, e: spec_fn(real) -> real, cc: nat, nn: nat) -> real
-    decreases nn,
+/// Σ_{ℓ<n} wenc(ℓ,c)·ℰ(ℓ)  — the per-label weight encoding summed over labels.
+pub open spec fn fldr_rhs_acc(t: Ddg, e: spec_fn(real) -> real, c: nat, n: nat) -> real
+    decreases n,
 {
-    if nn == 0 {
+    if n == 0 {
         0real
     } else {
-        fldr_rhs_acc(t, e, cc, (nn - 1) as nat)
-            + (w_of_lbl_to_l(t, (nn - 1) as nat, cc) as real) * e((nn - 1) as real)
+        fldr_rhs_acc(t, e, c, (n - 1) as nat)
+            + (w_of_lbl_to_l(t, (n - 1) as nat, c) as real) * e((n - 1) as real)
     }
 }
 
-// ── (2) Validity of the preprocessed table + the loaded target ────────────────
+// ── Validity of the preprocessed table + the loaded target ────────────────
 
 /// Σ_{i<j} weights(i)   (nat) — used to pin down m = total weight.
 pub open spec fn fldr_wsum_nat(t: Ddg, j: nat) -> nat
@@ -501,14 +501,14 @@ pub fn sample_fldr(
         ret.1@.view() =~= (ErrorCreditCarrier::Value { car: e(ret.0 as real) }),
 {
     let ghost t = tab.view();
-    proof { lemma_fldr_exp_nonneg(t, e); }
+    proof { lemma_fldr_exp_nonneg(t, e); }       // ⇒ eps ≥ 0, for ec_combine below
     let Tracked(slack) = thin_air();
     let ghost s0 = choose |sv: real| sv > 0real && (slack.view() =~= (ErrorCreditCarrier::Value { car: sv }));
     let tracked mut credit = ec_combine(input_credit, slack, eps, s0);   // ↯(eps + s0)
     let ghost mut k: nat;
     proof {
         lemma_fldr_fail_witness(t, s0);
-        k = choose |kk: nat| fldr_fail_f(t, 0, 0, kk) < s0;
+        k = choose |k: nat| fldr_fail_f(t, 0, 0, k) < s0;
         lemma_fldr_val_le_target(t, e, k);
         assert(eps + s0 >= fldr_f(t, e, 0, 0, k) + fldr_fail_f(t, 0, 0, k)) by(nonlinear_arith)
             requires
@@ -520,10 +520,6 @@ pub fn sample_fldr(
 
     let mut c: u64 = 0;
     let mut d: u64 = 0;
-    proof {
-        assert((t.h)(0) == 0);                       // valid
-        assert(ddg_nodes(t, 0) == 1);
-    }
 
     loop
         invariant
@@ -541,122 +537,89 @@ pub fn sample_fldr(
                 ec_contradict(&credit);              // fail_f(c,d,0)=1 ⇒ g_ce ≥ 1, impossible
             }
         }
-        let ghost kk0 = k;
+        let ghost k0 = k;
         let ghost cn = c as nat;
         let ghost dn = d as nat;
         // coin alloc: b ↦ fldr_g(cn+1, 2d+b, k−1) + fldr_fail_g(cn+1, 2d+b, k−1)
         let ghost alloc = |x: real| {
-            let dd: nat = if x == 1real { 2 * dn + 1 } else { 2 * dn };
-            fldr_g(t, e, cn + 1, dd, (kk0 - 1) as nat) + fldr_fail_g(t, cn + 1, dd, (kk0 - 1) as nat)
+            let d1: nat = if x == 1real { 2 * dn + 1 } else { 2 * dn };
+            fldr_g(t, e, cn + 1, d1, (k0 - 1) as nat) + fldr_fail_g(t, cn + 1, d1, (k0 - 1) as nat)
         };
         proof {
             assert forall |i: nat| (#[trigger] alloc(i as real)) >= 0real by {
-                lemma_fldr_g_nonneg(t, e, cn + 1, 2 * dn, (kk0 - 1) as nat);
-                lemma_fldr_g_nonneg(t, e, cn + 1, 2 * dn + 1, (kk0 - 1) as nat);
-                lemma_fldr_fail_g_bounds(t, cn + 1, 2 * dn, (kk0 - 1) as nat);
-                lemma_fldr_fail_g_bounds(t, cn + 1, 2 * dn + 1, (kk0 - 1) as nat);
+                lemma_fldr_g_nonneg(t, e, cn + 1, 2 * dn, (k0 - 1) as nat);
+                lemma_fldr_g_nonneg(t, e, cn + 1, 2 * dn + 1, (k0 - 1) as nat);
+                lemma_fldr_fail_g_bounds(t, cn + 1, 2 * dn, (k0 - 1) as nat);
+                lemma_fldr_fail_g_bounds(t, cn + 1, 2 * dn + 1, (k0 - 1) as nat);
             }
-            let ghost fg0 = fldr_g(t, e, cn + 1, 2 * dn, (kk0 - 1) as nat);
-            let ghost fg1 = fldr_g(t, e, cn + 1, 2 * dn + 1, (kk0 - 1) as nat);
-            let ghost lg0 = fldr_fail_g(t, cn + 1, 2 * dn, (kk0 - 1) as nat);
-            let ghost lg1 = fldr_fail_g(t, cn + 1, 2 * dn + 1, (kk0 - 1) as nat);
+            let ghost fg0 = fldr_g(t, e, cn + 1, 2 * dn, (k0 - 1) as nat);
+            let ghost fg1 = fldr_g(t, e, cn + 1, 2 * dn + 1, (k0 - 1) as nat);
+            let ghost lg0 = fldr_fail_g(t, cn + 1, 2 * dn, (k0 - 1) as nat);
+            let ghost lg1 = fldr_fail_g(t, cn + 1, 2 * dn + 1, (k0 - 1) as nat);
             assert((alloc(0real) + alloc(1real)) / 2real
-                == fldr_f(t, e, cn, dn, kk0) + fldr_fail_f(t, cn, dn, kk0)) by(nonlinear_arith)
+                == fldr_f(t, e, cn, dn, k0) + fldr_fail_f(t, cn, dn, k0)) by(nonlinear_arith)
                 requires
                     alloc(0real) == fg0 + lg0, alloc(1real) == fg1 + lg1,
-                    fldr_f(t, e, cn, dn, kk0) == (fg0 + fg1) / 2real,
-                    fldr_fail_f(t, cn, dn, kk0) == (lg0 + lg1) / 2real;
+                    fldr_f(t, e, cn, dn, k0) == (fg0 + fg1) / 2real,
+                    fldr_fail_f(t, cn, dn, k0) == (lg0 + lg1) / 2real;
         }
 
         let (b, Tracked(out)) = rand_1_u64(Tracked(credit), Ghost(alloc));
-        proof { credit = out; g_ce = alloc(b as real); k = (kk0 - 1) as nat; }
+        proof { credit = out; g_ce = alloc(b as real); k = (k0 - 1) as nat; }
 
-        // overflow safety:  d < N(cn) ≤ 2^cn ≤ 2^levels ≤ 2^62
+        // descend one level:  c ← c+1,  d ← 2d + b.  (2d can't overflow:
+        // d < N(cn) ≤ 2^cn ≤ 2^levels ≤ 2^62.)
         proof {
             lemma_ddg_nodes_le_pow2(t, cn);
             lemma_pow2_mono(cn, tab.levels as nat);
         }
-        let c1: u64 = c + 1;
-        let new_d: u64 = 2 * d + b;
+        c = c + 1;
+        d = 2 * d + b;
 
-        // basic facts about (c1, new_d) and the view; new_d < N(cn+1)
+        // g_ce now tracks the child node (c, d); d < N(c) keeps the loop invariant,
+        // and N(c) ≤ 2^c ≤ 2^levels ≤ usize::MAX makes the Vec indices below safe.
         proof {
-            assert(cn + 1 == c1 as nat);
-            assert((c1 as nat) <= tab.levels as nat);
-            assert((t.h)(cn + 1) == tab.h@[c1 as int] as nat);
-            assert(b == 0 || b == 1);
             assert(alloc(b as real)
-                == fldr_g(t, e, cn + 1, new_d as nat, (kk0 - 1) as nat)
-                   + fldr_fail_g(t, cn + 1, new_d as nat, (kk0 - 1) as nat));
-            assert((t.h)(cn) <= ddg_nodes(t, cn));                            // valid
-            assert(ddg_nodes(t, cn + 1) == 2 * ((ddg_nodes(t, cn) - (t.h)(cn)) as nat));
-            assert((new_d as nat) < ddg_nodes(t, cn + 1)) by(nonlinear_arith)
+                == fldr_g(t, e, cn + 1, d as nat, k)
+                   + fldr_fail_g(t, cn + 1, d as nat, k));
+            assert((d as nat) < ddg_nodes(t, cn + 1)) by(nonlinear_arith)
                 requires
                     (dn as int) + (t.h)(cn) < ddg_nodes(t, cn),
                     (t.h)(cn) <= ddg_nodes(t, cn),
                     ddg_nodes(t, cn + 1) == 2 * ((ddg_nodes(t, cn) - (t.h)(cn)) as nat),
-                    new_d == 2 * dn + (b as nat), b <= 1;
-            // positions fit usize:  new_d < N(cn+1) ≤ 2^{cn+1} ≤ 2^levels ≤ usize::MAX
+                    d == 2 * dn + (b as nat), b <= 1;
             lemma_ddg_nodes_le_pow2(t, (cn + 1) as nat);
             lemma_pow2_mono((cn + 1) as nat, tab.levels as nat);
-            lemma_pow2_gt((cn + 1) as nat);                       // c1 = cn+1 < 2^{cn+1} ≤ 2^levels ≤ usize::MAX
-            assert((new_d as nat) < usize::MAX as nat);
-            assert((c1 as nat) < usize::MAX as nat);
+            lemma_pow2_gt((cn + 1) as nat);
         }
 
-        let hd1: u64 = tab.h[c1 as usize];
-        proof {
-            assert(hd1 == tab.h@[c1 as int]);
-            assert((hd1 as nat) == (t.h)(cn + 1));
-        }
+        let hc: u64 = tab.h[c as usize];
 
-        if new_d < hd1 {
-            // leaf at (c1, new_d)
-            proof {
-                assert((new_d as nat) < (t.h)(cn + 1));
-                assert(tab.lab@[c1 as int]@.len() == tab.h@[c1 as int]);      // wf
-                assert((new_d as nat) < tab.lab@[c1 as int]@.len());
-                assert((t.lab)(cn + 1, new_d as nat) == tab.lab@[c1 as int]@[new_d as int] as nat);
-            }
-            let lab = tab.lab[c1 as usize][new_d as usize];
-            proof { assert((t.lab)(cn + 1, new_d as nat) == lab as nat); }
+        if d < hc {
+            // leaf at (c, d):  lab[c][d] is the label reached
+            let lab = tab.lab[c as usize][d as usize];
             if lab < tab.n {
-                proof {
-                    assert((t.lab)(cn + 1, new_d as nat) < t.n);
-                    assert(g_ce == e((lab as nat) as real));
-                    assert(((lab as nat) as real) == lab as real);
-                }
+                proof { assert(g_ce == e((lab as nat) as real)); }   // accept: fldr_g = ℰ(lab)
                 return (lab, Tracked(credit));
             } else {
                 // reject → restart at the root
-                proof {
-                    assert((t.lab)(cn + 1, new_d as nat) >= t.n);
-                    assert(g_ce == fldr_f(t, e, 0, 0, k) + fldr_fail_f(t, 0, 0, k));
-                    assert((t.h)(0) == 0);
-                    assert(ddg_nodes(t, 0) == 1);
-                }
+                proof { assert(g_ce == fldr_f(t, e, 0, 0, k) + fldr_fail_f(t, 0, 0, k)); }
                 c = 0;
                 d = 0;
             }
         } else {
-            // internal → descend to (c1, new_d − h(c1))
+            // internal → renumber within the level:  d ← d − h(c)
             proof {
-                assert((new_d as nat) >= (t.h)(cn + 1));
-                lemma_ddg_close(t);                                          // N(K) = h(K)
-                assert((c1 as nat) < tab.levels as nat) by {
-                    if (c1 as nat) == tab.levels as nat {
+                lemma_ddg_close(t);                                  // N(K) = h(K) ⇒ c < levels
+                assert((c as nat) < tab.levels as nat) by {
+                    if (c as nat) == tab.levels as nat {
                         assert(ddg_nodes(t, tab.levels as nat) == (t.h)(tab.levels as nat));
                     }
                 }
-                assert(g_ce == fldr_f(t, e, cn + 1, ((new_d as nat) - (t.h)(cn + 1)) as nat, k)
-                            + fldr_fail_f(t, cn + 1, ((new_d as nat) - (t.h)(cn + 1)) as nat, k));
-                assert(((new_d as nat) - (t.h)(cn + 1)) as nat + (t.h)(cn + 1) == new_d as nat);
+                assert(g_ce == fldr_f(t, e, cn + 1, ((d as nat) - (t.h)(cn + 1)) as nat, k)
+                            + fldr_fail_f(t, cn + 1, ((d as nat) - (t.h)(cn + 1)) as nat, k));
             }
-            d = new_d - hd1;
-            c = c1;
-            proof {
-                assert((d as nat) == ((new_d as nat) - (t.h)(cn + 1)) as nat);
-            }
+            d = d - hc;
         }
     }
 }
@@ -673,15 +636,15 @@ pub open spec fn bitval(x: nat, k: nat) -> nat
     if k == 0 { 0 } else { bitval(x, (k - 1) as nat) + bit(x, (k - 1) as nat) * pow2((k - 1) as nat) }
 }
 
-/// Σ_{c'=1}^{c} bit(x, kk−c')·2^{kk−c'}  — the value contributed by the top c bits.
-/// (Level c ↔ bit kk−c; this is the FLDR per-label weight encoding's shape.)
-pub open spec fn topbits(x: nat, kk: nat, c: nat) -> nat
+/// Σ_{c'=1}^{c} bit(x, k−c')·2^{k−c'}  — the value contributed by the top c bits.
+/// (Level c ↔ bit k−c; this is the FLDR per-label weight encoding's shape.)
+pub open spec fn topbits(x: nat, k: nat, c: nat) -> nat
     decreases c,
 {
     if c == 0 {
         0
     } else {
-        topbits(x, kk, (c - 1) as nat) + bit(x, (kk - c) as nat) * pow2((kk - c) as nat)
+        topbits(x, k, (c - 1) as nat) + bit(x, (k - c) as nat) * pow2((k - c) as nat)
     }
 }
 
@@ -744,11 +707,11 @@ pub open spec fn built_ddg(pctx: PCtx) -> Ddg {
 // Σ_c h(c)·2^{K−c} = Σ_ℓ ew(ℓ) = 2ᴷ.  Proved by the row-sum (over labels) of the
 // bit-histogram, accumulated level-by-level (same shape as the leaf-sum identity).
 
-/// Σ_{ℓ<nn} topbits(ew(ℓ), K, c)  — cells covered by levels 1..c, summed over labels < nn.
-pub open spec fn rowtop(pctx: PCtx, c: nat, nn: nat) -> nat
-    decreases nn,
+/// Σ_{ℓ<n} topbits(ew(ℓ), K, c)  — cells covered by levels 1..c, summed over labels < n.
+pub open spec fn rowtop(pctx: PCtx, c: nat, n: nat) -> nat
+    decreases n,
 {
-    if nn == 0 { 0 } else { rowtop(pctx, c, (nn - 1) as nat) + topbits(ew(pctx, (nn - 1) as nat), pctx.levels, c) }
+    if n == 0 { 0 } else { rowtop(pctx, c, (n - 1) as nat) + topbits(ew(pctx, (n - 1) as nat), pctx.levels, c) }
 }
 
 /// Σ_{j=1}^{c} h(j)·2^{K−j}  — cells covered by leaves at levels 1..c.
@@ -762,11 +725,11 @@ pub open spec fn filled(pctx: PCtx, c: nat) -> nat
     }
 }
 
-/// Σ_{ℓ<nn} ew(ℓ).
-pub open spec fn ewsum(pctx: PCtx, nn: nat) -> nat
-    decreases nn,
+/// Σ_{ℓ<n} ew(ℓ).
+pub open spec fn ewsum(pctx: PCtx, n: nat) -> nat
+    decreases n,
 {
-    if nn == 0 { 0 } else { ewsum(pctx, (nn - 1) as nat) + ew(pctx, (nn - 1) as nat) }
+    if n == 0 { 0 } else { ewsum(pctx, (n - 1) as nat) + ew(pctx, (n - 1) as nat) }
 }
 
 impl PCtx {
@@ -822,11 +785,11 @@ pub fn build_level(
     weights: &Vec<u64>,
     rej_u: u64,
     levels: u64,
-    c: u64,
+    j: u64,
     Ghost(pctx): Ghost<PCtx>,
 ) -> (labd: Vec<u64>)
     requires
-        c <= levels,
+        j <= levels,
         levels <= 62,
         pctx.levels == levels as nat,
         pctx.n == weights@.len(),
@@ -835,64 +798,36 @@ pub fn build_level(
         pow2(levels as nat) <= usize::MAX as nat,
         forall |l: int| 0 <= l < pctx.n ==> (pctx.weights)(l as nat) == weights@[l] as nat,
     ensures
-        labd@.len() == pcnt(pctx, c as nat, (pctx.n + 1) as nat),
+        labd@.len() == pcnt(pctx, j as nat, (pctx.n + 1) as nat),
         forall |d: int| 0 <= d < labd@.len() ==>
-            labd@[d] as nat == sel(pctx, c as nat, d as nat, (pctx.n + 1) as nat),
+            labd@[d] as nat == sel(pctx, j as nat, d as nat, (pctx.n + 1) as nat),
 {
-    let nn: usize = weights.len();
-    let pj: u64 = pow2_exec(levels - c);
-    proof { lemma_pow2_pos((levels - c) as nat); }       // pj ≥ 1, division is safe
+    let n: usize = weights.len();
+    let p_j: u64 = pow2_exec(levels - j);                 // p_j ≥ 1 (broadcast lemma_pow2_pos)
 
     let mut labd: Vec<u64> = Vec::new();
-    let mut l: usize = 0;
-    while l <= nn
+    let mut i: usize = 0;
+    while i <= n
         invariant
-            l <= nn + 1,
-            nn + 1 <= usize::MAX as nat,
-            nn == pctx.n,
-            nn == weights@.len(),
-            c <= levels,
+            i <= n + 1,
+            n + 1 <= usize::MAX as nat,
+            n == pctx.n,
+            n == weights@.len(),
             pctx.levels == levels as nat,
             pctx.rej == rej_u as nat,
-            pj as nat == pow2((levels - c) as nat),
-            pj >= 1,
-            forall |ll: int| 0 <= ll < pctx.n ==> (pctx.weights)(ll as nat) == weights@[ll] as nat,
-            labd@.len() == pcnt(pctx, c as nat, l as nat),
+            p_j as nat == pow2((levels - j) as nat),
+            forall |l: int| 0 <= l < pctx.n ==> (pctx.weights)(l as nat) == weights@[l] as nat,
+            labd@.len() == pcnt(pctx, j as nat, i as nat),
             forall |d: int| 0 <= d < labd@.len() ==>
-                labd@[d] as nat == sel(pctx, c as nat, d as nat, l as nat),
-        decreases nn + 1 - l,
+                labd@[d] as nat == sel(pctx, j as nat, d as nat, i as nat),
+        decreases n + 1 - i,
     {
-        let ewl: u64 = if l < nn { weights[l] } else { rej_u };
-        proof {
-            assert(ewl as nat == ew(pctx, l as nat));
-            // pres(pctx,c,l) = bit(ew, K−c) = (ew / 2^{K−c}) % 2, matched by exec div/mod.
-            assert(pres(pctx, c as nat, l as nat)
-                == (ew(pctx, l as nat) / pow2((levels - c) as nat)) % 2);
-            assert((ewl / pj) as nat == (ewl as nat) / (pj as nat));
-            assert((ewl % 2) as nat == (ewl as nat) % 2);
+        let a_i: u64 = if i < n { weights[i] } else { rej_u };   // aᵢ  (reject weight at i = n)
+        let w: bool = (a_i / p_j) % 2 == 1;                        // bit (K−j) of aᵢ
+        if w {
+            labd.push(i as u64);
         }
-        let present: bool = (ewl / pj) % 2 == 1;
-        let ghost ln = l as nat;
-        if present {
-            proof {
-                assert(pres(pctx, c as nat, ln) == 1);
-                lemma_sel_at(pctx, c as nat, ln, (ln + 1) as nat);   // sel(c, pcnt(c,l), l+1) = l
-                assert forall |d: int| 0 <= d < labd@.len() implies
-                    #[trigger] sel(pctx, c as nat, d as nat, (ln + 1) as nat) == sel(pctx, c as nat, d as nat, ln) by {
-                    lemma_sel_stable(pctx, c as nat, d as nat, ln);  // d < pcnt(c,l) = labd.len()
-                }
-            }
-            labd.push(l as u64);
-        } else {
-            proof {
-                assert(pres(pctx, c as nat, ln) == 0);
-                assert forall |d: int| 0 <= d < labd@.len() implies
-                    #[trigger] sel(pctx, c as nat, d as nat, (ln + 1) as nat) == sel(pctx, c as nat, d as nat, ln) by {
-                    lemma_sel_stable(pctx, c as nat, d as nat, ln);
-                }
-            }
-        }
-        l = l + 1;
+        i = i + 1;
     }
     labd
 }
@@ -960,20 +895,15 @@ pub fn fldr_preprocess(weights: Vec<u64>, m: u64, levels: u64) -> (tab: FldrTabl
     };
 
     // pctx.wf(): the obligations of well-formed preprocessing input.
-    proof {
-        assert(pctx.rej == (pow2(pctx.levels) - (m as nat)) as nat);
-        lemma_ewsum_eq_vsum(pctx, weights@, pctx.n);               // ewsum(pctx,n) = vsum = m
-        assert(ewsum(pctx, pctx.n) == m as nat);
-        assert(pctx.wf());
-        lemma_built_valid(pctx);                      // valid_ddg(built_ddg(pctx))
-    }
+    proof { lemma_ewsum_eq_vsum(pctx, weights@, pctx.n); }   // ewsum(pctx,n) = vsum = m ⇒ pctx.wf()
 
+    // Paper Alg. 5 outer loop:  one column `j` per level (0..K); `build_level` fills it.
     let mut h: Vec<u64> = Vec::new();
     let mut lab: Vec<Vec<u64>> = Vec::new();
-    let mut c: u64 = 0;
-    while c <= levels
+    let mut j: u64 = 0;
+    while j <= levels
         invariant
-            c <= levels + 1,
+            j <= levels + 1,
             levels <= 62,
             pctx.levels == levels as nat,
             pctx.n == weights@.len(),
@@ -981,20 +911,18 @@ pub fn fldr_preprocess(weights: Vec<u64>, m: u64, levels: u64) -> (tab: FldrTabl
             weights@.len() + 1 <= usize::MAX as nat,
             pow2(levels as nat) <= usize::MAX as nat,
             forall |i: int| 0 <= i < pctx.n ==> (pctx.weights)(i as nat) == weights@[i] as nat,
-            h@.len() == c as nat,
-            lab@.len() == c as nat,
-            forall |cc: int| 0 <= cc < c ==> #[trigger] h@[cc] as nat == pcnt(pctx, cc as nat, (pctx.n + 1) as nat),
-            forall |cc: int| 0 <= cc < c ==> #[trigger] lab@[cc]@.len() == h@[cc],
-            forall |cc: int, d: int| 0 <= cc < c && 0 <= d < lab@[cc]@.len() ==>
-                #[trigger] lab@[cc]@[d] as nat == sel(pctx, cc as nat, d as nat, (pctx.n + 1) as nat),
-        decreases levels + 1 - c,
+            h@.len() == j as nat,
+            lab@.len() == j as nat,
+            forall |c: int| 0 <= c < j ==> #[trigger] h@[c] as nat == pcnt(pctx, c as nat, (pctx.n + 1) as nat),
+            forall |c: int| 0 <= c < j ==> #[trigger] lab@[c]@.len() == h@[c],
+            forall |c: int, d: int| 0 <= c < j && 0 <= d < lab@[c]@.len() ==>
+                #[trigger] lab@[c]@[d] as nat == sel(pctx, c as nat, d as nat, (pctx.n + 1) as nat),
+        decreases levels + 1 - j,
     {
-        let labd: Vec<u64> = build_level(&weights, rej_u, levels, c, Ghost(pctx));
-        let hd: u64 = labd.len() as u64;
-        proof { assert(hd as nat == labd@.len()); }
-        h.push(hd);
+        let labd: Vec<u64> = build_level(&weights, rej_u, levels, j, Ghost(pctx));
+        h.push(labd.len() as u64);
         lab.push(labd);
-        c = c + 1;
+        j = j + 1;
     }
 
     let n_u: u64 = weights.len() as u64;
@@ -1003,35 +931,17 @@ pub fn fldr_preprocess(weights: Vec<u64>, m: u64, levels: u64) -> (tab: FldrTabl
     proof {
         let ghost t = tab.view();
         let ghost bt = built_ddg(pctx);
-        // The view and the built DDG share scalar fields and weight function …
-        assert(t.n == bt.n && t.m == bt.m && t.levels == bt.levels);
-        assert(t.weights == bt.weights);
-        // … and agree on h(c) for 0 ≤ c ≤ K and lab(c,d) for d < h(c), c ≤ K.
-        assert forall |cc: nat| cc <= levels as nat implies (#[trigger] (t.h)(cc)) == (bt.h)(cc) by {
-            assert((t.h)(cc) == tab.h@[cc as int] as nat);   // cc < h.len() = K+1
-            assert(tab.h@[cc as int] as nat == pcnt(pctx, cc, (pctx.n + 1) as nat));
-        }
-        assert forall |cc: nat| cc > levels as nat implies (#[trigger] (t.h)(cc)) == 0nat by {
-            assert(tab.h@.len() == levels as nat + 1);       // cc ≥ K+1 = h.len() ⇒ view = 0
-        }
-        assert forall |cc: nat, d: nat| cc <= levels as nat && d < (bt.h)(cc)
-            implies (#[trigger] (t.lab)(cc, d)) == (bt.lab)(cc, d) by {
-            assert((bt.h)(cc) == pcnt(pctx, cc, (pctx.n + 1) as nat));
-            assert((t.h)(cc) == tab.h@[cc as int] as nat);
-            assert(tab.h@[cc as int] as nat == pcnt(pctx, cc, (pctx.n + 1) as nat));
-            assert(d < tab.lab@[cc as int]@.len());          // len = h[cc] = pcnt
-            assert((t.lab)(cc, d) == tab.lab@[cc as int]@[d as int] as nat);
-            assert(tab.lab@[cc as int]@[d as int] as nat == sel(pctx, cc, d, (pctx.n + 1) as nat));
-        }
+        // The view and the built DDG share scalar fields/weights, and agree on h(j) for
+        // 0 ≤ j ≤ K and lab(j,d) for d < h(j), j ≤ K.
+        assert forall |c: nat| c <= levels as nat implies (#[trigger] (t.h)(c)) == (bt.h)(c) by {}
+        assert forall |c: nat| c > levels as nat implies (#[trigger] (t.h)(c)) == 0nat by {}
+        assert forall |c: nat, d: nat| c <= levels as nat && d < (bt.h)(c)
+            implies (#[trigger] (t.lab)(c, d)) == (bt.lab)(c, d) by {}
         // Transfer valid_ddg from bt (lemma_built_valid) to t via the agreement lemmas.
         lemma_built_valid(pctx);
         lemma_preprocess_valid(t, bt);
-
-        // remaining wf() conjuncts
         lemma_pow2_mono(levels as nat, 62);
-        lemma_pow2_62();                                     // pow2(levels) ≤ 2^62
-        assert forall |cc: int| 0 <= cc <= levels implies
-            (#[trigger] tab.lab@[cc]@.len()) == tab.h@[cc] by {}
+        lemma_pow2_62();                                     // pow2(levels) ≤ 2^62 (wf conjunct)
     }
     tab
 }
