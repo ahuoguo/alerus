@@ -204,7 +204,7 @@ pub proof fn lemma_fdr_average_nonneg(n: nat, e: spec_fn(real) -> real)
         requires average_nat(n, e) == sum_credit(e, n) / n as real, sum_credit(e, n) >= 0real, n > 0;
 }
 
-/// Reindex:  Σ_{c<j}(h(v,2c)+h(v,2c+1)) = Σ_{c<2j} h(v,c).
+/// Reindex:  Σ_{c<j}(fdr_h(v,2c)+fdr_h(v,2c+1)) = Σ_{c<2j} fdr_h(v,c).
 pub proof fn lemma_fdr_pairsum_eq_hsum(n: nat, e: spec_fn(real) -> real, v: nat, j: nat, k: nat)
     ensures fdr_pairsum(n, e, v, j, k) == fdr_hsum_upto(n, e, v, 2 * j, k),
     decreases j,
@@ -231,7 +231,7 @@ pub proof fn lemma_fdr_fsum_half_pairsum(n: nat, e: spec_fn(real) -> real, v: na
 {
     if j > 0 {
         lemma_fdr_fsum_half_pairsum(n, e, v, (j - 1) as nat, k);
-        // fdr_f(v,j-1,k+1) = (h(2v,2(j-1),k) + h(2v,2(j-1)+1,k))/2
+        // fdr_f(v,j-1,k+1) = (fdr_h(2v,2(j-1),k) + fdr_h(2v,2(j-1)+1,k))/2
         let ghost prev_f = fdr_fsum_upto(n, e, v, (j - 1) as nat, (k + 1) as nat);
         let ghost prev_p = fdr_pairsum(n, e, 2 * v, (j - 1) as nat, k);
         let ghost ha = fdr_h(n, e, 2 * v, (2 * ((j - 1) as nat)) as nat, k);
@@ -273,7 +273,7 @@ pub proof fn lemma_fdr_hsum_low(n: nat, e: spec_fn(real) -> real, v: nat, j: nat
 }
 
 /// Threshold split:  for v ≥ n and i ≤ v−n,
-///   Σ_{c<n+i} h(v,c) = Σ_{c<n} ℰ(c)  +  Σ_{c'<i} fdr_f(v−n, c', k).
+///   Σ_{c<n+i} fdr_h(v,c) = Σ_{c<n} ℰ(c)  +  Σ_{c'<i} fdr_f(v−n, c', k).
 pub proof fn lemma_fdr_hsum_split(n: nat, e: spec_fn(real) -> real, v: nat, i: nat, k: nat)
     requires v >= n, i <= (v - n) as nat,
     ensures

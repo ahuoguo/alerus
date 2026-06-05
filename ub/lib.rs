@@ -11,5 +11,7 @@ pub mod discrete_laplace;
 pub mod random_walk;
 pub mod dp;
 pub mod fdr;
+pub mod fldr;
+pub mod fldr_helper;
 
 
