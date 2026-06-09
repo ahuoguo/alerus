@@ -1,7 +1,7 @@
 // Runtime smoke tests for the verified samplers. Lives outside the lib
 // crate (and outside `verus!`) so it isn't part of verification.
 
-use ub::{discrete_laplace, fldr, geo, geo_dist, ho_rej_samp};
+use ub::{alias, discrete_laplace, fldr, geo, geo_dist, ho_rej_samp};
 
 fn main() {
     println!("Geometric Distribution Test");
@@ -32,4 +32,11 @@ fn main() {
         bad[fldr::example_fldr() as usize] += 1;
     }
     println!("{:?}  (expected ratio 7:4:8)", bad);
+
+    println!("Alias method p = (7/19, 4/19, 8/19)  [weights 7,4,8]");
+    let mut al = [0u64; 3];
+    for _ in 0..1900 {
+        al[alias::example_alias() as usize] += 1;
+    }
+    println!("{:?}  (expected ratio 7:4:8)", al);
 }
