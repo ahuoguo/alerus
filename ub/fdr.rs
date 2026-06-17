@@ -664,6 +664,7 @@ pub proof fn lemma_fdr_fail_witness(n: nat, delta: real)
 ///   ε ≥ average_nat(n, ℰ)       ( = (1/n)·Σ_{i<n} ℰ(i),  the Uniform{0..n−1} mean )
 ///   ─────────────────────────────────────────────────
 ///   [{ ↯(ε) }] sample_fdr(n) [{ v. ↯(ℰ(v)) }]
+#[verifier::spinoff_prover]
 pub fn sample_fdr(
     n: u64,
     Ghost(e): Ghost<spec_fn(real) -> real>,
@@ -752,26 +753,22 @@ pub fn sample_fdr(
             k = (kk - 1) as nat;
         }
 
-        let new_v: u64 = 2 * v;
-        let new_d: u64 = 2 * c + b;
+        v = 2 * v;
+        c = 2 * c + b;
 
-        if new_v >= n {
-            if new_d < n {
+        if v >= n {
+            if c < n {
                 // accept:  alloc(b) = fdr_h(v,c,k) + fdr_fail_h(v,c,k) = ℰ(c) + 0.
                 proof {
-                    assert((new_d as nat) as real == new_d as real);
-                    assert(g_ce == e(new_d as real));
+                    assert((c as nat) as real == c as real);
+                    assert(g_ce == e(c as real));
                 }
-                return (new_d, Tracked(credit));
+                return (c, Tracked(credit));
             } else {
                 // reject:  alloc(b) = fdr_f(v−n,c−n,k) + fdr_fail_f(v−n,c−n,k) = G(v',c',k).
-                v = new_v - n;
-                c = new_d - n;
+                v = v - n;
+                c = c - n;
             }
-        } else {
-            // continue: alloc(b) = fdr_f(v,c,k) + fdr_fail_f(v,c,k) = G(v',c',k).
-            v = new_v;
-            c = new_d;
         }
     }
 }

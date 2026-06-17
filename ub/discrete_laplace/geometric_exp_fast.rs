@@ -581,6 +581,7 @@ proof fn lemma_outer_partial_monotone(
 /// Within bucket r = R, k = R·n + j with j < n, so (R·n + j)/n = R and
 /// e^{−(R·n + j)/d} = (e^{−n/d})^R · e^{−j/d}.  At i = n this gives the
 /// "complete bucket" identity used in the bucket bound.
+#[verifier::spinoff_prover]
 proof fn lemma_outer_partial_bucket_helper(
     numer: nat, denom: nat, e: spec_fn(nat) -> real, r: nat, i: nat,
 )

@@ -342,21 +342,34 @@ pub proof fn lemma_dg_accept_term(p: real, sigma2: real, t: real, k: nat)
 
 /// Pure polynomial combine for the zero term (no division, abstract reals):
 ///   norm·(c·ev + (1−c)·rc) = m·ev + rc·(norm − m),   given m = norm·c.
-#[verifier::nonlinear]
+#[verifier::spinoff_prover]
 proof fn lemma_lin_zero(norm: real, c: real, ev: real, rc: real, m: real)
     requires m == norm * c,
     ensures norm * (c * ev + (1real - c) * rc) == m * ev + rc * (norm - m),
-{}
+{
+    // Each step is a small polynomial identity; the per-summand targets match the ensures
+    // exactly, so the final combine is addition-congruence (no nonlinear/commutativity left).
+    assert(norm * (c * ev + (1real - c) * rc) == norm * c * ev + norm * (1real - c) * rc)
+        by(nonlinear_arith);
+    assert(norm * c * ev == m * ev) by(nonlinear_arith) requires m == norm * c;
+    assert(norm * (1real - c) * rc == rc * (norm - m)) by(nonlinear_arith) requires m == norm * c;
+}
 
 /// Pure polynomial combine for the symmetric term (no division, abstract reals):
 ///   s·(c·(ek+emk) + 2(1−c)·rc) = m·(ek+emk) + rc·(2s − 2m),   given m = s·c.
-#[verifier::nonlinear]
+#[verifier::spinoff_prover]
 proof fn lemma_lin_sym(s: real, c: real, ek: real, emk: real, rc: real, m: real)
     requires m == s * c,
     ensures
         s * (c * (ek + emk) + 2real * (1real - c) * rc)
             == m * (ek + emk) + rc * (2real * s - 2real * m),
-{}
+{
+    assert(s * (c * (ek + emk) + 2real * (1real - c) * rc)
+        == s * c * (ek + emk) + 2real * s * (1real - c) * rc) by(nonlinear_arith);
+    assert(s * c * (ek + emk) == m * (ek + emk)) by(nonlinear_arith) requires m == s * c;
+    assert(2real * s * (1real - c) * rc == rc * (2real * s - 2real * m))
+        by(nonlinear_arith) requires m == s * c;
+}
 
 /// (a·b)/c = a·(b/c)  — regroup the discrete-Laplace coefficient
 /// pow(p,k)·(1−p)/(1+p) into pow(p,k)·((1−p)/(1+p)).

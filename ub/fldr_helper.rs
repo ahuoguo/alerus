@@ -1,7 +1,3 @@
-// Helper lemmas for `fldr.rs`.  All `proof fn`s of the FLDR development live here;
-// `fldr.rs` keeps the structs, spec fns, and executable code.  Everything below is
-// ghost-only (erased in a normal build), so the crate imports are gated on
-// `verus_keep_ghost`.
 use vstd::prelude::*;
 
 verus! {
