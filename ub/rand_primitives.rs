@@ -87,6 +87,7 @@ pub fn rand_ubig(
 // REVIEW:
 // In Eris, you can only invoke a thin air rule if your postcondition is a WP or is wrapped in some modality
 // you can't not invoke thin air rule in any lemma (this might(?) be unsound)
+// TODO: can you write it as a `proof fn` returning some value?
 #[verus::trusted]
 #[verifier::external_body]
 pub fn thin_air() -> (ret: Tracked<ErrorCreditResource>)

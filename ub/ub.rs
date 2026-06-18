@@ -3,6 +3,8 @@ use vstd::resource::pcm::*;
 use vstd::resource::algebra::ResourceAlgebra;
 #[cfg(verus_keep_ghost)]
 use vstd::resource::Loc;
+#[cfg(verus_keep_ghost)]
+use vstd::resource::relations::frame_preserving_update;
 use vstd::prelude::*;
 
 verus! {
@@ -14,6 +16,10 @@ pub uninterp spec fn EC_GLOBAL_LOC() -> Loc;
 // wrapper around ec, namely `↯`
 // A error credit represents a resource with a non zero value
 // https://logsem.github.io/clutch/clutch.base_logic.error_credits.html
+// the reason we have `Empty` separately is becuase we Value{0} can't be a unit since
+// ↯(-1) · ↯(0) = Invalid
+// this is because we don't have a subset type for non-negative reals, 
+// so we have to bake the non-negativity into the algebra itself. 
 pub enum ErrorCreditCarrier {
     Value { car: real },
     Empty,
@@ -170,6 +176,33 @@ pub proof fn ec_split(
         ErrorCreditCarrier::Value { car: v2 },
     );
     (ErrorCreditResource { r: r1 }, ErrorCreditResource { r: r2 })
+}
+
+/// ⊢ ↯(0)
+/// The PCM unit `Empty` via `create_unit`, then frame-preserving update to `Value{0}`
+/// by "uniqueness" of unit
+pub proof fn ec_zero() -> (tracked out: ErrorCreditResource)
+    ensures
+        out.view() =~= (ErrorCreditCarrier::Value { car: 0real }),
+{
+    let tracked u = Resource::<ErrorCreditCarrier>::create_unit(EC_GLOBAL_LOC());
+    assert(frame_preserving_update(
+        ErrorCreditCarrier::Empty,
+        ErrorCreditCarrier::Value { car: 0real },
+    )) by {
+        assert forall |c: ErrorCreditCarrier|
+            #![trigger ErrorCreditCarrier::op(ErrorCreditCarrier::Empty, c)]
+            ErrorCreditCarrier::op(ErrorCreditCarrier::Empty, c).valid()
+            implies ErrorCreditCarrier::op(ErrorCreditCarrier::Value { car: 0real }, c).valid() by {
+            match c {
+                ErrorCreditCarrier::Value { car } => {},
+                ErrorCreditCarrier::Empty => {},
+                ErrorCreditCarrier::Invalid => {},
+            }
+        }
+    };
+    let tracked r = u.update(ErrorCreditCarrier::Value { car: 0real });
+    ErrorCreditResource { r }
 }
 
 } // verus!
