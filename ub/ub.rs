@@ -161,14 +161,14 @@ pub proof fn ec_split(
     tracked c: ErrorCreditResource,
     v1: real,
     v2: real,
-) -> (tracked out: (ErrorCreditResource, ErrorCreditResource))
+) -> (tracked (c1, c2): (ErrorCreditResource, ErrorCreditResource))
     requires
         c.view() =~= (ErrorCreditCarrier::Value { car: v1 + v2 }),
         v1 >= 0real,
         v2 >= 0real,
     ensures
-        out.0.view() =~= (ErrorCreditCarrier::Value { car: v1 }),
-        out.1.view() =~= (ErrorCreditCarrier::Value { car: v2 }),
+        c1.view() =~= (ErrorCreditCarrier::Value { car: v1 }),
+        c2.view() =~= (ErrorCreditCarrier::Value { car: v2 }),
 {
     use_type_invariant(&c);
     let tracked (r1, r2) = c.r.split(
