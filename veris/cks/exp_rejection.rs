@@ -35,7 +35,7 @@ use vstd::prelude::*;
 
 verus! {
 
-use crate::ub::*;
+use crate::ec::*;
 #[cfg(verus_keep_ghost)]
 use crate::math::pow::{pow, archimedean_exp_growth};
 #[cfg(verus_keep_ghost)]
@@ -45,13 +45,13 @@ use crate::math::exp::{exp, axiom_exp_zero, axiom_exp_neg_range, axiom_exp_neg_s
 use crate::rand_primitives::{thin_air, rand_ubig};
 #[cfg(verus_keep_ghost)]
 use crate::rand_primitives::{average_nat, sum_credit};
-use crate::discrete_laplace::bernoulli_exp::sample_bernoulli_exp_ubig;
+use crate::cks::bernoulli_exp::sample_bernoulli_exp_ubig;
 use random::{UBig, ubig_from_u64};
 use crate::extern_spec::ubig_lt;
 #[cfg(verus_keep_ghost)]
 use crate::extern_spec::ubig_view;
 #[cfg(verus_keep_ghost)]
-use crate::discrete_laplace::bernoulli_rational::bernoulli_weighted_sum;
+use crate::cks::bernoulli_rational::bernoulli_weighted_sum;
 
 /// e^{−u/d}.
 pub open spec fn rej_weight(d: nat, u: nat) -> real {

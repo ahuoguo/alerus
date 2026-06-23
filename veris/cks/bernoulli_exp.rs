@@ -22,10 +22,10 @@ use random::{UBig, ubig_sub, ubig_is_zero};
 
 verus! {
 
-use crate::ub::*;
+use crate::ec::*;
 #[cfg(verus_keep_ghost)]
-use crate::discrete_laplace::bernoulli_rational::{bernoulli_weighted_sum, lemma_bws_nonneg};
-use crate::discrete_laplace::bernoulli_exp1::{sample_bernoulli_exp1, sample_bernoulli_exp1_ubig};
+use crate::cks::bernoulli_rational::{bernoulli_weighted_sum, lemma_bws_nonneg};
+use crate::cks::bernoulli_exp1::{sample_bernoulli_exp1, sample_bernoulli_exp1_ubig};
 #[cfg(verus_keep_ghost)]
 use crate::math::exp::{exp, axiom_exp_neg_range, axiom_exp_add, lemma_exp_decompose, axiom_exp_zero};
 #[cfg(verus_keep_ghost)]

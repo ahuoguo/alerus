@@ -17,7 +17,7 @@ use random::UBig;
 
 verus! {
 
-use crate::ub::*;
+use crate::ec::*;
 use crate::rand_primitives::rand_ubig;
 #[cfg(verus_keep_ghost)]
 use crate::rand_primitives::{average_nat, sum_credit};

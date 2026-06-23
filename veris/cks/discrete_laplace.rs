@@ -21,7 +21,7 @@ use random::UBig;
 
 verus! {
 
-use crate::ub::*;
+use crate::ec::*;
 #[cfg(verus_keep_ghost)]
 use crate::math::pow::{pow, archimedean_exp_growth};
 #[cfg(verus_keep_ghost)]
@@ -32,12 +32,12 @@ use crate::math::series::*;
 use crate::math::exp::{exp, axiom_exp_neg_range, axiom_exp_neg_strict};
 use crate::rand_primitives::thin_air;
 #[cfg(verus_keep_ghost)]
-use crate::discrete_laplace::bernoulli_rational::bernoulli_weighted_sum;
-use crate::discrete_laplace::bernoulli_rational::sample_bernoulli_rational;
-use crate::discrete_laplace::geometric_exp::sample_geometric_exp;
-use crate::discrete_laplace::geometric_exp_fast::sample_geometric_exp_fast;
+use crate::cks::bernoulli_rational::bernoulli_weighted_sum;
+use crate::cks::bernoulli_rational::sample_bernoulli_rational;
+use crate::cks::geometric_exp::sample_geometric_exp;
+use crate::cks::geometric_exp_fast::sample_geometric_exp_fast;
 #[cfg(verus_keep_ghost)]
-use crate::discrete_laplace::geometric_exp::{geo_exp_series_bounded_by, geo_exp_partial_sum, geo_exp_summand};
+use crate::cks::geometric_exp::{geo_exp_series_bounded_by, geo_exp_partial_sum, geo_exp_summand};
 #[cfg(verus_keep_ghost)]
 use crate::extern_spec::{ExUBig, ExIBig, ExRBig, ubig_view, ibig_view, rbig_view};
 

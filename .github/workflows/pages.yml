@@ -22,10 +22,10 @@ concurrency:
   cancel-in-progress: false
 
 env:
-  # Keep these in sync with the Verus version pinned in ub/Cargo.toml and
+  # Keep these in sync with the Verus version pinned in veris/Cargo.toml and
   # .github/workflows/main.yml.
-  VERUS_VER: 0.2026.05.17.e479cce
-  VERUS_TAG: release/0.2026.05.17.e479cce
+  VERUS_VER: 0.2026.05.31.5dd6d83
+  VERUS_TAG: release/0.2026.05.31.5dd6d83
 
 jobs:
   build:
@@ -68,7 +68,7 @@ jobs:
           export RUSTDOC="$(rustup which --toolchain 1.95.0 rustdoc)"
           ./gen-verusdoc.sh
           # Redirect the site root to the crate landing page.
-          printf '<meta http-equiv="refresh" content="0; url=ub/index.html">\n' > doc/index.html
+          printf '<meta http-equiv="refresh" content="0; url=veris/index.html">\n' > doc/index.html
 
       - name: Upload Pages artifact
         uses: actions/upload-pages-artifact@v3

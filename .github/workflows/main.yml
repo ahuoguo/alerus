@@ -19,12 +19,12 @@ jobs:
 
       - name: Download Verus
         run: |
-          wget https://github.com/verus-lang/verus/releases/download/release%2F0.2026.05.17.e479cce/verus-0.2026.05.17.e479cce-x86-linux.zip
-          unzip verus-0.2026.05.17.e479cce-x86-linux.zip
+          wget https://github.com/verus-lang/verus/releases/download/release%2F0.2026.05.31.5dd6d83/verus-0.2026.05.31.5dd6d83-x86-linux.zip
+          unzip verus-0.2026.05.31.5dd6d83-x86-linux.zip
 
       - name: Add Verus to PATH
         run: echo "$(pwd)/verus-x86-linux/" >> $GITHUB_PATH
 
-      - name: cargo verus verify -p ub
+      - name: cargo verus verify -p veris
         working-directory: .
-        run: cargo verus verify -p ub
+        run: cargo verus verify -p veris

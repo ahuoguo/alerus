@@ -27,7 +27,7 @@ use random::ubig_add;
 
 verus! {
 
-use crate::ub::*;
+use crate::ec::*;
 use crate::rand_primitives::{rand_1_u64, thin_air};
 #[cfg(verus_keep_ghost)]
 use crate::math::pow::{pow, archimedean_exp_growth};

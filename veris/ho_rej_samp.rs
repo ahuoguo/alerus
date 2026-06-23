@@ -16,7 +16,7 @@
 use vstd::prelude::*;
 #[cfg(verus_keep_ghost)]
 use vstd::calc_macro::*;
-use crate::ub::*;
+use crate::ec::*;
 use crate::rand_primitives::{rand_u64, thin_air};
 #[cfg(verus_keep_ghost)]
 use crate::rand_primitives::{average, sum_credit};

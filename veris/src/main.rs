@@ -1,7 +1,7 @@
 // Runtime smoke tests for the verified samplers. Lives outside the lib
 // crate (and outside `verus!`) so it isn't part of verification.
 
-use ub::{alias, discrete_laplace, fldr, geo, geo_dist, ho_rej_samp};
+use veris::{alias, cks, fldr, geo, geo_dist, ho_rej_samp};
 
 fn main() {
     println!("Geometric Distribution Test");
@@ -18,7 +18,7 @@ fn main() {
     println!("Discrete Laplace (scale=4) Test");
     let mut res = Vec::new();
     for _ in 0..100 {
-        let v = discrete_laplace::discrete_laplace::sample_discrete_laplace_entry(1, 4);
+        let v = cks::discrete_laplace::sample_discrete_laplace_entry(1, 4);
         res.push(v);
     }
     println!("{:?}", res);

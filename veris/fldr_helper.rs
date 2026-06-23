@@ -2,7 +2,7 @@ use vstd::prelude::*;
 
 verus! {
 #[cfg(verus_keep_ghost)]
-use crate::ub::*;
+use crate::ec::*;
 #[cfg(verus_keep_ghost)]
 use crate::fldr::*;
 #[cfg(verus_keep_ghost)]

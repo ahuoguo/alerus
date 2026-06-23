@@ -1,18 +1,18 @@
 [package]
-name = "ub"
+name = "veris"
 version = "0.1.0"
 edition = "2021"
 
 [lib]
-name = "ub"
+name = "veris"
 path = "lib.rs"
 
 [[bin]]
-name = "ub"
+name = "veris"
 path = "src/main.rs"
 
 [dependencies]
-vstd = "=0.0.0-2026-05-17-0151"
+vstd = "=0.0.0-2026-05-31-0205"
 random = { path = "../random" }
 
 [package.metadata.verus]

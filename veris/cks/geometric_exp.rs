@@ -15,7 +15,7 @@ use random::{UBig, ubig_zero, ubig_succ};
 
 verus! {
 
-use crate::ub::*;
+use crate::ec::*;
 #[cfg(verus_keep_ghost)]
 use crate::extern_spec::{ExUBig, ubig_view};
 #[cfg(verus_keep_ghost)]
@@ -27,9 +27,9 @@ use crate::math::series::shift_e;
 #[cfg(verus_keep_ghost)]
 use crate::math::exp::exp;
 use crate::rand_primitives::thin_air;
-use crate::discrete_laplace::bernoulli_exp::sample_bernoulli_exp;
+use crate::cks::bernoulli_exp::sample_bernoulli_exp;
 #[cfg(verus_keep_ghost)]
-use crate::discrete_laplace::bernoulli_rational::bernoulli_weighted_sum;
+use crate::cks::bernoulli_rational::bernoulli_weighted_sum;
 
 /// k-th summand of the geometric series: p^k · (1 - p) · ℰ(k).
 pub open spec fn geo_exp_summand(p: real, e: spec_fn(nat) -> real, k: nat) -> real {

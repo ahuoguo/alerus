@@ -63,7 +63,7 @@ use vstd::prelude::*;
 
 verus! {
 
-use crate::ub::*;
+use crate::ec::*;
 use crate::rand_primitives::{thin_air, rand_1_u64};
 #[cfg(verus_keep_ghost)]
 use crate::rand_primitives::{sum_credit, average_nat};

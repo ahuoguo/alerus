@@ -46,10 +46,10 @@ use random::{UBig};
 
 verus! {
 
-use crate::ub::*;
+use crate::ec::*;
 use crate::rand_primitives::thin_air;
-use crate::discrete_laplace::discrete_laplace::sample_discrete_laplace_fast;
-use crate::discrete_laplace::bernoulli_exp::sample_bernoulli_exp_ubig;
+use crate::cks::discrete_laplace::sample_discrete_laplace_fast;
+use crate::cks::bernoulli_exp::sample_bernoulli_exp_ubig;
 #[cfg(verus_keep_ghost)]
 use crate::extern_spec::{ibig_view, ubig_view, rbig_view, ExRBig};
 #[cfg(verus_keep_ghost)]
@@ -71,7 +71,7 @@ use crate::math::series::{
     exists_close_suffix, suffix_is_close, dist, abs,
 };
 #[cfg(verus_keep_ghost)]
-use crate::discrete_laplace::discrete_laplace::{dl_partial_sum, dl_zero_summand, dl_symmetric_summand, dl_series_bounded_by};
+use crate::cks::discrete_laplace::{dl_partial_sum, dl_zero_summand, dl_symmetric_summand, dl_series_bounded_by};
 
 /// The acceptance bias for a proposal value with magnitude `a = |y|`:
 ///   bias(a) = (a − σ²/t)² / (2σ²).

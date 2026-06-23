@@ -10,7 +10,7 @@ use random::UBig;
 
 verus! {
 
-use crate::ub::*;
+use crate::ec::*;
 #[cfg(verus_keep_ghost)]
 use crate::math::pow::pow;
 #[cfg(verus_keep_ghost)]

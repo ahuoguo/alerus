@@ -31,7 +31,7 @@ use random::{UBig, ubig_zero, ubig_succ, ubig_pred, ubig_is_zero, ubig_from_u64}
 
 verus! {
 
-use crate::ub::*;
+use crate::ec::*;
 use crate::rand_primitives::{rand_1_u64, thin_air};
 #[cfg(verus_keep_ghost)]
 use crate::rand_primitives::sum_credit;

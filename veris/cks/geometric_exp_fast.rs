@@ -116,7 +116,7 @@ use random::{UBig, ubig_div, ubig_add, ubig_mul};
 
 verus! {
 
-use crate::ub::*;
+use crate::ec::*;
 #[cfg(verus_keep_ghost)]
 use crate::extern_spec::{ExUBig, ubig_view};
 #[cfg(verus_keep_ghost)]
@@ -133,17 +133,17 @@ use crate::math::series::{
     lemma_limit_add, lemma_limit_scale, lemma_limit_pointwise_eq,
     lemma_pow_nonneg,
 };
-use crate::discrete_laplace::exp_rejection::{sample_exp_rejection,};
+use crate::cks::exp_rejection::{sample_exp_rejection,};
 #[cfg(verus_keep_ghost)]
-use crate::discrete_laplace::exp_rejection::{
+use crate::cks::exp_rejection::{
     rej_weight, rej_weight_sum, rej_weighted_sum, rej_norm_const, rej_weighted_avg,
     lemma_rej_weight_step, lemma_rej_weight_sum_telescope, lemma_norm_const_identity,
 };
 #[cfg(verus_keep_ghost)]
-use crate::discrete_laplace::geometric_exp::{
+use crate::cks::geometric_exp::{
     geo_exp_series_bounded_by, geo_exp_partial_sum, geo_exp_summand
 };
-use crate::discrete_laplace::geometric_exp::{
+use crate::cks::geometric_exp::{
     sample_geometric_exp as sample_geometric_exp_slow
 };
 
@@ -888,8 +888,8 @@ pub proof fn lemma_partial_weighted_avg_bound(
         requires numer > 0, denom > 0;
     axiom_exp_neg_strict(numer as real / denom as real);
     axiom_exp_neg_range(1real);
-    crate::discrete_laplace::exp_rejection::lemma_rej_weight_sum_bounds(denom, numer);
-    crate::discrete_laplace::exp_rejection::lemma_rej_weight_sum_bounds(denom, denom);
+    crate::cks::exp_rejection::lemma_rej_weight_sum_bounds(denom, numer);
+    crate::cks::exp_rejection::lemma_rej_weight_sum_bounds(denom, denom);
 
     assert(r1me * jh <= nc * dist_bound) by(nonlinear_arith)
         requires
