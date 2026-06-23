@@ -148,7 +148,7 @@ pub proof fn archimedean_nat(x: real)
 ///
 /// Proof: by Bernoulli, r^k >= 1 + k*(r-1). Choose k >= (target-1)/(r-1).
 // TODO: we can reduce the number of lemmas by declaring this as `non_linear`
-proof fn archimedean_pow(r: real, target: real)
+pub proof fn archimedean_pow(r: real, target: real)
     requires
         r > 1real,
         target > 0real,

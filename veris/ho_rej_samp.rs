@@ -14,10 +14,16 @@
 //   - OR we have ↯ε' where ε ≤ ε' * εfactor
 
 use vstd::prelude::*;
+#[cfg(verus_keep_ghost)]
 use vstd::calc_macro::*;
-use crate::ub::*;
-use crate::rand_primitives::{rand_u64, rand_1_u64, thin_air, average, sum_credit};
+use crate::ec::*;
+use crate::rand_primitives::{rand_u64, thin_air};
+#[cfg(verus_keep_ghost)]
+use crate::rand_primitives::{average, sum_credit};
+#[cfg(verus_keep_ghost)]
 use crate::math::pow::{pow, archimedean_exp_growth};
+#[cfg(verus_keep_ghost)]
+use crate::math::real::real_assoc_mult;
 
 verus! {
 
@@ -65,19 +71,19 @@ pub trait SamplingScheme {
         &self,
         Tracked(e): Tracked<ErrorCreditResource>,
         Ghost(eps): Ghost<real>,
-    ) -> (ret: (u64, SampleOutcome))
+    ) -> ((value, outcome): (u64, SampleOutcome))
         requires
             self.valid(),
             eps > 0real,
             e.view() =~= (ErrorCreditCarrier::Value { car: eps }),
         ensures
-            match ret.1 {
+            match outcome {
                 SampleOutcome::Accepted => {
-                    &&& (self.check_spec())(ret.0)
-                    &&& (self.postcond())(ret.0)
+                    &&& (self.check_spec())(value)
+                    &&& (self.postcond())(value)
                 }
                 SampleOutcome::Rejected(ref amplified_credit) => {
-                    &&& !(self.check_spec())(ret.0)
+                    &&& !(self.check_spec())(value)
                     &&& amplified_credit@.view() =~= (ErrorCreditCarrier::Value { car: self.amp() * eps })
                 }
             };
@@ -202,13 +208,6 @@ pub fn rejection_sampler<S: SamplingScheme>(
 // ============================================================================
 // Helper lemmas
 // ============================================================================
-
-#[verifier::nonlinear]
-proof fn real_assoc_mult(a: real, b: real, c: real)
-    ensures
-        a * (b * c) == (a * b) * c,
-{
-}
 
 #[verifier::nonlinear]
 proof fn lemma_pos_mult(a: real, b: real)
@@ -367,15 +366,15 @@ impl SamplingScheme for UniformThresholdScheme {
         &self,
         Tracked(input_credit): Tracked<ErrorCreditResource>,
         Ghost(eps): Ghost<real>,
-    ) -> (ret: (u64, SampleOutcome))
+    ) -> ((value, outcome): (u64, SampleOutcome))
         ensures
-            match ret.1 {
+            match outcome {
                 SampleOutcome::Accepted => {
-                    &&& (self.check_spec())(ret.0)
-                    &&& (self.postcond())(ret.0)
+                    &&& (self.check_spec())(value)
+                    &&& (self.postcond())(value)
                 }
                 SampleOutcome::Rejected(ref amplified_credit) => {
-                    &&& !(self.check_spec())(ret.0)
+                    &&& !(self.check_spec())(value)
                     &&& amplified_credit@.view() =~= (ErrorCreditCarrier::Value { car: self.amp() * eps })
                 }
             },
@@ -583,7 +582,7 @@ pub fn bounded_rejection_exp_preserving(
     Ghost(depth): Ghost<nat>,
     Ghost(eps): Ghost<real>,
     Ghost(eps_avg): Ghost<real>,
-) -> (ret: (u64, Tracked<ErrorCreditResource>))
+) -> ((value, out_credit): (u64, Tracked<ErrorCreditResource>))
     requires
         scheme.valid(),
         scheme.amp() > 1real,
@@ -595,8 +594,8 @@ pub fn bounded_rejection_exp_preserving(
         eps * pow(scheme.amp(), depth) >= 1real,
         eps_avg >= average(scheme.threshold, |v: real| e(v.floor() as u64)),
     ensures
-        ret.0 < scheme.threshold,
-        ret.1@.view() =~= (ErrorCreditCarrier::Value { car: e(ret.0) }),
+        value < scheme.threshold,
+        out_credit@.view() =~= (ErrorCreditCarrier::Value { car: e(value) }),
     decreases depth,
 {
     let ghost amp = scheme.amp();
@@ -670,7 +669,7 @@ pub fn unbounded_rejection_exp_preserving(
     Tracked(input_credit): Tracked<ErrorCreditResource>,
     Ghost(e): Ghost<spec_fn(u64) -> real>,
     Ghost(eps_avg): Ghost<real>,
-) -> (ret: (u64, Tracked<ErrorCreditResource>))
+) -> ((value, out_credit): (u64, Tracked<ErrorCreditResource>))
     requires
         scheme.valid(),
         scheme.amp() > 1real,
@@ -680,8 +679,8 @@ pub fn unbounded_rejection_exp_preserving(
         input_credit.view() =~= (ErrorCreditCarrier::Value { car: eps_avg }),
         eps_avg >= average(scheme.threshold, |v: real| e(v.floor() as u64)),
     ensures
-        ret.0 < scheme.threshold,
-        ret.1@.view() =~= (ErrorCreditCarrier::Value { car: e(ret.0) }),
+        value < scheme.threshold,
+        out_credit@.view() =~= (ErrorCreditCarrier::Value { car: e(value) }),
 {
     let ghost amp = scheme.amp();
     let Tracked(eps_credit) = thin_air();

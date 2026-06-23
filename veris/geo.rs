@@ -8,13 +8,17 @@
 //   eps * 2^depth >= 1
 
 use vstd::prelude::*;
+#[cfg(verus_keep_ghost)]
 use vstd::calc_macro::*;
 
 verus! {
 
-use crate::ub::*;
+use crate::ec::*;
 use crate::rand_primitives::{rand_1_u64, thin_air};
+#[cfg(verus_keep_ghost)]
 use crate::math::pow::{pow, archimedean_exp_growth};
+#[cfg(verus_keep_ghost)]
+use crate::math::real::real_assoc_mult;
 
 spec fn geo_credit_alloc(outcome: real, eps: real) -> real {
     if outcome == 0real { 0real } else { 2real * eps }
@@ -103,13 +107,6 @@ pub fn bounded_geometric(
         let rest = bounded_geometric(Tracked(outcome_credit), Ghost((depth - 1) as nat));
         rest.wrapping_add(1u64)
     }
-}
-
-#[verifier::nonlinear]
-proof fn real_assoc_mult(a: real, b: real, c: real)
-    ensures
-        a * (b * c) == (a * b) * c,
-{
 }
 
 } // verus!

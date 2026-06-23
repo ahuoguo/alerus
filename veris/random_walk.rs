@@ -31,9 +31,13 @@ use random::{UBig, ubig_zero, ubig_succ, ubig_pred, ubig_is_zero, ubig_from_u64}
 
 verus! {
 
-use crate::ub::*;
-use crate::rand_primitives::{rand_1_u64, thin_air, sum_credit};
+use crate::ec::*;
+use crate::rand_primitives::{rand_1_u64, thin_air};
+#[cfg(verus_keep_ghost)]
+use crate::rand_primitives::sum_credit;
+#[cfg(verus_keep_ghost)]
 use crate::math::pow::{nat_to_real, archimedean_nat};
+#[cfg(verus_keep_ghost)]
 use crate::math::series::{
     seq_at, dist,
     converges_to, converges, exists_close_suffix, suffix_is_close,
@@ -44,7 +48,10 @@ use crate::math::series::{
     lemma_limit_unique, lemma_limit_pointwise_eq,
     lemma_convergent_witness,
 };
-use crate::extern_spec::{ExUBig, ubig_view};
+#[cfg(verus_keep_ghost)]
+use crate::extern_spec::ExUBig;
+#[cfg(verus_keep_ghost)]
+use crate::extern_spec::ubig_view;
 
 /// fail_prob(steps, pos) = 1 - Pr[walk from pos reaches 0 in ≤ steps].
 pub open spec fn fail_prob(steps: nat, pos: nat) -> real

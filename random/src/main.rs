@@ -11,18 +11,3 @@ fn main() {
         }
     }
 }
-
-// verus!{
-
-// // following
-// //// Wrappers
-// #[verus::trusted]
-// #[verifier::external_body]
-// /// Sample an integer uniformly from `[0, upper)`
-// fn rand_u64() -> u64 {
-//   use opendp::traits::samplers::sample_uniform_uint_below;
-//   // TODO: unwarp is probably very bad
-//   sample_uniform_uint_below(1u64 << 64).unwrap()
-// }
-
-// }

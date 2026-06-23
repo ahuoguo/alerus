@@ -18,31 +18,44 @@
 // Termination: slack · Π amp_j ≥ 1, tracked via slack_product.
 
 use vstd::prelude::*;
-
-use random::{UBig, ubig_from_u64, ubig_succ, ubig_mul_u64, ubig_is_odd};
+use random::{ubig_from_u64, ubig_succ, ubig_mul_u64, ubig_mul, ubig_is_odd, UBig};
 
 verus! {
 
-use crate::ub::*;
+use crate::ec::*;
 use crate::rand_primitives::thin_air;
+#[cfg(verus_keep_ghost)]
 use crate::math::pow::{pow, archimedean_exp_growth};
+#[cfg(verus_keep_ghost)]
+use crate::math::real::real_assoc_mult;
+#[cfg(verus_keep_ghost)]
 use crate::math::series::{lemma_pow_nonneg, partial_sum};
+#[cfg(verus_keep_ghost)]
 use crate::math::exp::{exp, factorial, exp_taylor_term, exp_taylor_seq, axiom_exp_taylor_bounds};
-use crate::extern_spec::{ExUBig, ubig_view};
-use crate::discrete_laplace::bernoulli_rational::{bernoulli_weighted_sum, lemma_bws_nonneg, sample_bernoulli_rational};
+#[cfg(verus_keep_ghost)]
+use crate::extern_spec::ExUBig;
+#[cfg(verus_keep_ghost)]
+use crate::extern_spec::ubig_view;
+use crate::cks::bernoulli_rational::sample_bernoulli_rational;
+#[cfg(verus_keep_ghost)]
+use crate::cks::bernoulli_rational::{bernoulli_weighted_sum, lemma_bws_nonneg};
 
 // ============================================================================
 // Spec functions (all use nat for step k)
 // ============================================================================
 
-/// Amplification factor at step k: k · denom_x / numer_x.
-pub open spec fn exp1_amp(numer_x: u64, denom_x: u64, k: nat) -> real {
-    k as real * denom_x as real / numer_x as real
+// All the credit-bookkeeping spec functions and lemmas below are keyed on the
+// real probability `x ∈ (0, 1]` rather than a (numer, denom) representation, so
+// the same proof serves both the u64 and the UBig executable wrappers.
+
+/// Amplification factor at step k: k / x.
+pub open spec fn exp1_amp(x: real, k: nat) -> real {
+    k as real / x
 }
 
 /// New eps after the flip: amp · eps - (amp - 1) · e(k%2==1).
-pub open spec fn exp1_new_eps(numer_x: u64, denom_x: u64, k: nat, eps: real, e: spec_fn(bool) -> real) -> real {
-    let amp = exp1_amp(numer_x, denom_x, k);
+pub open spec fn exp1_new_eps(x: real, k: nat, eps: real, e: spec_fn(bool) -> real) -> real {
+    let amp = exp1_amp(x, k);
     amp * eps - (amp - 1real) * e(k % 2 == 1)
 }
 
@@ -54,18 +67,18 @@ pub open spec fn exp1_flip_e(e: spec_fn(bool) -> real, k: nat, new_eps: real) ->
 /// Next conditional probability: p_k = (x/k)·p_{k+1} + (1-x/k)·[k%2==1].
 /// - With prob x/k, we continue to step k+1, where the conditional probability of returning true is p_{k+1}
 ///  - With prob (1-x)/k, we return [k is odd]
-pub open spec fn exp1_next_p(numer_x: u64, denom_x: u64, k: nat, p_k: real) -> real {
-    let amp = exp1_amp(numer_x, denom_x, k);
+pub open spec fn exp1_next_p(x: real, k: nat, p_k: real) -> real {
+    let amp = exp1_amp(x, k);
     if k % 2 == 1 { (p_k - 1real) * amp + 1real }
     else { p_k * amp }
 }
 
 /// Product of amplification factors: Π_{j=k}^{k+depth-1} amp_j.
-pub open spec fn slack_product(numer_x: u64, denom_x: u64, k: nat, depth: nat) -> real
+pub open spec fn slack_product(x: real, k: nat, depth: nat) -> real
     decreases depth,
 {
     if depth == 0 { 1real }
-    else { exp1_amp(numer_x, denom_x, k) * slack_product(numer_x, denom_x, k + 1, (depth - 1) as nat) }
+    else { exp1_amp(x, k) * slack_product(x, k + 1, (depth - 1) as nat) }
 }
 
 // ============================================================================
@@ -247,16 +260,15 @@ proof fn lemma_exp1_p_formula_base(x: real)
 
 /// exp1_next_p preserves the formula: next_p(k, formula(k)) == formula(k+1).
 /// Key identity: R_{k+1} = R_k - (-x)^k/k! (partial sum step).
-proof fn lemma_exp1_p_formula_step(numer_x: u64, denom_x: u64, k: nat, x: real)
+proof fn lemma_exp1_p_formula_step(x: real, k: nat)
     requires
-        numer_x > 0, denom_x > 0, numer_x <= denom_x, k >= 1,
-        x == numer_x as real / denom_x as real,
+        0real < x <= 1real, k >= 1,
     ensures
-        exp1_next_p(numer_x, denom_x, k, exp1_p_formula(x, k))
+        exp1_next_p(x, k, exp1_p_formula(x, k))
             == exp1_p_formula(x, k + 1),
 {
     let seq = exp_taylor_seq(x);
-    let amp = exp1_amp(numer_x, denom_x, k);
+    let amp = exp1_amp(x, k);
     let t_k = partial_sum(seq, k);
     let t_k1 = partial_sum(seq, k + 1);
     let r_k = exp(-x) - t_k;
@@ -271,16 +283,10 @@ proof fn lemma_exp1_p_formula_step(numer_x: u64, denom_x: u64, k: nat, x: real)
     assert(seq(k) == term_k);
     assert(r_k1 == r_k - term_k);
 
-    assert(amp == k as real / x)
-        by(nonlinear_arith)
-        requires amp == k as real * denom_x as real / numer_x as real,
-            x == numer_x as real / denom_x as real,
-            numer_x > 0u64, denom_x > 0u64;
+    assert(amp == k as real / x);
 
     lemma_factorial_pos((k - 1) as nat);
     lemma_factorial_pos(k);
-    assert(x > 0real) by(nonlinear_arith)
-        requires x == numer_x as real / denom_x as real, numer_x > 0u64, denom_x > 0u64;
     lemma_pow_pos(x, (k - 1) as nat);
     lemma_pow_pos(x, k);
 
@@ -314,7 +320,7 @@ proof fn lemma_exp1_p_formula_step(numer_x: u64, denom_x: u64, k: nat, x: real)
             requires s_k1 * term_k * pk == pow(-x, k), pow(-x, k) == -pk, pk > 0real;
         // k odd: next = (p_k-1)·amp + 1 = s_k1·r_k + 1
         //        formula(k+1) [even] = s_k1·r_k1 = s_k1·r_k - s_k1·term_k = s_k1·r_k + 1
-        let next = exp1_next_p(numer_x, denom_x, k, p_k);
+        let next = exp1_next_p(x, k, p_k);
         assert(next == s_k1 * r_k + 1real) by(nonlinear_arith)
             requires next == (p_k - 1real) * amp + 1real,
                 p_k == 1real + s_k * r_k, s_k1 == amp * s_k;
@@ -329,7 +335,7 @@ proof fn lemma_exp1_p_formula_step(numer_x: u64, denom_x: u64, k: nat, x: real)
             requires s_k1 * term_k * pk == pow(-x, k), pow(-x, k) == pk, pk > 0real;
         // k even: next = p_k·amp = s_k1·r_k
         //         formula(k+1) [odd] = 1 + s_k1·r_k1 = 1 + s_k1·r_k - 1 = s_k1·r_k
-        let next = exp1_next_p(numer_x, denom_x, k, p_k);
+        let next = exp1_next_p(x, k, p_k);
         assert(next == s_k1 * r_k) by(nonlinear_arith)
             requires next == p_k * amp, p_k == s_k * r_k, s_k1 == amp * s_k;
         assert(exp1_p_formula(x, k + 1) == 1real + s_k1 * r_k1);
@@ -405,34 +411,31 @@ proof fn lemma_exp1_p_formula_range(x: real, k: nat)
 /// prob·new_eps + (1-prob)·e(k%2==1) == eps, where prob = x/k.
 /// The key identity is prob·amp == 1.
 #[verifier::nonlinear]
-proof fn lemma_exp1_flip_average(numer_x: u64, denom_x: u64, k: nat, eps: real, e: spec_fn(bool) -> real)
-    requires numer_x > 0, denom_x > 0, k >= 1,
+proof fn lemma_exp1_flip_average(x: real, k: nat, eps: real, e: spec_fn(bool) -> real)
+    requires x > 0real, k >= 1,
     ensures ({
-        let new_eps = exp1_new_eps(numer_x, denom_x, k, eps, e);
+        let new_eps = exp1_new_eps(x, k, eps, e);
         let flip_e = exp1_flip_e(e, k, new_eps);
-        let prob = numer_x as real / (k as real * denom_x as real);
+        let prob = x / k as real;
         bernoulli_weighted_sum(prob, flip_e) == eps
     }),
 {
 }
 
 /// p_k = (x/k)·p_{k+1} + (1-x/k)·[k odd] (law of total probability at step k).
-proof fn lemma_exp1_next_p_recursion(numer_x: u64, denom_x: u64, k: nat, p_k: real)
-    requires numer_x > 0, denom_x > 0, k >= 1,
+proof fn lemma_exp1_next_p_recursion(x: real, k: nat, p_k: real)
+    requires x > 0real, k >= 1,
     ensures ({
-        let p_next = exp1_next_p(numer_x, denom_x, k, p_k);
-        let prob = numer_x as real / (k as real * denom_x as real);
+        let p_next = exp1_next_p(x, k, p_k);
+        let prob = x / k as real;
         p_k == prob * p_next + (1real - prob) * (if k % 2 == 1 { 1real } else { 0real })
     }),
 {
-    let amp = exp1_amp(numer_x, denom_x, k);
-    let prob = numer_x as real / (k as real * denom_x as real);
-    let p_next = exp1_next_p(numer_x, denom_x, k, p_k);
+    let amp = exp1_amp(x, k);
+    let prob = x / k as real;
+    let p_next = exp1_next_p(x, k, p_k);
     assert(prob * amp == 1real) by(nonlinear_arith)
-        requires
-            prob == numer_x as real / (k as real * denom_x as real),
-            amp == k as real * denom_x as real / numer_x as real,
-            numer_x > 0u64, denom_x > 0u64, k >= 1;
+        requires prob == x / k as real, amp == k as real / x, x > 0real, k >= 1;
     if k % 2 == 1 {
         assert(p_k == prob * p_next + (1real - prob) * 1real)
             by(nonlinear_arith)
@@ -448,26 +451,24 @@ proof fn lemma_exp1_next_p_recursion(numer_x: u64, denom_x: u64, k: nat, p_k: re
 /// Uses: (A) amp·bws(p_k) - (amp-1)·e(k%2==1) == bws(p_next),
 ///       (B) amp·dist_eps >= amp·bws(p_k) since amp >= 1.
 proof fn lemma_exp1_shift_bound(
-    numer_x: u64, denom_x: u64, k: nat,
+    x: real, k: nat,
     dist_eps: real, e: spec_fn(bool) -> real,
     p_k: real, p_next: real,
 )
     requires
-        numer_x > 0, denom_x > 0, numer_x <= denom_x, k >= 1,
+        0real < x <= 1real, k >= 1,
         dist_eps >= bernoulli_weighted_sum(p_k, e),
-        p_k == (numer_x as real / (k as real * denom_x as real)) * p_next
-             + (1real - numer_x as real / (k as real * denom_x as real)) * (if k % 2 == 1 { 1real } else { 0real }),
+        p_k == (x / k as real) * p_next
+             + (1real - x / k as real) * (if k % 2 == 1 { 1real } else { 0real }),
     ensures ({
-        let amp = exp1_amp(numer_x, denom_x, k);
+        let amp = exp1_amp(x, k);
         amp * dist_eps - (amp - 1real) * e(k % 2 == 1) >= bernoulli_weighted_sum(p_next, e)
     }),
 {
-    let amp = exp1_amp(numer_x, denom_x, k);
-    let prob = numer_x as real / (k as real * denom_x as real);
+    let amp = exp1_amp(x, k);
+    let prob = x / k as real;
     assert(prob * amp == 1real) by(nonlinear_arith)
-        requires prob == numer_x as real / (k as real * denom_x as real),
-            amp == k as real * denom_x as real / numer_x as real,
-            numer_x > 0u64, denom_x > 0u64, k >= 1;
+        requires prob == x / k as real, amp == k as real / x, x > 0real, k >= 1;
 
     let eT = e(true);
     let eF = e(false);
@@ -503,8 +504,7 @@ proof fn lemma_exp1_shift_bound(
     let bws_pk = bernoulli_weighted_sum(p_k, e);
     let bws_pn = bernoulli_weighted_sum(p_next, e);
     assert(amp >= 1real) by(nonlinear_arith)
-        requires amp == k as real * denom_x as real / numer_x as real,
-            numer_x > 0u64, denom_x > 0u64, numer_x <= denom_x, k >= 1;
+        requires amp == k as real / x, 0real < x <= 1real, k >= 1;
     assert(amp * dist_eps >= amp * bws_pk)
         by(nonlinear_arith) requires dist_eps >= bws_pk, amp >= 1real;
 
@@ -522,46 +522,39 @@ proof fn lemma_exp1_shift_bound(
 }
 
 /// slack_product(k, depth) >= 2^depth for k >= 2 (each factor >= 2).
-proof fn lemma_slack_product_ge_pow2(numer_x: u64, denom_x: u64, k: nat, depth: nat)
-    requires numer_x > 0, denom_x > 0, numer_x <= denom_x, k >= 2,
-    ensures slack_product(numer_x, denom_x, k, depth) >= pow(2real, depth),
+proof fn lemma_slack_product_ge_pow2(x: real, k: nat, depth: nat)
+    requires 0real < x <= 1real, k >= 2,
+    ensures slack_product(x, k, depth) >= pow(2real, depth),
     decreases depth,
 {
     if depth == 0 {
     } else {
-        lemma_slack_product_ge_pow2(numer_x, denom_x, k + 1, (depth - 1) as nat);
-        let a = exp1_amp(numer_x, denom_x, k);
-        let sp = slack_product(numer_x, denom_x, k + 1, (depth - 1) as nat);
+        lemma_slack_product_ge_pow2(x, k + 1, (depth - 1) as nat);
+        let a = exp1_amp(x, k);
+        let sp = slack_product(x, k + 1, (depth - 1) as nat);
         assert(a >= 2real) by(nonlinear_arith)
-            requires a == k as real * denom_x as real / numer_x as real,
-                numer_x > 0u64, numer_x <= denom_x, k >= 2;
-        assert(slack_product(numer_x, denom_x, k, depth) == a * sp);
+            requires a == k as real / x, 0real < x <= 1real, k >= 2;
+        assert(slack_product(x, k, depth) == a * sp);
         lemma_pow_nonneg(2real, (depth - 1) as nat);
         real_mul_ineq(a, sp, 2real, pow(2real, (depth - 1) as nat));
     }
 }
 
 /// slack_product(1, depth) >= 2^{depth-1} (first factor >= 1, rest >= 2).
-proof fn lemma_slack_product_k1_bound(numer_x: u64, denom_x: u64, depth: nat)
-    requires numer_x > 0, denom_x > 0, numer_x <= denom_x, depth >= 1,
-    ensures slack_product(numer_x, denom_x, 1nat, depth) >= pow(2real, (depth - 1) as nat),
+proof fn lemma_slack_product_k1_bound(x: real, depth: nat)
+    requires 0real < x <= 1real, depth >= 1,
+    ensures slack_product(x, 1nat, depth) >= pow(2real, (depth - 1) as nat),
 {
-    lemma_slack_product_ge_pow2(numer_x, denom_x, 2nat, (depth - 1) as nat);
-    let a = exp1_amp(numer_x, denom_x, 1nat);
-    let sp = slack_product(numer_x, denom_x, 2nat, (depth - 1) as nat);
+    lemma_slack_product_ge_pow2(x, 2nat, (depth - 1) as nat);
+    let a = exp1_amp(x, 1nat);
+    let sp = slack_product(x, 2nat, (depth - 1) as nat);
     assert(a >= 1real) by(nonlinear_arith)
-        requires a == 1real * denom_x as real / numer_x as real,
-            numer_x > 0u64, numer_x <= denom_x;
-    assert(slack_product(numer_x, denom_x, 1nat, depth) == a * sp);
+        requires a == 1real / x, 0real < x <= 1real;
+    assert(slack_product(x, 1nat, depth) == a * sp);
     // a · sp >= 1 · 2^{depth-1}
     lemma_pow_nonneg(2real, (depth - 1) as nat);
     real_mul_ineq(a, sp, 1real, pow(2real, (depth - 1) as nat));
 }
-
-#[verifier::nonlinear]
-proof fn real_assoc_mult(a: real, b: real, c: real)
-    ensures a * (b * c) == (a * b) * c,
-{}
 
 #[verifier::nonlinear]
 proof fn real_mul_ineq(a: real, b: real, a_lb: real, b_lb: real)
@@ -597,7 +590,7 @@ pub fn sample_bernoulli_exp1(
     Ghost(e): Ghost<spec_fn(bool) -> real>,
     Tracked(input_credit): Tracked<ErrorCreditResource>,
     Ghost(eps): Ghost<real>,
-) -> (ret: (bool, Tracked<ErrorCreditResource>))
+) -> ((value, out_credit): (bool, Tracked<ErrorCreditResource>))
     requires
         numer_x > 0,
         denom_x > 0,
@@ -608,7 +601,7 @@ pub fn sample_bernoulli_exp1(
         input_credit.view() =~= (ErrorCreditCarrier::Value { car: eps }),
         eps >= bernoulli_weighted_sum(exp(-(numer_x as real / denom_x as real)), e),
     ensures
-        ret.1@.view() =~= (ErrorCreditCarrier::Value { car: e(ret.0) }),
+        out_credit@.view() =~= (ErrorCreditCarrier::Value { car: e(value) }),
 {
     let ghost x = numer_x as real / denom_x as real;
 
@@ -632,11 +625,11 @@ pub fn sample_bernoulli_exp1(
         archimedean_exp_growth(init_slack, 2real);
         let d0: nat = choose |k: nat| init_slack * pow(2real, k) >= 1real;
         init_depth = d0 + 1;
-        lemma_slack_product_k1_bound(numer_x, denom_x, init_depth);
-        assert(init_slack * slack_product(numer_x, denom_x, 1nat, init_depth) >= 1real)
+        lemma_slack_product_k1_bound(x, init_depth);
+        assert(init_slack * slack_product(x, 1nat, init_depth) >= 1real)
             by(nonlinear_arith)
             requires init_slack * pow(2real, d0) >= 1real,
-                slack_product(numer_x, denom_x, 1nat, init_depth) >= pow(2real, d0),
+                slack_product(x, 1nat, init_depth) >= pow(2real, d0),
                 init_slack > 0real;
     }
 
@@ -663,7 +656,7 @@ pub fn sample_bernoulli_exp1(
             dist_credit.view() =~= (ErrorCreditCarrier::Value { car: g_dist_eps }),
             slack_credit.view() =~= (ErrorCreditCarrier::Value { car: g_slack_val }),
             g_dist_eps >= bernoulli_weighted_sum(g_pk, e),
-            g_slack_val * slack_product(numer_x, denom_x, ubig_view(&k), g_depth) >= 1real,
+            g_slack_val * slack_product(x, ubig_view(&k), g_depth) >= 1real,
         decreases g_depth,
     {
         let ghost kn = ubig_view(&k);
@@ -675,35 +668,35 @@ pub fn sample_bernoulli_exp1(
 
         let k_denom = ubig_mul_u64(&k, denom_x);
         let ghost kdn = ubig_view(&k_denom);
-        let ghost amp = exp1_amp(numer_x, denom_x, kn);
+        let ghost amp = exp1_amp(x, kn);
         let ghost total_eps = g_dist_eps + g_slack_val;
-        let ghost new_eps = exp1_new_eps(numer_x, denom_x, kn, total_eps, e);
+        let ghost new_eps = exp1_new_eps(x, kn, total_eps, e);
         let ghost flip_e = exp1_flip_e(e, kn, new_eps);
-        let ghost p_next = exp1_next_p(numer_x, denom_x, kn, g_pk);
+        let ghost p_next = exp1_next_p(x, kn, g_pk);
 
         // Combine dist + slack into one credit for the flip
         let tracked combined = ec_combine(dist_credit, slack_credit, g_dist_eps, g_slack_val);
 
         proof {
-            // Bernoulli flip preconditions
+            // Bernoulli flip preconditions.  The flip probability passed to
+            // sample_bernoulli_rational is numer_x/kdn = x/kn.
             assert(kdn == kn * denom_x as nat);
-            assert(numer_x as real / (kdn as real)
-                == numer_x as real / (kn as real * denom_x as real)) by(nonlinear_arith)
-                requires kdn == kn * denom_x as nat, kn >= 1, denom_x > 0u64;
+            assert(numer_x as real / (kdn as real) == x / kn as real) by(nonlinear_arith)
+                requires kdn == kn * denom_x as nat, kn >= 1, denom_x > 0u64,
+                    x == numer_x as real / denom_x as real;
             assert(numer_x as nat <= kdn) by(nonlinear_arith)
                 requires numer_x <= denom_x, kn >= 1, kdn == kn * denom_x as nat;
             assert(kdn > 0) by(nonlinear_arith)
                 requires kn >= 1, denom_x > 0u64, kdn == kn * denom_x as nat;
-            lemma_exp1_flip_average(numer_x, denom_x, kn, total_eps, e);
+            lemma_exp1_flip_average(x, kn, total_eps, e);
 
             // Distribution bound shifts: new_dist_eps >= bws(p_next)
-            lemma_exp1_next_p_recursion(numer_x, denom_x, kn, g_pk);
-            lemma_exp1_shift_bound(numer_x, denom_x, kn, g_dist_eps, e, g_pk, p_next);
-            lemma_exp1_p_formula_step(numer_x, denom_x, kn, x);
+            lemma_exp1_next_p_recursion(x, kn, g_pk);
+            lemma_exp1_shift_bound(x, kn, g_dist_eps, e, g_pk, p_next);
+            lemma_exp1_p_formula_step(x, kn);
             lemma_exp1_p_formula_range(x, kn + 1);
             assert(amp >= 1real) by(nonlinear_arith)
-                requires amp == kn as real * denom_x as real / numer_x as real,
-                    numer_x > 0u64, denom_x > 0u64, numer_x <= denom_x, kn >= 1;
+                requires amp == kn as real / x, 0real < x <= 1real, kn >= 1;
             // new_eps = amp·total_eps - (amp-1)·e(k%2==1) >= 0 for flip_e(true)
             assert(new_eps >= 0real) by(nonlinear_arith)
                 requires
@@ -749,7 +742,170 @@ pub fn sample_bernoulli_exp1(
             lemma_bws_nonneg(p_next, e);
             assert(new_slack_val > 0real) by(nonlinear_arith)
                 requires new_slack_val == amp * g_slack_val, amp >= 1real, g_slack_val > 0real;
-            real_assoc_mult(g_slack_val, amp, slack_product(numer_x, denom_x, kn + 1, (g_depth - 1) as nat));
+            real_assoc_mult(g_slack_val, amp, slack_product(x, kn + 1, (g_depth - 1) as nat));
+        }
+
+        let tracked (new_dc, new_sc) = ec_split(out_credit, new_dist_eps, new_slack_val);
+
+        k = ubig_succ(k);
+        proof {
+            assert(ubig_view(&k) == kn + 1);
+            g_dist_eps = new_dist_eps;
+            g_slack_val = new_slack_val;
+            g_pk = p_next;
+            g_depth = (g_depth - 1) as nat;
+            dist_credit = new_dc;
+            slack_credit = new_sc;
+        }
+    }
+}
+
+/// Bignum variant of [`sample_bernoulli_exp1`]: same Bernoulli(exp(−x)) Hoare
+/// rule and same `x:real`-keyed proof, but `x = numer/denom` is given by
+/// arbitrary-precision `UBig`s (needed when x's denominator exceeds u64, as in
+/// the discrete-gaussian acceptance test).
+pub fn sample_bernoulli_exp1_ubig(
+    numer: &UBig,
+    denom: &UBig,
+    Ghost(e): Ghost<spec_fn(bool) -> real>,
+    Tracked(input_credit): Tracked<ErrorCreditResource>,
+    Ghost(eps): Ghost<real>,
+) -> ((value, out_credit): (bool, Tracked<ErrorCreditResource>))
+    requires
+        ubig_view(numer) > 0,
+        ubig_view(denom) > 0,
+        ubig_view(numer) <= ubig_view(denom),
+        e(true) >= 0real,
+        e(false) >= 0real,
+        eps >= 0real,
+        input_credit.view() =~= (ErrorCreditCarrier::Value { car: eps }),
+        eps >= bernoulli_weighted_sum(exp(-(ubig_view(numer) as real / ubig_view(denom) as real)), e),
+    ensures
+        out_credit@.view() =~= (ErrorCreditCarrier::Value { car: e(value) }),
+{
+    let ghost nv = ubig_view(numer);
+    let ghost dv = ubig_view(denom);
+    let ghost x = nv as real / dv as real;
+
+    proof {
+        assert(x > 0real) by(nonlinear_arith)
+            requires x == nv as real / dv as real, nv >= 1, dv >= 1;
+        assert(x <= 1real) by(nonlinear_arith)
+            requires x == nv as real / dv as real, nv <= dv, dv >= 1;
+        lemma_exp1_p_formula_base(x);
+    }
+
+    let Tracked(slack_credit) = thin_air();
+    let ghost init_slack: real;
+    let ghost init_depth: nat;
+    proof {
+        init_slack = choose |v: real| v > 0real &&
+            (ErrorCreditCarrier::Value { car: v } =~= slack_credit.view());
+        archimedean_exp_growth(init_slack, 2real);
+        let d0: nat = choose |kk: nat| init_slack * pow(2real, kk) >= 1real;
+        init_depth = d0 + 1;
+        lemma_slack_product_k1_bound(x, init_depth);
+        assert(init_slack * slack_product(x, 1nat, init_depth) >= 1real)
+            by(nonlinear_arith)
+            requires init_slack * pow(2real, d0) >= 1real,
+                slack_product(x, 1nat, init_depth) >= pow(2real, d0),
+                init_slack > 0real;
+    }
+
+    let mut k = ubig_from_u64(1u64);
+    let ghost mut g_depth: nat = init_depth;
+    let ghost mut g_dist_eps: real = eps;
+    let ghost mut g_slack_val: real = init_slack;
+    let ghost mut g_pk: real = exp(-x);
+    let tracked mut dist_credit: ErrorCreditResource = input_credit;
+    let tracked mut slack_credit: ErrorCreditResource = slack_credit;
+
+    loop
+        invariant
+            nv == ubig_view(numer), dv == ubig_view(denom),
+            nv > 0, dv > 0, nv <= dv,
+            x == nv as real / dv as real,
+            0real < x <= 1real,
+            ubig_view(&k) >= 1,
+            e(true) >= 0real,
+            e(false) >= 0real,
+            g_pk == exp1_p_formula(x, ubig_view(&k)),
+            g_dist_eps >= 0real,
+            g_slack_val > 0real,
+            dist_credit.view() =~= (ErrorCreditCarrier::Value { car: g_dist_eps }),
+            slack_credit.view() =~= (ErrorCreditCarrier::Value { car: g_slack_val }),
+            g_dist_eps >= bernoulli_weighted_sum(g_pk, e),
+            g_slack_val * slack_product(x, ubig_view(&k), g_depth) >= 1real,
+        decreases g_depth,
+    {
+        let ghost kn = ubig_view(&k);
+
+        proof {
+            if g_depth == 0nat { ec_contradict(&slack_credit); }
+        }
+
+        let k_denom = ubig_mul(k.clone(), denom.clone());
+        let ghost kdn = ubig_view(&k_denom);
+        let ghost amp = exp1_amp(x, kn);
+        let ghost total_eps = g_dist_eps + g_slack_val;
+        let ghost new_eps = exp1_new_eps(x, kn, total_eps, e);
+        let ghost flip_e = exp1_flip_e(e, kn, new_eps);
+        let ghost p_next = exp1_next_p(x, kn, g_pk);
+
+        let tracked combined = ec_combine(dist_credit, slack_credit, g_dist_eps, g_slack_val);
+
+        proof {
+            // Flip probability passed below is nv/kdn = x/kn.
+            assert(kdn == kn * dv);
+            assert(nv as real / (kdn as real) == x / kn as real) by(nonlinear_arith)
+                requires kdn == kn * dv, kn >= 1, dv > 0, x == nv as real / dv as real;
+            assert(nv <= kdn) by(nonlinear_arith) requires nv <= dv, kn >= 1, kdn == kn * dv;
+            assert(kdn > 0) by(nonlinear_arith) requires kn >= 1, dv > 0, kdn == kn * dv;
+            lemma_exp1_flip_average(x, kn, total_eps, e);
+            lemma_exp1_next_p_recursion(x, kn, g_pk);
+            lemma_exp1_shift_bound(x, kn, g_dist_eps, e, g_pk, p_next);
+            lemma_exp1_p_formula_step(x, kn);
+            lemma_exp1_p_formula_range(x, kn + 1);
+            assert(amp >= 1real) by(nonlinear_arith)
+                requires amp == kn as real / x, 0real < x <= 1real, kn >= 1;
+            assert(new_eps >= 0real) by(nonlinear_arith)
+                requires
+                    amp * g_dist_eps - (amp - 1real) * e(kn % 2 == 1) >= bernoulli_weighted_sum(p_next, e),
+                    0real <= exp1_p_formula(x, kn + 1) <= 1real,
+                    p_next == exp1_p_formula(x, kn + 1),
+                    e(true) >= 0real, e(false) >= 0real,
+                    amp >= 1real, g_slack_val > 0real,
+                    new_eps == amp * (g_dist_eps + g_slack_val) - (amp - 1real) * e(kn % 2 == 1);
+        }
+
+        let (heads, Tracked(out_credit)) = sample_bernoulli_rational(
+            numer,
+            &k_denom,
+            Ghost(flip_e),
+            Tracked(combined),
+            Ghost(total_eps),
+        );
+
+        let is_odd = ubig_is_odd(&k);
+
+        if !heads {
+            return (is_odd, Tracked(out_credit));
+        }
+
+        let ghost new_dist_eps = amp * g_dist_eps - (amp - 1real) * e(kn % 2 == 1);
+        let ghost new_slack_val = amp * g_slack_val;
+
+        proof {
+            assert(new_eps == new_dist_eps + new_slack_val)
+                by(nonlinear_arith)
+                requires
+                    new_eps == amp * (g_dist_eps + g_slack_val) - (amp - 1real) * e(kn % 2 == 1),
+                    new_dist_eps == amp * g_dist_eps - (amp - 1real) * e(kn % 2 == 1),
+                    new_slack_val == amp * g_slack_val;
+            lemma_bws_nonneg(p_next, e);
+            assert(new_slack_val > 0real) by(nonlinear_arith)
+                requires new_slack_val == amp * g_slack_val, amp >= 1real, g_slack_val > 0real;
+            real_assoc_mult(g_slack_val, amp, slack_product(x, kn + 1, (g_depth - 1) as nat));
         }
 
         let tracked (new_dc, new_sc) = ec_split(out_credit, new_dist_eps, new_slack_val);

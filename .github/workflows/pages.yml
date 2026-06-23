@@ -1,0 +1,87 @@
+name: Verusdoc
+
+# Build the Verusdoc API documentation for the `ub` crate and publish it to
+# GitHub Pages. The rendered site lives at the repository's Pages URL.
+#
+# Requires Pages to be enabled with "Source: GitHub Actions"
+# (Settings -> Pages -> Build and deployment -> Source).
+
+on:
+  push:
+    branches: [ main ]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+# Allow one Pages deployment at a time; let in-progress runs finish.
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+env:
+  # Keep these in sync with the Verus version pinned in veris/Cargo.toml and
+  # .github/workflows/main.yml.
+  VERUS_VER: 0.2026.05.31.5dd6d83
+  VERUS_TAG: release/0.2026.05.31.5dd6d83
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust 1.95.0
+        uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: 1.95.0
+
+      - name: Download Verus
+        run: |
+          wget -q "https://github.com/verus-lang/verus/releases/download/release%2F${VERUS_VER}/verus-${VERUS_VER}-x86-linux.zip"
+          unzip -q "verus-${VERUS_VER}-x86-linux.zip"
+
+      - name: Build the verusdoc post-processor
+        run: |
+          # The Verus release ships the builtin/vstd rlibs but not the verusdoc
+          # HTML post-processor, so build it from the matching source tag. Copy
+          # the crate out and drop its `[lints] workspace = true` so it builds
+          # standalone (all of its deps are on crates.io) without dragging in
+          # the Verus workspace's heavy toolchain components.
+          git clone --depth 1 --branch "$VERUS_TAG" \
+            https://github.com/verus-lang/verus verus-src
+          cp -r verus-src/source/verusdoc verusdoc-standalone
+          sed -i '/^\[lints\]/,$d' verusdoc-standalone/Cargo.toml
+          # It lives inside this repo's workspace dir, so make it its own
+          # workspace root rather than a member of the veris workspace.
+          printf '\n[workspace]\n' >> verusdoc-standalone/Cargo.toml
+          cargo +1.95.0 build --release \
+            --manifest-path verusdoc-standalone/Cargo.toml
+
+      - name: Generate verusdoc
+        env:
+          VERUS_BIN_DIR: ${{ github.workspace }}/verus-x86-linux
+          VERUSDOC_BIN: ${{ github.workspace }}/verusdoc-standalone/target/release/verusdoc
+        run: |
+          export RUSTDOC="$(rustup which --toolchain 1.95.0 rustdoc)"
+          ./gen-verusdoc.sh
+          # Redirect the site root to the crate landing page.
+          printf '<meta http-equiv="refresh" content="0; url=veris/index.html">\n' > doc/index.html
+
+      - name: Upload Pages artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: doc
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4

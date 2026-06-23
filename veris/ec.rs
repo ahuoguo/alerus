@@ -1,15 +1,25 @@
-use vstd::pcm::*;
+use vstd::resource::pcm::*;
+#[cfg(verus_keep_ghost)]
+use vstd::resource::algebra::ResourceAlgebra;
+#[cfg(verus_keep_ghost)]
+use vstd::resource::Loc;
+#[cfg(verus_keep_ghost)]
+use vstd::resource::relations::frame_preserving_update;
 use vstd::prelude::*;
 
 verus! {
 
 // Ghost name for the single global error-credit resource location.
 #[allow(non_snake_case)]
-pub uninterp spec fn EC_GLOBAL_LOC() -> int;
+pub uninterp spec fn EC_GLOBAL_LOC() -> Loc;
 
 // wrapper around ec, namely `↯`
 // A error credit represents a resource with a non zero value
 // https://logsem.github.io/clutch/clutch.base_logic.error_credits.html
+// the reason we have `Empty` separately is becuase we Value{0} can't be a unit since
+// ↯(-1) · ↯(0) = Invalid
+// this is because we don't have a subset type for non-negative reals, 
+// so we have to bake the non-negativity into the algebra itself. 
 pub enum ErrorCreditCarrier {
     Value { car: real },
     Empty,
@@ -29,7 +39,7 @@ impl ErrorCreditCarrier {
     }
 }
 
-impl PCM for ErrorCreditCarrier {
+impl vstd::resource::algebra::ResourceAlgebra for ErrorCreditCarrier {
     closed spec fn valid(self) -> bool {
         match self {
             ErrorCreditCarrier::Value { car } => 0real <= car < 1real,
@@ -38,8 +48,8 @@ impl PCM for ErrorCreditCarrier {
         }
     }
 
-    closed spec fn op(self, other: Self) -> Self {
-        match (self, other) {
+    closed spec fn op(a: Self, b: Self) -> Self {
+        match (a, b) {
             (ErrorCreditCarrier::Value { car: c1 }, ErrorCreditCarrier::Value { car: c2 }) => {
                 // REVIEW: we have to bake in the `nonnegreal` part in the op
                 // I guess verus doesn't have a good way to express subset types like Dafny...
@@ -55,11 +65,7 @@ impl PCM for ErrorCreditCarrier {
         }
     }
 
-    closed spec fn unit() -> Self {
-        ErrorCreditCarrier::Empty
-    }
-
-    proof fn closed_under_incl(a: Self, b: Self) {
+    proof fn valid_op(a: Self, b: Self) {
     }
 
     proof fn commutative(a: Self, b: Self) {
@@ -67,14 +73,21 @@ impl PCM for ErrorCreditCarrier {
 
     proof fn associative(a: Self, b: Self, c: Self) {
     }
+}
 
-    proof fn op_unit(a: Self) {
+impl PCM for ErrorCreditCarrier {
+    closed spec fn unit() -> Self {
+        ErrorCreditCarrier::Empty
+    }
+
+    proof fn op_unit(self) {
     }
 
     proof fn unit_valid() {
     }
 }
 
+#[allow(dead_code)]
 pub struct ErrorCreditResource {
     r: Resource<ErrorCreditCarrier>,
 }
@@ -148,14 +161,14 @@ pub proof fn ec_split(
     tracked c: ErrorCreditResource,
     v1: real,
     v2: real,
-) -> (tracked out: (ErrorCreditResource, ErrorCreditResource))
+) -> (tracked (c1, c2): (ErrorCreditResource, ErrorCreditResource))
     requires
         c.view() =~= (ErrorCreditCarrier::Value { car: v1 + v2 }),
         v1 >= 0real,
         v2 >= 0real,
     ensures
-        out.0.view() =~= (ErrorCreditCarrier::Value { car: v1 }),
-        out.1.view() =~= (ErrorCreditCarrier::Value { car: v2 }),
+        c1.view() =~= (ErrorCreditCarrier::Value { car: v1 }),
+        c2.view() =~= (ErrorCreditCarrier::Value { car: v2 }),
 {
     use_type_invariant(&c);
     let tracked (r1, r2) = c.r.split(
@@ -165,6 +178,31 @@ pub proof fn ec_split(
     (ErrorCreditResource { r: r1 }, ErrorCreditResource { r: r2 })
 }
 
-} // verus!
+/// ⊢ ↯(0)
+/// The PCM unit `Empty` via `create_unit`, then frame-preserving update to `Value{0}`
+/// by "uniqueness" of unit
+pub proof fn ec_zero() -> (tracked out: ErrorCreditResource)
+    ensures
+        out.view() =~= (ErrorCreditCarrier::Value { car: 0real }),
+{
+    let tracked u = Resource::<ErrorCreditCarrier>::create_unit(EC_GLOBAL_LOC());
+    assert(frame_preserving_update(
+        ErrorCreditCarrier::Empty,
+        ErrorCreditCarrier::Value { car: 0real },
+    )) by {
+        assert forall |c: ErrorCreditCarrier|
+            #![trigger ErrorCreditCarrier::op(ErrorCreditCarrier::Empty, c)]
+            ErrorCreditCarrier::op(ErrorCreditCarrier::Empty, c).valid()
+            implies ErrorCreditCarrier::op(ErrorCreditCarrier::Value { car: 0real }, c).valid() by {
+            match c {
+                ErrorCreditCarrier::Value { car } => {},
+                ErrorCreditCarrier::Empty => {},
+                ErrorCreditCarrier::Invalid => {},
+            }
+        }
+    };
+    let tracked r = u.update(ErrorCreditCarrier::Value { car: 0real });
+    ErrorCreditResource { r }
+}
 
-fn main() {}
+} // verus!

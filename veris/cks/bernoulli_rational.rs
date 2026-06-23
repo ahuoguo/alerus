@@ -17,9 +17,15 @@ use random::UBig;
 
 verus! {
 
-use crate::ub::*;
-use crate::rand_primitives::{rand_ubig, average_nat, sum_credit};
-use crate::extern_spec::{ExUBig, ubig_view, ubig_lt};
+use crate::ec::*;
+use crate::rand_primitives::rand_ubig;
+#[cfg(verus_keep_ghost)]
+use crate::rand_primitives::{average_nat, sum_credit};
+use crate::extern_spec::ubig_lt;
+#[cfg(verus_keep_ghost)]
+use crate::extern_spec::ExUBig;
+#[cfg(verus_keep_ghost)]
+use crate::extern_spec::ubig_view;
 
 /// Weighted sum for Bernoulli(p): p · ℰ(true) + (1 - p) · ℰ(false).
 pub open spec fn bernoulli_weighted_sum(
@@ -122,7 +128,7 @@ pub fn sample_bernoulli_rational(
     Ghost(e): Ghost<spec_fn(bool) -> real>,
     Tracked(input_credit): Tracked<ErrorCreditResource>,
     Ghost(eps): Ghost<real>,
-) -> (ret: (bool, Tracked<ErrorCreditResource>))
+) -> ((value, out_credit): (bool, Tracked<ErrorCreditResource>))
     requires
         ubig_view(denom) > 0,
         ubig_view(numer) <= ubig_view(denom),
@@ -132,7 +138,7 @@ pub fn sample_bernoulli_rational(
         input_credit.view() =~= (ErrorCreditCarrier::Value { car: eps }),
         eps >= bernoulli_weighted_sum(ubig_view(numer) as real / ubig_view(denom) as real, e),
     ensures
-        ret.1@.view() =~= (ErrorCreditCarrier::Value { car: e(ret.0) }),
+        out_credit@.view() =~= (ErrorCreditCarrier::Value { car: e(value) }),
 {
     let ghost nn = ubig_view(numer);
     let ghost dn = ubig_view(denom);

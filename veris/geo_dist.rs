@@ -21,15 +21,24 @@
 // finite partial sums: ∀ n. ε ≥ Σ_{i=0}^{n-1} (1/2)^(i+1) * ℰ(i).
 
 use vstd::prelude::*;
-use random::{UBig, ubig_zero, ubig_succ, ubig_add};
+use random::{UBig, ubig_zero, ubig_succ};
+#[cfg(verus_keep_ghost)]
+use random::ubig_add;
 
 verus! {
 
-use crate::ub::*;
+use crate::ec::*;
 use crate::rand_primitives::{rand_1_u64, thin_air};
+#[cfg(verus_keep_ghost)]
 use crate::math::pow::{pow, archimedean_exp_growth};
+#[cfg(verus_keep_ghost)]
+use crate::math::real::real_assoc_mult;
+#[cfg(verus_keep_ghost)]
 use crate::math::series::*;
-use crate::extern_spec::{ExUBig, ubig_view};
+#[cfg(verus_keep_ghost)]
+use crate::extern_spec::ExUBig;
+#[cfg(verus_keep_ghost)]
+use crate::extern_spec::ubig_view;
 
 /// Credit allocation: outcome 0 → ℰ(0), outcome 1 → 2ε - ℰ(0).
 spec fn geo_dist_credit_alloc(e: spec_fn(nat) -> real, eps: real) -> spec_fn(real) -> real {
@@ -50,7 +59,7 @@ pub fn bounded_geo_dist(
     Ghost(depth): Ghost<nat>,
     Ghost(eps): Ghost<real>,
     Ghost(slack): Ghost<real>,
-) -> (ret: (UBig, Tracked<ErrorCreditResource>))
+) -> ((value, out_credit): (UBig, Tracked<ErrorCreditResource>))
     requires
         forall |i: nat| (#[trigger] e(i)) >= 0real,
         eps > 0real,
@@ -59,7 +68,7 @@ pub fn bounded_geo_dist(
         geo_series_bounded_by(e, eps - slack),
         slack * pow(2real, depth) >= 1real,
     ensures
-        ret.1@.view() =~= (ErrorCreditCarrier::Value { car: e(ubig_view(&ret.0)) }),
+        out_credit@.view() =~= (ErrorCreditCarrier::Value { car: e(ubig_view(&value)) }),
     decreases depth,
 {
     proof {
@@ -115,14 +124,14 @@ pub fn unbounded_geo_dist(
     Ghost(e): Ghost<spec_fn(nat) -> real>,
     Tracked(input_credit): Tracked<ErrorCreditResource>,
     Ghost(dist_bound): Ghost<real>,
-) -> (ret: (UBig, Tracked<ErrorCreditResource>))
+) -> ((value, out_credit): (UBig, Tracked<ErrorCreditResource>))
     requires
         forall |i: nat| (#[trigger] e(i)) >= 0real,
         dist_bound >= 0real,
         input_credit.view() =~= (ErrorCreditCarrier::Value { car: dist_bound }),
         geo_series_bounded_by(e, dist_bound),
     ensures
-        ret.1@.view() =~= (ErrorCreditCarrier::Value { car: e(ubig_view(&ret.0)) }),
+        out_credit@.view() =~= (ErrorCreditCarrier::Value { car: e(ubig_view(&value)) }),
 {
     let Tracked(slack_credit) = thin_air();
 
@@ -157,11 +166,6 @@ proof fn lemma_geo_dist_average(e: spec_fn(nat) -> real, eps: real)
     ensures
         eps >= (geo_dist_credit_alloc(e, eps)(0real)
               + geo_dist_credit_alloc(e, eps)(1real)) / 2real,
-{}
-
-#[verifier::nonlinear]
-proof fn real_assoc_mult(a: real, b: real, c: real)
-    ensures a * (b * c) == (a * b) * c,
 {}
 
 /// ℰ(v) = 0 if v == 0, else 1. Series = 0.5.

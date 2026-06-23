@@ -11,8 +11,9 @@
 use vstd::prelude::*;
 
 verus! {
-
+#[cfg(verus_keep_ghost)]
 use crate::math::pow::pow;
+#[cfg(verus_keep_ghost)]
 use crate::math::series::partial_sum;
 
 /// The exponential function exp(x) = e^x, axiomatized as an uninterpreted function.

@@ -11,18 +11,20 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v3
-      
+
+      - name: Install Rust 1.95.0
+        uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: 1.95.0
+
       - name: Download Verus
         run: |
-          wget https://github.com/verus-lang/verus/releases/download/release%2F0.2026.03.01.25809cb/verus-0.2026.03.01.25809cb-x86-linux.zip
-          unzip verus-0.2026.03.01.25809cb-x86-linux.zip
+          wget https://github.com/verus-lang/verus/releases/download/release%2F0.2026.05.31.5dd6d83/verus-0.2026.05.31.5dd6d83-x86-linux.zip
+          unzip verus-0.2026.05.31.5dd6d83-x86-linux.zip
+
       - name: Add Verus to PATH
         run: echo "$(pwd)/verus-x86-linux/" >> $GITHUB_PATH
-      
-      - name: Run opendp.sh
-        run: bash opendp.sh
-      
-      - name: Run verify.sh
-        run: |
-          cd ub
-          bash verify.sh
+
+      - name: cargo verus verify -p veris
+        working-directory: .
+        run: cargo verus verify -p veris
