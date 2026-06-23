@@ -9,7 +9,6 @@ pub mod geo_dist;
 pub mod ho_rej_samp;
 pub mod cks;
 pub mod random_walk;
-pub mod dp;
 pub mod fdr;
 pub mod fldr;
 pub mod fldr_helper;
