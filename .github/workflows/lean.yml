@@ -1,0 +1,22 @@
+name: Verify Lean proofs
+
+# Build (and thereby type-check / verify) the Lean 4 proofs in `lean_proofs/`.
+# Lean checks every proof at build time, so a green `lake build` means the
+# proofs go through. The project has no `sorry`s.
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: leanprover/lean-action@v1
+        with:
+          lake-package-directory: lean_proofs
