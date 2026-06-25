@@ -3,9 +3,11 @@
 //! We introduce a fuel to the credit allocation to make it well-founded.
 //! fail_prob(steps, pos) = 1 − Pr[walk from pos reaches 0 in ≤ steps]
 //!
+//! ```text
 //! fail_prob(0, p) = 1
 //! fail_prob(s, 0) = 0
 //! fail_prob(s, p) = (fail_prob(s-1, p-1) fail_prob(s-1, p+1)) / 2
+//! ```
 //!
 //! Then the credit allocation is just the last case of the recurrence relation.
 //!

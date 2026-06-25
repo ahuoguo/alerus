@@ -4,14 +4,18 @@
 //! from Geometric(1 - exp(-1/scale)). Reject (-, 0) to avoid double-counting zero.
 //!
 //! Let p = exp(-1/scale). and:
+//! ```text
 //!   P[0]  = (1 - p) / (1 + p)
 //!   P[+k] = P[-k] = p^k · (1 - p) / (1 + p)   for k ≥ 1
+//! ```
 //!
 //! We prove the following Expectation Preservation Rule
 //!
+//! ```text
 //!   ε ≥ Σ_{x=-∞}^{∞} P[x] · ℰ(x)
 //!   --------------------------------
 //!   [{ ↯(ε) }] sample_discrete_laplace(scale) [{ v. ↯(ℰ(v)) }]
+//! ```
 
 use vstd::prelude::*;
 

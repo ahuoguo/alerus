@@ -2,22 +2,28 @@
 //! on {0, …, d−1}, where N = Σ_{u<d} e^{−u/d}.
 //!
 //! Algorithm:
+//! ```text
 //!   loop:
 //!     u ← Uniform({0, …, d−1})
 //!     b ← Bernoulli(e^{−u/d})
 //!     if b: return u
+//! ```
 //!
 //! Expectation Preservation Rule:
 //!
+//! ```text
 //!   eps_avg ≥ E_{u ~ rejection_dist}[ℰ(u)] = (1/N) · Σ_{u<d} e^{−u/d} · ℰ(u)
 //!   ─────────────────────────────────────────────────────────────────────────
 //!   [{ ↯(eps_avg) }] sample_exp_rejection(d) [{ u. ↯(ℰ(u)) }]
+//! ```
 //!
 //! Credit derivation:
 //!
+//! ```text
 //!   alloc(w)        = e^{−w/d} · flip_accept(w) + (1 − e^{−w/d}) · flip_reject
 //!   flip_accept(w)  = ℰ(w)                                    // accept arm
 //!   flip_reject     = E_{l ~ rejection_dist}[ℰ(l)]            // recursive expected value
+//! ```
 //!
 //! the average over the uniform step exactly equals the target expectation:
 //!

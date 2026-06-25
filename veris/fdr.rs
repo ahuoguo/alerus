@@ -6,6 +6,7 @@
 //!   - [LAFI 26] https://popl26.sigplan.org/details/lafi-2026-papers/19/
 //!
 //! ── Algorithm (Lumbroso) ──────────────────────────────────────────────────────
+//! ```text
 //!   v ← 1; c ← 0
 //!   loop {
 //!       v ← 2·v;  c ← 2·c + flip();          // flip() ∈ {0,1}, fair
@@ -14,33 +15,40 @@
 //!           else { v ← v − n;  c ← c − n }   // reject, restart the residual range
 //!       }
 //!   }
+//! ```
 //!
 //! We prove the Expectation-Preservation Rule for the uniform distribution:
 //!
+//! ```text
 //!            ε ≥ (1/n)·Σ_{i<n} ℰ(i)
 //!   ───────────────────────────────────────────────
 //!   [{ ↯(ε) }] sample_fdr(n) [{ v. ↯(ℰ(v)) }]
+//! ```
 //!
 //! ── Idea: two credits at one budget (cf. random_walk.rs) ──────────────────────
 //! Per execution path, the error-credit framework tracks two non-negative reals.
 //!
 //!  (1) VALUE — the conditional expectation  fdr_f(v,c,k) = E[ℰ(out) | state (v,c)]
 //!      using ≤ k coin flips:
+//! ```text
 //!        fdr_f(v,c,0) = 0                                  (ran out of k)
 //!        fdr_f(v,c,k) = ½·( fdr_h(2v,2c,k−1) + fdr_h(2v,2c+1,k−1) )
 //!        fdr_h(v,c,k) = ℰ(c)             if v ≥ n, c < n   (accept)
 //!                     = fdr_f(v−n,c−n,k) if v ≥ n, c ≥ n   (reject, restart)
 //!                     = fdr_f(v,c,k)     if v < n          (continue doubling)
+//! ```
 //!      On accept the value credit is exactly ℰ(c) (correctness), and the truncated
 //!      mean never exceeds the uniform mean:  fdr_f(1,0,k) ≤ average_nat(n,ℰ)
 //!      (`lemma_fdr_f_le_average`), so the uniform precondition ε ≥ average_nat starts it.
 //!
 //!  (2) TERMINATION — the failure probability  fdr_fail_f(v,c,k) = 1 − P(accept within k flips)
+//! ```text
 //!        fdr_fail_f(v,c,0) = 1                                       (ran out of k)
 //!        fdr_fail_f(v,c,k) = ½·( fdr_fail_h(2v,2c,k−1) + fdr_fail_h(2v,2c+1,k−1) )
 //!        fdr_fail_h(v,c,k) = 0                     if v ≥ n, c < n   (accept)
 //!                          = fdr_fail_f(v−n,c−n,k) if v ≥ n, c ≥ n   (reject, restart)
 //!                          = fdr_fail_f(v,c,k)     if v < n          (continue doubling)
+//! ```
 //!
 //! The loop carries  credit = ↯(ce)  with  ce ≥ fdr_f(v,c,k) + fdr_fail_f(v,c,k),
 //! `k` the structural `decreases`.  Each coin flip is credit-exact (the allocation

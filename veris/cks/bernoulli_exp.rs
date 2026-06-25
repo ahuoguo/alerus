@@ -10,9 +10,11 @@
 //!
 //! We prove the following Expectation Preservation Rule
 //!
+//! ```text
 //!   ε ≥ exp(-x) · ℰ(true) + (1 - exp(-x)) · ℰ(false)
 //!   ---------------------------------------------------
 //!   [{ ↯(ε) }] sample_bernoulli_exp(x) [{ v. ↯(ℰ(v)) }]
+//! ```
 
 use vstd::prelude::*;
 #[cfg(verus_keep_ghost)]

@@ -5,9 +5,11 @@
 //!
 //! We prove the following Expectation Preservation Rule
 //!
+//! ```text
 //!   ε ≥ Σ_{k=0}^∞ p^k · (1 - p) · ℰ(k)
 //!   -------------------------------------------------
 //!   [{ ↯(ε) }] sample_geometric_exp(x) [{ v. ↯(ℰ(v)) }]
+//! ```
 
 use vstd::prelude::*;
 

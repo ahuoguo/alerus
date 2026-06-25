@@ -1,16 +1,20 @@
 //! Sample from the Discrete Gaussian N_ℤ(0, σ²)  (CKS20 §5.3), σ = numer/denom.
 //!
 //! Algorithm — rejection sampling against a discrete-Laplace proposal:
+//! ```text
 //!   t = ⌊σ⌋ + 1
 //!   loop { y ← sample_discrete_laplace(t);          // Y ~ L_ℤ(0, t)
 //!          if Bernoulli(exp(−(|y| − σ²/t)²/(2σ²))): return y }
+//! ```
 //!
 //! Expectation Preservation Rule, under the discrete-Gaussian pmf
 //!   gauss_pmf(x) := e^{−x²/2σ²} / Z,   Z := Σ_{y∈ℤ} e^{−y²/2σ²}:
 //!
+//! ```text
 //!   ε ≥ Σ_{x∈ℤ} gauss_pmf(x)·ℰ(x)
 //!   ───────────────────────────────────────
 //!   [{ ↯(ε) }] sample_discrete_gaussian(σ) [{ v. ↯(ℰ(v)) }]
+//! ```
 //!
 //! The proposal weight P_L[y] = (1−p)/(1+p)·e^{−|y|/t}  (p = e^{−1/t})
 //! times the acceptance C(y) = e^{−bias(y)},  bias(y) := (|y| − σ²/t)²/(2σ²),  

@@ -17,9 +17,11 @@
 //!
 //! Sampling is two uniform draws and a comparison:
 //!
+//! ```text
 //!   i ← Uniform{0,…,n−1}                        // pick a bin
 //!   r ← Uniform{0,…,m−1}                        // pick within the bin
 //!   return  if r < prob[i] { i } else { alias[i] }
+//! ```
 //!
 //! Then  P(k) = (1/n)·Σ_i ( [i=k]·prob[i] + [alias[i]=k]·(m−prob[i]) ) / m
 //!            = (1/(n·m))·(total units of k across all bins).
@@ -45,10 +47,12 @@
 //! `bin_contrib(i,k)`: the count of label-k units sitting in bin i: prob[i] of them when k = i 
 //! (m−prob[i]) when k = alias[i], 0 otherwise.
 //!
+//! ```text
 //!   Σ_i bin_credit(i)  =  Σ_i Σ_k ℰ(k)·bin_contrib(i,k)    -- per bin (≤2 labels): lemma_bin_contrib_sum_sel
 //!                      =  Σ_k ℰ(k)·Σ_i bin_contrib(i,k)    -- lemma_fubini
 //!                      =  Σ_k ℰ(k)·label_units(k)          -- label_units(k) := Σ_i bin_contrib(i,k)
 //!                      =  Σ_k ℰ(k)·(n·aₖ) = n·Σ_k aₖ·ℰ(k)   -- lemma_label_credit_sum_validity
+//! ```
 
 //! ## Preprocessing: `build_alias`
 //! Scale weights by n: scaled_weights[i] = n·aᵢ. A bin is _small_ if scaled_weights[i] < m, 

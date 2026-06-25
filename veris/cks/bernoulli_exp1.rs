@@ -1,13 +1,17 @@
 //! Sample from Bernoulli(exp(-x)) for x ∈ (0, 1].
 //!
+//! ```text
 //!   Loop k = 1, 2, ...: flip Bernoulli(x/k).
 //!     Heads → increment k.  Tails → return (k is odd).
+//! ```
 //!
 //! We prove the following Expectation Preservation Rule
 //!
+//! ```text
 //!   ε ≥ exp(-x) · ℰ(true) + (1 - exp(-x)) · ℰ(false)
 //!   ---------------------------------------------------
 //!   [{ ↯(ε) }] sample_bernoulli_exp1(x) [{ v. ↯(ℰ(v)) }]
+//! ```
 //!
 //! At step k, flip Bernoulli(x/k) via sample_bernoulli_rational.
 //!   tails (stop):     credit e(k%2==1)

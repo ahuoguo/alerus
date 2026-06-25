@@ -2,10 +2,12 @@
 //!
 //! Algorithm:
 //!
+//! ```text
 //!   u ← sample_exp_rejection(d)        // u ~ rejection_dist(d)
 //!   v ← sample_geometric_exp(1, 1)     // v ~ Geometric(1 − e^{−1})
 //!   z ← u + d · v
 //!   return z / n                       // floor division
+//! ```
 //!
 //! Distribution claim:  result ~ Geometric(1 − e^{−n/d}),  with PMF
 //!
@@ -19,14 +21,7 @@
 //!   [{ ↯(ε) }] sample_geometric_exp_fast(n/d) [{ r. ↯(F(r)) }]
 //! ```
 //!
-//! ─────────────────────────────────────────────────────────────────────────────
-//!  EQUATIONAL DERIVATION (the chain of identities the proof mirrors)
-//!
-//!  Equations are labeled E1 … E6 (top-of-chain = E6).  See the
-//!  "EQUATION ↔ PROOF FUNCTION" block below for the mapping from each step
-//!  to the Verus lemma that discharges it.
-//! ─────────────────────────────────────────────────────────────────────────────
-//!
+//! ```text
 //! Let
 //!      N       := Σ_{u=0}^{d−1} e^{−u/d}                            [rej_norm_const]
 //!                  (normalizer of rejection_dist on {0..d−1};
@@ -35,7 +30,8 @@
 //!      g(u, v) := F((u + d·v) / n)                                  [g spec_fn]
 //!      f(u)    := lim_{m→∞} Σ_{v<m} inner_geom_summand(v) · g(u, v) [f spec_fn]
 //!      inner_geom_summand(v) := (e^{−1})^v · (1 − e^{−1})
-//!
+//! ```
+//! 
 //! I.e. f(u) is the expected value of g(u, ·) under v ~ Geom(1 − e^{−1});
 //! the inner Geom partial sums converge to f(u) (`lemma_f_is_limit`).
 //!

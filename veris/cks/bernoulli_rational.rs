@@ -5,9 +5,11 @@
 //!
 //! We prove the following Expectation Preservation Rule
 //!
+//! ```text
 //!   ε ≥ p · ℰ(true) + (1 - p) · ℰ(false)
 //!   ----------------------------------------
 //!   [{ ↯(ε) }] sample_bernoulli_rational(numer, denom) [{ v. ↯(ℰ(v)) }]
+//! ```
 //!
 //! See opendp correspondence in `sample_bernoulli_rational` in opendp/rust/src/traits/samplers/bernoulli/mod.rs.
 

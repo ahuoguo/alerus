@@ -5,9 +5,11 @@
 //! 2. A distribution credit via the expectation rule:
 //! https://github.com/logsem/clutch/blob/cpp26-distributions/theories/eris/lib/sampling/geometric/implementation.v#L109-L116
 //!
+//! ```text
 //!   ε ≥ Σ_{i=0}^∞ (1/2)^(i+1) * ℰ(i)
 //!   ------------------------------------
 //!   [{ ↯(ε) }] geo() [{ v. ↯(ℰ(v)) }]
+//! ```
 //!
 //! The weight (1/2)^(i+1) is the probability of outcome i (i tails then heads).
 //! After geo() returns v, we own error credit ℰ(v).

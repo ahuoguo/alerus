@@ -24,6 +24,7 @@
 //! follow (positions ≥ h[c]).  On a real leaf it outputs that leaf's label; on a reject
 //! leaf (label = `n`) it discards the walk and starts over at the root:
 //!
+//! ```text
 //!   c ← 0; d ← 0                                    // start at the root (level 0, position 0)
 //!   loop {
 //!       b ← flip();  c ← c+1;  d ← 2d + b           // descend one level (left/right child)
@@ -32,6 +33,7 @@
 //!           else { d ← 0; c ← 0 }                   // reject (label n) → restart at the root
 //!       } else { d ← d − h[c] }                     // internal node → renumber and keep going
 //!   }
+//! ```
 //! `h[c]` = number of leaves at level c;  `lab[c][d]` = label (an outcome in 0..n−1, or the
 //! reject label n) of the d-th leaf at level c.
 //!
@@ -47,11 +49,13 @@
 //!
 //!  (1) VALUE — the conditional expectation  fldr_f(c,d,k) = E[ℰ(out) | (c,d)] using
 //!      ≤ k flips (0 if the coins runs out before accepting):
+//! ```text
 //!        fldr_f(c,d,0) = 0
 //!        fldr_f(c,d,k) = ½·( fldr_g(c+1,2d,k−1) + fldr_g(c+1,2d+1,k−1) )
 //!        fldr_g(c,d,k) = ℰ(lab[c][d])      if d < h[c], lab[c][d] < n   (accept)
 //!                      = fldr_f(0,0,k)     if d < h[c], lab[c][d] = n   (reject, restart)
 //!                      = fldr_f(c,d−h[c],k) if d ≥ h[c]                 (internal, descend)
+//! ```
 //!      Correctness: fldr_f(0,0,k) ≤ Σ(aᵢ/m)ℰ(i).  Because a reject restarts at the
 //!      root with *strictly smaller* fuel (every leaf is at depth ≥ 1), this follows
 //!      by induction on k — no limits — from the DDG leaf-sum identity
