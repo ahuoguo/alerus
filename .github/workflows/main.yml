@@ -25,6 +25,6 @@ jobs:
       - name: Add Verus to PATH
         run: echo "$(pwd)/verus-x86-linux/" >> $GITHUB_PATH
 
-      - name: cargo verus verify -p veris
+      - name: cargo verus verify -p alerus
         working-directory: .
-        run: cargo verus verify -p veris
+        run: cargo verus verify -p alerus

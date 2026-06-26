@@ -1,14 +1,14 @@
 [package]
-name = "veris"
+name = "alerus"
 version = "0.1.0"
 edition = "2021"
 
 [lib]
-name = "veris"
+name = "alerus"
 path = "lib.rs"
 
 [[bin]]
-name = "veris"
+name = "alerus"
 path = "src/main.rs"
 
 [dependencies]

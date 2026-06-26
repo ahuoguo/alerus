@@ -1,8 +1,8 @@
 #!/bin/bash
-# Generate Verusdoc (rustdoc + Verus spec annotations) for the `veris` crate.
+# Generate Verusdoc (rustdoc + Verus spec annotations) for the `alerus` crate.
 #
 # Mirrors verus-lang/verus's source/tools/docs.sh, adapted for this project:
-#   - documents the `veris` crate (lib.rs) instead of vstd
+#   - documents the `alerus` crate (lib.rs) instead of vstd
 #   - pulls in the `random` workspace dependency and its transitive rlibs
 #
 # The same script runs locally and in CI; the locations of the Verus artifacts
@@ -15,7 +15,7 @@
 #   VERUSDOC_BIN   path to the `verusdoc` HTML post-processor binary.
 #   RUSTDOC        rustdoc to invoke (defaults to the 1.95.0 toolchain's rustdoc).
 #
-# Output: ./doc/veris/index.html
+# Output: ./doc/alerus/index.html
 set -e
 
 VERIS="$(cd "$(dirname "$0")" && pwd)"
@@ -42,9 +42,9 @@ cargo +1.95.0 build -p random
 
 RANDOM_RLIB="$(ls -t "$DEPS"/librandom-*.rlib | head -1)"
 
-echo "Running rustdoc on the veris crate..."
+echo "Running rustdoc on the alerus crate..."
 RUSTC_BOOTSTRAP=1 VERUSDOC=1 "$RUSTDOC" \
-  --crate-name veris \
+  --crate-name alerus \
   --edition=2021 \
   --crate-type=lib \
   --extern verus_builtin="$VERUS_BIN_DIR/libverus_builtin.rlib" \
@@ -75,4 +75,4 @@ RUSTC_BOOTSTRAP=1 VERUSDOC=1 "$RUSTDOC" \
 echo "Running verusdoc post-processor..."
 "$VERUSDOC_BIN"
 
-echo "Documentation generated at $VERIS/doc/veris/index.html"
+echo "Documentation generated at $VERIS/doc/alerus/index.html"

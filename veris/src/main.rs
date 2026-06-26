@@ -1,4 +1,4 @@
-use veris::{alias, cks, fldr, geo, geo_dist, ho_rej_samp};
+use alerus::{alias, cks, fldr, geo, geo_dist, ho_rej_samp};
 
 fn main() {
     println!("Geometric Distribution Test");

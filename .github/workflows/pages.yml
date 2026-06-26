@@ -68,7 +68,7 @@ jobs:
           export RUSTDOC="$(rustup which --toolchain 1.95.0 rustdoc)"
           ./gen-verusdoc.sh
           # Redirect the site root to the crate landing page.
-          printf '<meta http-equiv="refresh" content="0; url=veris/index.html">\n' > doc/index.html
+          printf '<meta http-equiv="refresh" content="0; url=alerus/index.html">\n' > doc/index.html
 
       - name: Upload Pages artifact
         uses: actions/upload-pages-artifact@v3
