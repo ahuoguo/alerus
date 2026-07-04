@@ -21,7 +21,7 @@ use vstd::prelude::*;
 use vstd::proph::Prophecy;
 
 use crate::ec::*;
-use crate::rand_primitives::rand_1_u64;
+use crate::rand_primitives::rand_2_u64;
 
 verus! {
 
@@ -79,7 +79,7 @@ pub fn safe_with_half_credit(Tracked(input_credit): Tracked<ErrorCreditResource>
     }
 
     let (val, Tracked(outcome_credit)) =
-        rand_1_u64(Tracked(input_credit), credit_alloc);
+        rand_2_u64(Tracked(input_credit), credit_alloc);
 
     // resolve the prophecy to the sampled value. Now `p@ == val`.
     p.resolve(&val);

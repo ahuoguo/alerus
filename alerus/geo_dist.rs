@@ -30,7 +30,7 @@ use random::ubig_add;
 verus! {
 
 use crate::ec::*;
-use crate::rand_primitives::{rand_1_u64, thin_air};
+use crate::rand_primitives::{rand_2_u64, thin_air};
 #[cfg(verus_keep_ghost)]
 use crate::math::pow::{pow, archimedean_exp_growth};
 #[cfg(verus_keep_ghost)]
@@ -92,7 +92,7 @@ pub fn bounded_geo_dist(
 
     let ghost credit_alloc = geo_dist_credit_alloc(e, eps);
 
-    let (val, Tracked(outcome_credit)) = rand_1_u64(
+    let (val, Tracked(outcome_credit)) = rand_2_u64(
         Tracked(input_credit),
         Ghost(credit_alloc),
     );

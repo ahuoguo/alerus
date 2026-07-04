@@ -6,7 +6,7 @@ use crate::ec::*;
 #[cfg(verus_keep_ghost)]
 use crate::fldr::*;
 #[cfg(verus_keep_ghost)]
-use crate::rand_primitives::{thin_air, rand_1_u64};
+use crate::rand_primitives::thin_air;
 #[cfg(verus_keep_ghost)]
 use crate::math::pow::{pow, archimedean_pow};
 #[cfg(verus_keep_ghost)]

@@ -35,7 +35,7 @@ use random::{UBig, ubig_zero, ubig_succ, ubig_pred, ubig_is_zero, ubig_from_u64}
 verus! {
 
 use crate::ec::*;
-use crate::rand_primitives::{rand_1_u64, thin_air};
+use crate::rand_primitives::{rand_2_u64, thin_air};
 #[cfg(verus_keep_ghost)]
 use crate::rand_primitives::sum_credit;
 #[cfg(verus_keep_ghost)]
@@ -305,7 +305,7 @@ pub fn bounded_random_walk_1d(
         assert(sum_credit(alloc, 1) == sum_credit(alloc, 0) + alloc(0real)); // OBSERVE
     }
 
-    let (val, Tracked(outcome_credit)) = rand_1_u64(Tracked(credit), Ghost(alloc));
+    let (val, Tracked(outcome_credit)) = rand_2_u64(Tracked(credit), Ghost(alloc));
 
     if val == 0 {
         let n_pred = ubig_pred(n.clone());

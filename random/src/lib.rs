@@ -35,6 +35,10 @@ pub fn ubig_from_u64(n: u64) -> UBig {
     UBig::from(n)
 }
 
+pub fn ubig_to_u64(n: &UBig) -> u64 {
+    u64::try_from(n.clone()).unwrap()
+}
+
 pub fn ubig_mul_u64(a: &UBig, b: u64) -> UBig {
     a * UBig::from(b)
 }

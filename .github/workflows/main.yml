@@ -19,8 +19,8 @@ jobs:
 
       - name: Download Verus
         run: |
-          wget https://github.com/verus-lang/verus/releases/download/release%2F0.2026.05.31.5dd6d83/verus-0.2026.05.31.5dd6d83-x86-linux.zip
-          unzip verus-0.2026.05.31.5dd6d83-x86-linux.zip
+          wget https://github.com/verus-lang/verus/releases/download/release%2F0.2026.06.14.4ea7d0f/verus-0.2026.06.14.4ea7d0f-x86-linux.zip
+          unzip verus-0.2026.06.14.4ea7d0f-x86-linux.zip
 
       - name: Add Verus to PATH
         run: echo "$(pwd)/verus-x86-linux/" >> $GITHUB_PATH

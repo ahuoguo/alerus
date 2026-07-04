@@ -40,8 +40,6 @@ pub open spec fn average_nat(bound: nat, credit_alloc: spec_fn(real) -> real) ->
 }
 
 //// Wrappers
-#[verus::trusted]
-#[verifier::external_body]
 pub fn rand_u64(
     bound: u64,
     Tracked(e1): Tracked<ErrorCreditResource>,
@@ -58,8 +56,10 @@ pub fn rand_u64(
       // owns ↯(ℰ₂(n))
       (ErrorCreditCarrier::Value { car: e2(n as real) }) =~= out_credit.view().view(),
 {
-    let val: u64 = random::rand_u64(bound);
-    (val, Tracked::assume_new())
+    let bound_ubig = random::ubig_from_u64(bound);
+    let (n_ubig, out_credit) = rand_ubig(&bound_ubig, Tracked(e1), Ghost(e2));
+    let n = random::ubig_to_u64(&n_ubig);
+    (n, out_credit)
 }
 
 /// Uniform sampler with UBig bound: sample u ~ Uniform([0, bound)).
@@ -109,7 +109,7 @@ pub open spec fn flip_credit_alloc(x: real) -> real {
 
 /// A wrapper around `rand_u64(2)` for coin flip scenarios.
 /// Simplifies the average calculation to (credit_alloc(0) + credit_alloc(1)) / 2.
-pub fn rand_1_u64(
+pub fn rand_2_u64(
     Tracked(input_credit): Tracked<ErrorCreditResource>,
     Ghost(credit_alloc): Ghost<spec_fn(real) -> real>,
 ) -> ((n, out_credit): (u64, Tracked<ErrorCreditResource>))
@@ -139,7 +139,7 @@ pub fn flip(Tracked(input_credit): Tracked<ErrorCreditResource>) -> (ret: u64)
         ret == 1,
 {
     assert(flip_credit_alloc(0real) + flip_credit_alloc(1real) == 1real);
-    let (val, Tracked(outcome_credit)) = rand_1_u64(Tracked(input_credit), Ghost(|x: real| flip_credit_alloc(x)));
+    let (val, Tracked(outcome_credit)) = rand_2_u64(Tracked(input_credit), Ghost(|x: real| flip_credit_alloc(x)));
 
     proof {
         if (val != 1) {

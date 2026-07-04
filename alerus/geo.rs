@@ -15,7 +15,7 @@ use vstd::calc_macro::*;
 verus! {
 
 use crate::ec::*;
-use crate::rand_primitives::{rand_1_u64, thin_air};
+use crate::rand_primitives::{rand_2_u64, thin_air};
 #[cfg(verus_keep_ghost)]
 use crate::math::pow::{pow, archimedean_exp_growth};
 #[cfg(verus_keep_ghost)]
@@ -79,7 +79,7 @@ pub fn bounded_geometric(
         }
     }
 
-    let (val, Tracked(outcome_credit)) = rand_1_u64(
+    let (val, Tracked(outcome_credit)) = rand_2_u64(
         Tracked(input_credit),
         Ghost(|x: real| geo_credit_alloc(x, eps)),
     );

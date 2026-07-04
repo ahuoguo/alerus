@@ -23,7 +23,7 @@ use vstd::resource::algebra::ResourceAlgebra;
 use vstd::prelude::*;
 
 use crate::ec::*;
-use crate::rand_primitives::rand_1_u64;
+use crate::rand_primitives::rand_2_u64;
 #[cfg(verus_keep_ghost)]
 use crate::proph_paradox::{credit_alloc_proph, credit_alloc_proph_sum};
 use crate::proph_paradox::havoc;
@@ -73,7 +73,7 @@ pub fn safe_with_half_credit_mutref(
     }
 
     let (val, Tracked(outcome_credit)) =
-        rand_1_u64(Tracked(input_credit), credit_alloc);
+        rand_2_u64(Tracked(input_credit), credit_alloc);
 
     // "Resolve" the prophecy by writing val into the mutable location.
     *x = val;

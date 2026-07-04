@@ -100,7 +100,7 @@ use vstd::prelude::*;
 
 verus! {
 use crate::ec::*;
-use crate::rand_primitives::{thin_air, rand_1_u64};
+use crate::rand_primitives::{thin_air, rand_2_u64};
 #[cfg(verus_keep_ghost)]
 use crate::math::pow::{pow, archimedean_pow};
 #[cfg(verus_keep_ghost)]
@@ -571,7 +571,7 @@ pub fn sample_fldr(
                     fldr_fail_f(t, cn, dn, k0) == (lg0 + lg1) / 2real;
         }
 
-        let (b, Tracked(out)) = rand_1_u64(Tracked(credit), Ghost(alloc));
+        let (b, Tracked(out)) = rand_2_u64(Tracked(credit), Ghost(alloc));
         proof { credit = out; g_ce = alloc(b as real); k = (k0 - 1) as nat; }
 
         // descend one level:  c ← c+1,  d ← 2d + b.  (2d can't overflow:

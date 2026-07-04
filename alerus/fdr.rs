@@ -71,7 +71,7 @@ use vstd::prelude::*;
 verus! {
 
 use crate::ec::*;
-use crate::rand_primitives::{thin_air, rand_1_u64};
+use crate::rand_primitives::{thin_air, rand_2_u64};
 #[cfg(verus_keep_ghost)]
 use crate::rand_primitives::{sum_credit, average_nat};
 #[cfg(verus_keep_ghost)]
@@ -753,7 +753,7 @@ pub fn sample_fdr(
                     fdr_fail_f(n as nat, v as nat, c as nat, kk) == (flh0 + flh1) / 2real;
         }
 
-        let (b, Tracked(out)) = rand_1_u64(Tracked(credit), Ghost(alloc));
+        let (b, Tracked(out)) = rand_2_u64(Tracked(credit), Ghost(alloc));
         proof {
             credit = out;
             g_ce = alloc(b as real);   // held credit is now alloc(b)
