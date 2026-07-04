@@ -24,8 +24,8 @@ concurrency:
 env:
   # Keep these in sync with the Verus version pinned in veris/Cargo.toml and
   # .github/workflows/main.yml.
-  VERUS_VER: 0.2026.05.31.5dd6d83
-  VERUS_TAG: release/0.2026.05.31.5dd6d83
+  VERUS_VER: 0.2026.06.14.4ea7d0f
+  VERUS_TAG: release/0.2026.06.14.4ea7d0f
 
 jobs:
   build:
@@ -33,10 +33,10 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Install Rust 1.95.0
+      - name: Install Rust 1.96.0
         uses: dtolnay/rust-toolchain@master
         with:
-          toolchain: 1.95.0
+          toolchain: 1.96.0
 
       - name: Download Verus
         run: |
@@ -57,7 +57,7 @@ jobs:
           # It lives inside this repo's workspace dir, so make it its own
           # workspace root rather than a member of the veris workspace.
           printf '\n[workspace]\n' >> verusdoc-standalone/Cargo.toml
-          cargo +1.95.0 build --release \
+          cargo +1.96.0 build --release \
             --manifest-path verusdoc-standalone/Cargo.toml
 
       - name: Generate verusdoc
@@ -65,7 +65,7 @@ jobs:
           VERUS_BIN_DIR: ${{ github.workspace }}/verus-x86-linux
           VERUSDOC_BIN: ${{ github.workspace }}/verusdoc-standalone/target/release/verusdoc
         run: |
-          export RUSTDOC="$(rustup which --toolchain 1.95.0 rustdoc)"
+          export RUSTDOC="$(rustup which --toolchain 1.96.0 rustdoc)"
           ./gen-verusdoc.sh
           # Redirect the site root to the crate landing page.
           printf '<meta http-equiv="refresh" content="0; url=alerus/index.html">\n' > doc/index.html
