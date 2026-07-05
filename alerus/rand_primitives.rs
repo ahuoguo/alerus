@@ -143,7 +143,9 @@ pub fn rand_2_u64(
     (val, output_credit)
 }
 
-#[inline(always)]
+// {1/2} 
+//   flip()
+// {v. v == true }
 pub fn flip(Tracked(input_credit): Tracked<ErrorCreditResource>) -> (ret: u64)
     requires
         (ErrorCreditCarrier::Value { car: 0.5real }) == input_credit.view(),
@@ -160,6 +162,37 @@ pub fn flip(Tracked(input_credit): Tracked<ErrorCreditResource>) -> (ret: u64)
     }
     assert(val == 1);
     val
+}
+
+// Example: fliping two coins, the probability they are both heads is 1/4
+// {1/4} 
+//   let b1 = flip() in
+//   let b2 = flip() in
+//   b1 && b2
+// {v. v == false }
+pub fn flip_and(Tracked(credit): Tracked<ErrorCreditResource>) -> (ret: bool)
+    requires
+        credit.view() =~= (ErrorCreditCarrier::Value { car: 1real / 4real }),
+    ensures
+        ret == false,
+{
+    let (b1, Tracked(c1)) = rand_2_u64(
+        Tracked(credit),
+        Ghost(|x: real| if x == 1real { 1real / 2real } else { 0real }),
+    );
+
+    let (b2, Tracked(c2)) = rand_2_u64(
+        Tracked(c1),
+        Ghost(|x: real| if b1 == 1 && x == 1real { 1real } else { 0real }),
+    );
+
+    proof {
+        if b1 == 1 && b2 == 1 {
+            ec_contradict(&c2);
+        }
+    }
+
+    (b1 == 1) && (b2 == 1)
 }
 
 } // verus!
