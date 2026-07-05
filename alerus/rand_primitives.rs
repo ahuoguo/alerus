@@ -1,3 +1,11 @@
+//! # Axiomtized Primitives for Randomness
+//!
+//! Trusted interface to the randomness source, exposing the Eris sampling rules
+//! over [error credits](crate::ec).
+//!
+//! - [`rand_ubig`]
+//! - [`thin_air`] 
+
 #[cfg(verus_keep_ghost)]
 use vstd::calc_macro::*;
 #[cfg(verus_keep_ghost)]
@@ -66,6 +74,7 @@ pub fn rand_u64(
 /// See opendp: `sample_uniform_ubig_below` in opendp/rust/src/traits/samplers/uniform/mod.rs.
 #[verus::trusted]
 #[verifier::external_body]
+#[inline(always)]
 pub fn rand_ubig(
     bound: &UBig,
     Tracked(e1): Tracked<ErrorCreditResource>,
@@ -88,6 +97,7 @@ pub fn rand_ubig(
 // In Eris, you can only invoke a thin air rule if your postcondition is a WP or is wrapped in some modality
 // you can't not invoke thin air rule in any lemma (this might(?) be unsound)
 // TODO: can you write it as a `proof fn` returning some value?
+#[inline(always)]
 #[verus::trusted]
 #[verifier::external_body]
 pub fn thin_air() -> (ret: Tracked<ErrorCreditResource>)
@@ -109,6 +119,7 @@ pub open spec fn flip_credit_alloc(x: real) -> real {
 
 /// A wrapper around `rand_u64(2)` for coin flip scenarios.
 /// Simplifies the average calculation to (credit_alloc(0) + credit_alloc(1)) / 2.
+#[inline(always)]
 pub fn rand_2_u64(
     Tracked(input_credit): Tracked<ErrorCreditResource>,
     Ghost(credit_alloc): Ghost<spec_fn(real) -> real>,
@@ -132,6 +143,7 @@ pub fn rand_2_u64(
     (val, output_credit)
 }
 
+#[inline(always)]
 pub fn flip(Tracked(input_credit): Tracked<ErrorCreditResource>) -> (ret: u64)
     requires
         (ErrorCreditCarrier::Value { car: 0.5real }) == input_credit.view(),

@@ -1,3 +1,16 @@
+//! # Error credits
+//!
+//! The core Eris resource a
+//! separation-logic resource [`ErrorCreditResource`] tracking an upper bound
+//! `↯(ε)` on a program's probability of error. It is backed by the
+//! [`ErrorCreditCarrier`] PCM at a single global ghost location, and exposes the
+//! credit algebra used throughout the proofs:
+//!
+//! - [`ec_combine`] — `↯(ε₁) ∗ ↯(ε₂) ⊢ ↯(ε₁ + ε₂)`
+//! - [`ec_split`] — `↯(ε₁ + ε₂) ⊢ ↯(ε₁) ∗ ↯(ε₂)`
+//! - [`ec_contradict`] — owning `↯(ε)` with `ε ≥ 1` derives `False`
+//! - [`ec_zero`] — obtain `↯(0)` for free
+
 use vstd::resource::pcm::*;
 #[cfg(verus_keep_ghost)]
 use vstd::resource::algebra::ResourceAlgebra;
@@ -13,13 +26,13 @@ verus! {
 #[allow(non_snake_case)]
 pub uninterp spec fn EC_GLOBAL_LOC() -> Loc;
 
-// wrapper around ec, namely `↯`
-// A error credit represents a resource with a non zero value
-// https://logsem.github.io/clutch/clutch.base_logic.error_credits.html
-// the reason we have `Empty` separately is becuase we Value{0} can't be a unit since
-// ↯(-1) · ↯(0) = Invalid
-// this is because we don't have a subset type for non-negative reals, 
-// so we have to bake the non-negativity into the algebra itself. 
+/// wrapper around ec, namely `↯`
+/// A error credit represents a resource with a non zero value
+/// https://logsem.github.io/clutch/clutch.base_logic.error_credits.html
+/// the reason we have `Empty` separately is becuase we Value{0} can't be a unit since
+/// ↯(-1) · ↯(0) = Invalid
+/// this is because we don't have a subset type for non-negative reals, 
+/// so we have to bake the non-negativity into the algebra itself. 
 pub enum ErrorCreditCarrier {
     Value { car: real },
     Empty,
