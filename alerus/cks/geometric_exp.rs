@@ -196,10 +196,10 @@ pub fn sample_geometric_exp(
         p == exp(-(numer_x as real / denom_x as real)),
         forall |k: nat| (#[trigger] e(k)) >= 0real,
         dist_bound >= 0real,
-        input_credit.view() =~= (ErrorCreditCarrier::Value { car: dist_bound }),
+        input_credit@ =~= (ErrorCreditCarrier::Value { car: dist_bound }),
         geo_exp_series_bounded_by(p, e, dist_bound),
     ensures
-        out_credit@.view() =~= (ErrorCreditCarrier::Value { car: e(ubig_view(&value)) }),
+        out_credit@@ =~= (ErrorCreditCarrier::Value { car: e(ubig_view(&value)) }),
 {
     // Obtain slack credit and depth bound for termination
     let Tracked(slack_credit) = thin_air();
@@ -210,7 +210,7 @@ pub fn sample_geometric_exp(
 
     proof {
         slack = choose |v: real| v > 0real &&
-            (ErrorCreditCarrier::Value { car: v } =~= slack_credit.view());
+            (ErrorCreditCarrier::Value { car: v } =~= slack_credit@);
         assert(inv_p > 1real) by(nonlinear_arith)
             requires 0real < p < 1real, inv_p == 1real / p;
         archimedean_exp_growth(slack, inv_p);
@@ -241,7 +241,7 @@ pub fn sample_geometric_exp(
             forall |i: nat| #[trigger] g_e(i) == e(i + g_kn),
             g_eps > 0real,
             g_slack > 0real,
-            credit.view() =~= (ErrorCreditCarrier::Value { car: g_eps }),
+            credit@ =~= (ErrorCreditCarrier::Value { car: g_eps }),
             geo_exp_series_bounded_by(p, g_e, g_eps - g_slack),
             g_slack * pow(1real / p, g_depth) >= 1real,
         decreases g_depth,

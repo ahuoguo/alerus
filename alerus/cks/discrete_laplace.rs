@@ -414,10 +414,10 @@ pub fn sample_discrete_laplace(
         p == exp(-(inv_numer as real / inv_denom as real)),
         forall |x: int| (#[trigger] e(x)) >= 0real,
         eps > 0real,
-        input_credit.view() =~= (ErrorCreditCarrier::Value { car: eps }),
+        input_credit@ =~= (ErrorCreditCarrier::Value { car: eps }),
         dl_series_bounded_by(p, e, eps),
     ensures
-        out_credit@.view() =~= (ErrorCreditCarrier::Value { car: e(ibig_view(&value)) }),
+        out_credit@@ =~= (ErrorCreditCarrier::Value { car: e(ibig_view(&value)) }),
 {
     // Get slack for termination
     let Tracked(slack_credit) = thin_air();
@@ -425,7 +425,7 @@ pub fn sample_discrete_laplace(
     let ghost depth: nat;
     proof {
         slack = choose |v: real| v > 0real &&
-            (ErrorCreditCarrier::Value { car: v } =~= slack_credit.view());
+            (ErrorCreditCarrier::Value { car: v } =~= slack_credit@);
         archimedean_exp_growth(slack, 2real);
         depth = choose |k: nat| slack * #[trigger] pow(2real, k) >= 1real;
     }
@@ -447,7 +447,7 @@ pub fn sample_discrete_laplace(
             forall |x: int| (#[trigger] e(x)) >= 0real,
             g_eps > 0real,
             g_slack > 0real,
-            credit.view() =~= (ErrorCreditCarrier::Value { car: g_eps + g_slack }),
+            credit@ =~= (ErrorCreditCarrier::Value { car: g_eps + g_slack }),
             dl_series_bounded_by(p, e, g_eps),
             g_slack * pow(2real, g_depth) >= 1real,
         decreases g_depth,
@@ -614,10 +614,10 @@ pub fn sample_discrete_laplace_fast(
         p == exp(-(1real / rbig_view(scale))),
         forall |x: int| (#[trigger] e(x)) >= 0real,
         eps > 0real,
-        input_credit.view() =~= (ErrorCreditCarrier::Value { car: eps }),
+        input_credit@ =~= (ErrorCreditCarrier::Value { car: eps }),
         dl_series_bounded_by(p, e, eps),
     ensures
-        out_credit@.view() =~= (ErrorCreditCarrier::Value { car: e(ibig_view(&value)) }),
+        out_credit@@ =~= (ErrorCreditCarrier::Value { car: e(ibig_view(&value)) }),
 {
     // scale = sn/sd (sn ≥ 1 since scale > 0, sd ≥ 1); 1/scale = sd/sn.
     let parts = rbig_into_parts(scale);
@@ -649,7 +649,7 @@ pub fn sample_discrete_laplace_fast(
     let ghost depth: nat;
     proof {
         slack = choose |v: real| v > 0real &&
-            (ErrorCreditCarrier::Value { car: v } =~= slack_credit.view());
+            (ErrorCreditCarrier::Value { car: v } =~= slack_credit@);
         archimedean_exp_growth(slack, 2real);
         depth = choose |k: nat| slack * #[trigger] pow(2real, k) >= 1real;
     }
@@ -670,7 +670,7 @@ pub fn sample_discrete_laplace_fast(
             forall |x: int| (#[trigger] e(x)) >= 0real,
             g_eps > 0real,
             g_slack > 0real,
-            credit.view() =~= (ErrorCreditCarrier::Value { car: g_eps + g_slack }),
+            credit@ =~= (ErrorCreditCarrier::Value { car: g_eps + g_slack }),
             dl_series_bounded_by(p, e, g_eps),
             g_slack * pow(2real, g_depth) >= 1real,
         decreases g_depth,
@@ -817,7 +817,7 @@ pub fn sample_discrete_laplace_entry(
     let ghost eps: real;
     proof {
         eps = choose |v: real| v > 0real &&
-            (ErrorCreditCarrier::Value { car: v } =~= cred.view());
+            (ErrorCreditCarrier::Value { car: v } =~= cred@);
         assert(scale_denom as real / scale_numer as real > 0real) by(nonlinear_arith)
             requires scale_denom > 0u64, scale_numer > 0u64;
         axiom_exp_neg_range(scale_denom as real / scale_numer as real);

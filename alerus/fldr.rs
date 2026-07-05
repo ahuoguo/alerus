@@ -443,7 +443,7 @@ impl FldrTable {
     }
 
     pub open spec fn wf(self) -> bool {
-        &&& valid_ddg(self.view())
+        &&& valid_ddg(self@)
         &&& self.levels >= 1
         &&& pow2(self.levels as nat) <= 4611686018427387904   // 2^62, for u64 overflow safety
         &&& pow2(self.levels as nat) <= usize::MAX as nat     // positions fit usize (Vec indices)
@@ -501,16 +501,16 @@ pub fn sample_fldr(
     requires
         tab.wf(),
         forall |x: real| (#[trigger] e(x)) >= 0real,
-        eps >= fldr_exp(tab.view(), e),
-        input_credit.view() =~= (ErrorCreditCarrier::Value { car: eps }),
+        eps >= fldr_exp(tab@, e),
+        input_credit@ =~= (ErrorCreditCarrier::Value { car: eps }),
     ensures
         value < tab.n,
-        out_credit@.view() =~= (ErrorCreditCarrier::Value { car: e(value as real) }),
+        out_credit@@ =~= (ErrorCreditCarrier::Value { car: e(value as real) }),
 {
-    let ghost t = tab.view();
+    let ghost t = tab@;
     proof { lemma_fldr_exp_nonneg(t, e); }       // ⇒ eps ≥ 0, for ec_combine below
     let Tracked(slack) = thin_air();
-    let ghost s0 = choose |sv: real| sv > 0real && (slack.view() =~= (ErrorCreditCarrier::Value { car: sv }));
+    let ghost s0 = choose |sv: real| sv > 0real && (slack@ =~= (ErrorCreditCarrier::Value { car: sv }));
     let tracked mut credit = ec_combine(input_credit, slack, eps, s0);   // ↯(eps + s0)
     let ghost mut k: nat;
     proof {
@@ -530,12 +530,12 @@ pub fn sample_fldr(
 
     loop
         invariant
-            t == tab.view(),
+            t == tab@,
             tab.wf(),
             (c as nat) < tab.levels as nat,
             (d as nat) + (t.h)(c as nat) < ddg_nodes(t, c as nat),
             forall |x: real| (#[trigger] e(x)) >= 0real,
-            credit.view() =~= (ErrorCreditCarrier::Value { car: g_ce }),
+            credit@ =~= (ErrorCreditCarrier::Value { car: g_ce }),
             g_ce >= fldr_f(t, e, c as nat, d as nat, k) + fldr_fail_f(t, c as nat, d as nat, k),
         decreases k,
     {
@@ -936,7 +936,7 @@ pub fn fldr_preprocess(weights: Vec<u64>, m: u64, levels: u64) -> (tab: FldrTabl
     let tab = FldrTable { n: n_u, m, levels, weights, h, lab };
 
     proof {
-        let ghost t = tab.view();
+        let ghost t = tab@;
         let ghost bt = built_ddg(pctx);
         // The view and the built DDG share scalar fields/weights, and agree on h(j) for
         // 0 ≤ j ≤ K and lab(j,d) for d < h(j), j ≤ K.
@@ -960,7 +960,7 @@ pub fn run_fldr_zero() -> (ret: u64)
     let ghost e = |x: real| 0real;
     let Tracked(credit) = thin_air();
     let ghost eps = choose |sv: real|
-        sv > 0real && (credit.view() =~= (ErrorCreditCarrier::Value { car: sv }));
+        sv > 0real && (credit@ =~= (ErrorCreditCarrier::Value { car: sv }));
     proof {
         assert((7real * e(0real) + 4real * e(1real) + 8real * e(2real)) / 19real == 0real)
             by(nonlinear_arith)
@@ -988,10 +988,10 @@ pub fn sample_748(
     requires
         forall |x: real| (#[trigger] e(x)) >= 0real,
         eps >= (7real * e(0real) + 4real * e(1real) + 8real * e(2real)) / 19real,
-        input_credit.view() =~= (ErrorCreditCarrier::Value { car: eps }),
+        input_credit@ =~= (ErrorCreditCarrier::Value { car: eps }),
     ensures
         value < 3,
-        out_credit@.view() =~= (ErrorCreditCarrier::Value { car: e(value as real) }),
+        out_credit@@ =~= (ErrorCreditCarrier::Value { car: e(value as real) }),
 {
     let mut w: Vec<u64> = Vec::new();
     w.push(7);

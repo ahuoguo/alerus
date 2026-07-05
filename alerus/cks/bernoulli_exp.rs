@@ -121,10 +121,10 @@ pub fn sample_bernoulli_exp(
         e(true) >= 0real,
         e(false) >= 0real,
         eps >= 0real,
-        input_credit.view() =~= (ErrorCreditCarrier::Value { car: eps }),
+        input_credit@ =~= (ErrorCreditCarrier::Value { car: eps }),
         eps >= bernoulli_weighted_sum(exp(-(numer_x as real / denom_x as real)), e),
     ensures
-        out_credit@.view() =~= (ErrorCreditCarrier::Value { car: e(value) }),
+        out_credit@@ =~= (ErrorCreditCarrier::Value { car: e(value) }),
 {
     let mut remaining_numer = numer_x;
     let ghost mut g_prob = exp(-(numer_x as real / denom_x as real));
@@ -140,7 +140,7 @@ pub fn sample_bernoulli_exp(
             remaining_numer <= numer_x,
             g_prob == exp(-(remaining_numer as real / denom_x as real)),
             0real <= g_prob <= 1real,
-            credit.view() =~= (ErrorCreditCarrier::Value { car: g_eps }),
+            credit@ =~= (ErrorCreditCarrier::Value { car: g_eps }),
             g_eps >= bernoulli_weighted_sum(g_prob, e),
         decreases remaining_numer as int,
     {
@@ -272,10 +272,10 @@ pub fn sample_bernoulli_exp_ubig(
         e(true) >= 0real,
         e(false) >= 0real,
         eps >= 0real,
-        input_credit.view() =~= (ErrorCreditCarrier::Value { car: eps }),
+        input_credit@ =~= (ErrorCreditCarrier::Value { car: eps }),
         eps >= bernoulli_weighted_sum(exp(-(ubig_view(numer) as real / ubig_view(denom) as real)), e),
     ensures
-        out_credit@.view() =~= (ErrorCreditCarrier::Value { car: e(value) }),
+        out_credit@@ =~= (ErrorCreditCarrier::Value { car: e(value) }),
 {
     let ghost dv = ubig_view(denom);
     let mut remaining = numer.clone();
@@ -297,7 +297,7 @@ pub fn sample_bernoulli_exp_ubig(
             e(false) >= 0real,
             g_prob == exp(-(ubig_view(&remaining) as real / dv as real)),
             0real <= g_prob <= 1real,
-            credit.view() =~= (ErrorCreditCarrier::Value { car: g_eps }),
+            credit@ =~= (ErrorCreditCarrier::Value { car: g_eps }),
             g_eps >= bernoulli_weighted_sum(g_prob, e),
         decreases ubig_view(&remaining),
     {

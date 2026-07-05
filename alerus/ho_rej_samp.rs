@@ -76,7 +76,7 @@ pub trait SamplingScheme {
         requires
             self.valid(),
             eps > 0real,
-            e.view() =~= (ErrorCreditCarrier::Value { car: eps }),
+            e@ =~= (ErrorCreditCarrier::Value { car: eps }),
         ensures
             match outcome {
                 SampleOutcome::Accepted => {
@@ -85,7 +85,7 @@ pub trait SamplingScheme {
                 }
                 SampleOutcome::Rejected(ref amplified_credit) => {
                     &&& !(self.check_spec())(value)
-                    &&& amplified_credit@.view() =~= (ErrorCreditCarrier::Value { car: self.amp() * eps })
+                    &&& amplified_credit@@ =~= (ErrorCreditCarrier::Value { car: self.amp() * eps })
                 }
             };
 
@@ -112,7 +112,7 @@ pub fn bounded_rejection_sampler<S: SamplingScheme>(
         scheme.valid(),
         exists |eps: real| {
             &&& eps > 0real
-            &&& e.view() =~= (ErrorCreditCarrier::Value { car: eps })
+            &&& e@ =~= (ErrorCreditCarrier::Value { car: eps })
             &&& eps * pow(scheme.amp(), depth) >= 1real
         },
     ensures
@@ -126,7 +126,7 @@ pub fn bounded_rejection_sampler<S: SamplingScheme>(
     proof {
         eps = choose |v: real| {
             &&& v > 0real
-            &&& e.view() =~= (ErrorCreditCarrier::Value { car: v })
+            &&& e@ =~= (ErrorCreditCarrier::Value { car: v })
             &&& v * pow(amp, depth) >= 1real
         };
 
@@ -149,7 +149,7 @@ pub fn bounded_rejection_sampler<S: SamplingScheme>(
 
             proof {
                 // e1 has amp * eps credit
-                assert(e1_tracked@.view() =~= (ErrorCreditCarrier::Value { car: new_eps }));
+                assert(e1_tracked@@ =~= (ErrorCreditCarrier::Value { car: new_eps }));
 
                 // Show new_eps > 0
                 lemma_pos_mult(amp, eps);
@@ -192,12 +192,12 @@ pub fn rejection_sampler<S: SamplingScheme>(
     let ghost epsilon: real;
 
     proof {
-        if e.view().value() =~= None { }
+        if e@.value() =~= None { }
     }
-    assert(exists |v: real| e.view().value() == Some(v));
+    assert(exists |v: real| e@.value() == Some(v));
 
     proof {
-        epsilon = choose |i: real| e.view().value() == Some(i);
+        epsilon = choose |i: real| e@.value() == Some(i);
         crate::math::pow::archimedean_exp_growth(epsilon, amp);
         assert(exists |k: nat| epsilon * pow(amp, k) >= 1real);
         hi = choose |k: nat| epsilon * pow(amp, k) >= 1real;
@@ -376,7 +376,7 @@ impl SamplingScheme for UniformThresholdScheme {
                 }
                 SampleOutcome::Rejected(ref amplified_credit) => {
                     &&& !(self.check_spec())(value)
-                    &&& amplified_credit@.view() =~= (ErrorCreditCarrier::Value { car: self.amp() * eps })
+                    &&& amplified_credit@@ =~= (ErrorCreditCarrier::Value { car: self.amp() * eps })
                 }
             },
     {
@@ -591,12 +591,12 @@ pub fn bounded_rejection_exp_preserving(
         eps > 0real,
         eps_avg >= 0real,
         forall |v: u64| (#[trigger] e(v)) >= 0real,
-        input_credit.view() =~= (ErrorCreditCarrier::Value { car: eps + eps_avg }),
+        input_credit@ =~= (ErrorCreditCarrier::Value { car: eps + eps_avg }),
         eps * pow(scheme.amp(), depth) >= 1real,
         eps_avg >= average(scheme.threshold, |v: real| e(v.floor() as u64)),
     ensures
         value < scheme.threshold,
-        out_credit@.view() =~= (ErrorCreditCarrier::Value { car: e(value) }),
+        out_credit@@ =~= (ErrorCreditCarrier::Value { car: e(value) }),
     decreases depth,
 {
     let ghost amp = scheme.amp();
@@ -677,11 +677,11 @@ pub fn unbounded_rejection_exp_preserving(
         scheme.threshold > 0,
         eps_avg >= 0real,
         forall |v: u64| (#[trigger] e(v)) >= 0real,
-        input_credit.view() =~= (ErrorCreditCarrier::Value { car: eps_avg }),
+        input_credit@ =~= (ErrorCreditCarrier::Value { car: eps_avg }),
         eps_avg >= average(scheme.threshold, |v: real| e(v.floor() as u64)),
     ensures
         value < scheme.threshold,
-        out_credit@.view() =~= (ErrorCreditCarrier::Value { car: e(value) }),
+        out_credit@@ =~= (ErrorCreditCarrier::Value { car: e(value) }),
 {
     let ghost amp = scheme.amp();
     let Tracked(eps_credit) = thin_air();
@@ -690,7 +690,7 @@ pub fn unbounded_rejection_exp_preserving(
     let ghost depth: nat;
 
     proof {
-        eps = choose |v: real| v > 0real && (ErrorCreditCarrier::Value { car: v } =~= eps_credit.view());
+        eps = choose |v: real| v > 0real && (ErrorCreditCarrier::Value { car: v } =~= eps_credit@);
         archimedean_exp_growth(eps, amp);
         depth = choose |k: nat| eps * pow(amp, k) >= 1real;
     }

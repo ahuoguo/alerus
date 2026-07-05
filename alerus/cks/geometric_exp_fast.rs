@@ -1444,10 +1444,10 @@ pub fn sample_geometric_exp_fast(
         p == exp(-(ubig_view(numer_x) as real / ubig_view(denom_x) as real)),
         forall |k: nat| (#[trigger] e(k)) >= 0real,
         dist_bound >= 0real,
-        input_credit.view() =~= (ErrorCreditCarrier::Value { car: dist_bound }),
+        input_credit@ =~= (ErrorCreditCarrier::Value { car: dist_bound }),
         geo_exp_series_bounded_by(p, e, dist_bound),
     ensures
-        out_credit@.view() =~= (ErrorCreditCarrier::Value { car: e(ubig_view(&value)) }),
+        out_credit@@ =~= (ErrorCreditCarrier::Value { car: e(ubig_view(&value)) }),
 {
     let ghost nx = ubig_view(numer_x);
     let ghost dx = ubig_view(denom_x);

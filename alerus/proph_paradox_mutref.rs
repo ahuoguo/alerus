@@ -55,7 +55,7 @@ pub fn safe_with_half_credit_mutref(
     Tracked(input_credit): Tracked<ErrorCreditResource>,
 )
     requires
-        input_credit.view() =~= (ErrorCreditCarrier::Value { car: 1real / 2real }),
+        input_credit@ =~= (ErrorCreditCarrier::Value { car: 1real / 2real }),
     ensures
         true
 {
@@ -82,7 +82,7 @@ pub fn safe_with_half_credit_mutref(
         assert(*final(x) == val);
         assert(val as real == *final(x) as real);
         assert((credit_alloc@)(val as real) == 1real);
-        assert(outcome_credit.view() =~= (ErrorCreditCarrier::Value { car: 1real }));
+        assert(outcome_credit@ =~= (ErrorCreditCarrier::Value { car: 1real }));
         ec_contradict(&outcome_credit);
     }
 

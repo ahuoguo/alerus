@@ -40,12 +40,12 @@ pub fn geometric() -> (ret: UBig)
     let ghost eps: real;
 
     proof {
-        if input_credit.view().value() =~= None { } // OBSERVE
+        if input_credit@.value() =~= None { } // OBSERVE
     }
-    assert(exists |v: real| input_credit.view().value() == Some(v));
+    assert(exists |v: real| input_credit@.value() == Some(v));
 
     proof {
-        eps = choose |v: real| input_credit.view().value() == Some(v);
+        eps = choose |v: real| input_credit@.value() == Some(v);
         archimedean_exp_growth(eps, 2real);
         depth = choose |k: nat| eps * pow(2real, k) >= 1real;
     }
@@ -60,7 +60,7 @@ pub fn bounded_geometric(
     requires
         exists |eps: real| {
             &&& eps > 0real
-            &&& input_credit.view() =~= (ErrorCreditCarrier::Value { car: eps })
+            &&& input_credit@ =~= (ErrorCreditCarrier::Value { car: eps })
             &&& eps * pow(2real, depth) >= 1real
         },
     ensures
@@ -72,7 +72,7 @@ pub fn bounded_geometric(
     proof {
         eps = choose |v: real| {
             &&& v > 0real
-            &&& input_credit.view() =~= (ErrorCreditCarrier::Value { car: v })
+            &&& input_credit@ =~= (ErrorCreditCarrier::Value { car: v })
             &&& v * pow(2real, depth) >= 1real
         };
 

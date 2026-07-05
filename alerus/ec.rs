@@ -118,16 +118,16 @@ impl ErrorCreditResource {
 
     pub proof fn explode(tracked &self, c: real)
         requires
-            self.view() =~= (ErrorCreditCarrier::Value { car: c }),
+            self@ =~= (ErrorCreditCarrier::Value { car: c }),
             c >= 1real,
         ensures
-            !self.view().valid(),
+            !self@.valid(),
     {
     }
 
     pub proof fn valid(tracked &self)
         ensures
-            self.view().valid(),
+            self@.valid(),
     {
         self.r.validate();
     }
@@ -137,15 +137,15 @@ pub proof fn ec_contradict(tracked e: &ErrorCreditResource)
     requires
         exists |car: real| {
             &&& car >= 1real
-            &&& e.view() =~= (ErrorCreditCarrier::Value { car })
+            &&& e@ =~= (ErrorCreditCarrier::Value { car })
         }
     ensures
         false,
 {
-    let car = choose|v: real| e.view() == (ErrorCreditCarrier::Value { car: v });
+    let car = choose|v: real| e@ == (ErrorCreditCarrier::Value { car: v });
     e.explode(car);
     e.valid();
-    assert(!e.view().valid());
+    assert(!e@.valid());
 }
 
 /// Combine two error credits into one with summed value.
@@ -156,12 +156,12 @@ pub proof fn ec_combine(
     v2: real,
 ) -> (tracked out: ErrorCreditResource)
     requires
-        c1.view() =~= (ErrorCreditCarrier::Value { car: v1 }),
-        c2.view() =~= (ErrorCreditCarrier::Value { car: v2 }),
+        c1@ =~= (ErrorCreditCarrier::Value { car: v1 }),
+        c2@ =~= (ErrorCreditCarrier::Value { car: v2 }),
         v1 >= 0real,
         v2 >= 0real,
     ensures
-        out.view() =~= (ErrorCreditCarrier::Value { car: v1 + v2 }),
+        out@ =~= (ErrorCreditCarrier::Value { car: v1 + v2 }),
 {
     use_type_invariant(&c1);
     use_type_invariant(&c2);
@@ -176,12 +176,12 @@ pub proof fn ec_split(
     v2: real,
 ) -> (tracked (c1, c2): (ErrorCreditResource, ErrorCreditResource))
     requires
-        c.view() =~= (ErrorCreditCarrier::Value { car: v1 + v2 }),
+        c@ =~= (ErrorCreditCarrier::Value { car: v1 + v2 }),
         v1 >= 0real,
         v2 >= 0real,
     ensures
-        c1.view() =~= (ErrorCreditCarrier::Value { car: v1 }),
-        c2.view() =~= (ErrorCreditCarrier::Value { car: v2 }),
+        c1@ =~= (ErrorCreditCarrier::Value { car: v1 }),
+        c2@ =~= (ErrorCreditCarrier::Value { car: v2 }),
 {
     use_type_invariant(&c);
     let tracked (r1, r2) = c.r.split(
@@ -196,7 +196,7 @@ pub proof fn ec_split(
 /// by "uniqueness" of unit
 pub proof fn ec_zero() -> (tracked out: ErrorCreditResource)
     ensures
-        out.view() =~= (ErrorCreditCarrier::Value { car: 0real }),
+        out@ =~= (ErrorCreditCarrier::Value { car: 0real }),
 {
     let tracked u = Resource::<ErrorCreditCarrier>::create_unit(EC_GLOBAL_LOC());
     assert(frame_preserving_update(

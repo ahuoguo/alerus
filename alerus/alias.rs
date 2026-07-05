@@ -253,7 +253,7 @@ impl AliasTable {
     }
 
     pub open spec fn wf(self) -> bool {
-        &&& valid_alias(self.view())
+        &&& valid_alias(self@)
         &&& self.prob@.len() == self.n
         &&& self.alias@.len() == self.n
         &&& self.n as nat <= usize::MAX as nat
@@ -270,13 +270,13 @@ pub fn sample_alias(
     requires
         tab.wf(),
         forall |x: real| (#[trigger] e(x)) >= 0real,
-        eps >= alias_exp(tab.view(), e),
-        credit.view() =~= (ErrorCreditCarrier::Value { car: eps }),
+        eps >= alias_exp(tab@, e),
+        credit@ =~= (ErrorCreditCarrier::Value { car: eps }),
     ensures
         value < tab.n,
-        out_credit@.view() =~= (ErrorCreditCarrier::Value { car: e(value as real) }),
+        out_credit@@ =~= (ErrorCreditCarrier::Value { car: e(value as real) }),
 {
-    let ghost t = tab.view();
+    let ghost t = tab@;
     let ghost oa = oalloc(t, e);
 
     proof {
@@ -447,7 +447,7 @@ pub fn build_alias(weights: Vec<u64>, m: u64) -> (ret: AliasTable)
             if large.len() == 0 {
                 let tab = AliasTable { n, m, weights, prob, alias };
                 proof {
-                    let ghost t = tab.view();
+                    let ghost t = tab@;
                     assert forall |k: nat| k < t.n implies #[trigger] label_units(t, t.n, k) == t.n * (t.weights)(k) by {
                         lemma_placed_eq_label_units(t, prob@, alias@, active, m as nat, n as nat, k);
                         assert(!active[k as int]);
@@ -617,10 +617,10 @@ pub fn sample_748_alias(
     requires
         forall |x: real| (#[trigger] e(x)) >= 0real,
         eps >= (7real * e(0real) + 4real * e(1real) + 8real * e(2real)) / 19real,
-        input_credit.view() =~= (ErrorCreditCarrier::Value { car: eps }),
+        input_credit@ =~= (ErrorCreditCarrier::Value { car: eps }),
     ensures
         value < 3,
-        out_credit@.view() =~= (ErrorCreditCarrier::Value { car: e(value as real) }),
+        out_credit@@ =~= (ErrorCreditCarrier::Value { car: e(value as real) }),
 {
     let mut w: Vec<u64> = Vec::new();
     w.push(7); w.push(4); w.push(8);
@@ -636,7 +636,7 @@ pub fn run_alias_zero() -> (ret: u64)
     let ghost e = |x: real| 0real;
     let Tracked(credit) = thin_air();
     let ghost eps = choose |sv: real|
-        sv > 0real && (credit.view() =~= (ErrorCreditCarrier::Value { car: sv }));
+        sv > 0real && (credit@ =~= (ErrorCreditCarrier::Value { car: sv }));
     proof {
         assert((7real * e(0real) + 4real * e(1real) + 8real * e(2real)) / 19real == 0real)
             by(nonlinear_arith)

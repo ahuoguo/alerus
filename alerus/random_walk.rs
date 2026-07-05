@@ -274,7 +274,7 @@ pub fn bounded_random_walk_1d(
 ) -> (ret: UBig)
     requires
         exists |eps: real| {
-            &&& credit.view() =~= (ErrorCreditCarrier::Value { car: eps })
+            &&& credit@ =~= (ErrorCreditCarrier::Value { car: eps })
             &&& eps >= fail_prob(depth, ubig_view(n))
         },
     decreases depth,
@@ -289,7 +289,7 @@ pub fn bounded_random_walk_1d(
     proof {
         pos = ubig_view(n);
         eps = choose |v: real| {
-            &&& credit.view() =~= (ErrorCreditCarrier::Value { car: v })
+            &&& credit@ =~= (ErrorCreditCarrier::Value { car: v })
             &&& v >= fail_prob(depth, pos)
         };
         if depth == 0nat { ec_contradict(&credit); }
@@ -328,8 +328,8 @@ pub fn random_walk_1d(n: u64) -> (ret: UBig)
 
     proof {
         let pos = ubig_view(&n_big);
-        if credit.view().value() =~= None { } // OBSERVE
-        eps = choose |v: real| credit.view().value() == Some(v);
+        if credit@.value() =~= None { } // OBSERVE
+        eps = choose |v: real| credit@.value() == Some(v);
         rw_ast(pos, eps);
         depth = choose |d: nat| fail_prob(d, pos) < eps;
     }
