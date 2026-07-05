@@ -751,7 +751,7 @@ pub fn sample_bernoulli_exp1(
 
         let tracked (new_dc, new_sc) = ec_split(out_credit, new_dist_eps, new_slack_val);
 
-        k = ubig_succ(k);
+        k = ubig_succ(&k);
         proof {
             assert(ubig_view(&k) == kn + 1);
             g_dist_eps = new_dist_eps;
@@ -848,7 +848,7 @@ pub fn sample_bernoulli_exp1_ubig(
             if g_depth == 0nat { ec_contradict(&slack_credit); }
         }
 
-        let k_denom = ubig_mul(k.clone(), denom.clone());
+        let k_denom = ubig_mul(&k, &denom);
         let ghost kdn = ubig_view(&k_denom);
         let ghost amp = exp1_amp(x, kn);
         let ghost total_eps = g_dist_eps + g_slack_val;
@@ -914,7 +914,7 @@ pub fn sample_bernoulli_exp1_ubig(
 
         let tracked (new_dc, new_sc) = ec_split(out_credit, new_dist_eps, new_slack_val);
 
-        k = ubig_succ(k);
+        k = ubig_succ(&k);
         proof {
             assert(ubig_view(&k) == kn + 1);
             g_dist_eps = new_dist_eps;

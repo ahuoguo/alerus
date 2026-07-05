@@ -117,7 +117,7 @@ pub fn bounded_geo_dist(
             Ghost(new_slack),
         );
 
-        let result = ubig_succ(rest);
+        let result = ubig_succ(&rest);
         (result, output_credit)
     }
 }

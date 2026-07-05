@@ -284,7 +284,7 @@ pub fn sample_geometric_exp(
         }
 
         // Heads: shift postcondition, amplify slack, decrement depth
-        k = ubig_succ(k);
+        k = ubig_succ(&k);
         proof {
             let old_e = g_e;
             let old_eps = g_eps;

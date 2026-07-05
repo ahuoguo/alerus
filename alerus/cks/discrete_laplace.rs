@@ -533,7 +533,7 @@ pub fn sample_discrete_laplace(
             );
 
             // +magnitude as IBig
-            let result = ibig_from_ubig(magnitude);
+            let result = ibig_from_ubig(&magnitude);
             return (result, Tracked(out_credit));
         } else {
             // Step 2b: Geometric with negative postcondition
@@ -548,12 +548,12 @@ pub fn sample_discrete_laplace(
                 Ghost(neg_bound),
             );
 
-            let mag_ibig = ibig_from_ubig(magnitude);
+            let mag_ibig = ibig_from_ubig(&magnitude);
             let is_zero = ibig_is_zero(&mag_ibig);
 
             if !is_zero {
                 // Accept: return -magnitude
-                let result = ibig_neg(mag_ibig);
+                let result = ibig_neg(&mag_ibig);
                 proof {
                     // ibig_view(&result) == -ibig_view(&mag_ibig) == -(ubig_view(&magnitude) as int)
                     // e_neg(ubig_view(&magnitude)) == e(-(ubig_view(&magnitude) as int)) since ubig_view != 0
@@ -749,7 +749,7 @@ pub fn sample_discrete_laplace_fast(
                 Ghost(pos_bound),
             );
 
-            let result = ibig_from_ubig(magnitude);
+            let result = ibig_from_ubig(&magnitude);
             return (result, Tracked(out_credit));
         } else {
             // Step 2b: fast Geometric with negative postcondition
@@ -764,12 +764,12 @@ pub fn sample_discrete_laplace_fast(
                 Ghost(neg_bound),
             );
 
-            let mag_ibig = ibig_from_ubig(magnitude);
+            let mag_ibig = ibig_from_ubig(&magnitude);
             let is_zero = ibig_is_zero(&mag_ibig);
 
             if !is_zero {
                 // Accept: return -magnitude
-                let result = ibig_neg(mag_ibig);
+                let result = ibig_neg(&mag_ibig);
                 proof {
                     assert(ibig_view(&mag_ibig) == ubig_view(&magnitude) as int);
                     assert(ibig_view(&mag_ibig) != 0int);

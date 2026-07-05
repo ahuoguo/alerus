@@ -1502,9 +1502,9 @@ pub fn sample_geometric_exp_fast(
     // Algorithmic step: z = u + d·v; return z / n.
     // Postcondition: e((v·d + u) / n) = e(result), so we get ↯(F(result)).
     let ghost vn = ubig_view(&v);
-    let v_scaled = ubig_mul(v, denom_x.clone());
-    let sum = ubig_add(v_scaled, u);
-    let result = ubig_div(sum, numer_x.clone());
+    let v_scaled = ubig_mul(&v, &denom_x);
+    let sum = ubig_add(&v_scaled, &u);
+    let result = ubig_div(&sum, &numer_x);
     proof {
         assert(ubig_view(&v_scaled) == vn * dx);
         assert(ubig_view(&sum) == vn * dx + un);

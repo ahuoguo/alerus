@@ -11,4 +11,4 @@ cd random
 # cargo clean --release
 cargo +1.96.0 build --release
 cd ..
-OPENDP_RLIB_NAME=$(find ./random/target/release/deps/ -name 'libopendp-*.rlib')
+OPENDP_RLIB_NAME=$(find ./target/release/deps/ -name 'libopendp-*.rlib')

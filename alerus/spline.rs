@@ -92,7 +92,7 @@ pub fn spline_aux(n: &UBig, Ghost(k): Ghost<nat>, Tracked(credit): Tracked<Error
     decreases k,
 {
     let ghost nv = ubig_view(n);           // current position value
-    let n1 = ubig_succ(n.clone());         // n+1  (ubig_view(&n1) == nv + 1)
+    let n1 = ubig_succ(n);                 // n+1  (ubig_view(&n1) == nv + 1)
     let ghost alloc = spline_alloc(nv, k);
     proof {
         lemma_spline_avg(nv, k);           // average_nat(nv+1, alloc) == spline_credit(nv,k)

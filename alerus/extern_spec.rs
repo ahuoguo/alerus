@@ -20,24 +20,24 @@ pub uninterp spec fn ubig_view(n: &UBig) -> nat;
 pub assume_specification[ random::ubig_zero ]() -> (ret: UBig)
     ensures ubig_view(&ret) == 0nat;
 
-pub assume_specification[ random::ubig_succ ](n: UBig) -> (ret: UBig)
-    ensures ubig_view(&ret) == ubig_view(&n) + 1;
+pub assume_specification[ random::ubig_succ ](n: &UBig) -> (ret: UBig)
+    ensures ubig_view(&ret) == ubig_view(n) + 1;
 
 pub assume_specification[ <UBig as Clone>::clone ](n: &UBig) -> (ret: UBig)
     ensures ubig_view(&ret) == ubig_view(n);
 
-pub assume_specification[ random::ubig_pred ](n: UBig) -> (ret: UBig)
-    requires ubig_view(&n) > 0,
-    ensures ubig_view(&ret) == ubig_view(&n) - 1;
+pub assume_specification[ random::ubig_pred ](n: &UBig) -> (ret: UBig)
+    requires ubig_view(n) > 0,
+    ensures ubig_view(&ret) == ubig_view(n) - 1;
 
 pub assume_specification[ random::ubig_is_zero ](n: &UBig) -> (ret: bool)
     ensures ret == (ubig_view(n) == 0);
 
-pub assume_specification[ random::ubig_add ](a: UBig, b: UBig) -> (ret: UBig)
-    ensures ubig_view(&ret) == ubig_view(&a) + ubig_view(&b);
+pub assume_specification[ random::ubig_add ](a: &UBig, b: &UBig) -> (ret: UBig)
+    ensures ubig_view(&ret) == ubig_view(a) + ubig_view(b);
 
-pub assume_specification[ random::ubig_mul ](a: UBig, b: UBig) -> (ret: UBig)
-    ensures ubig_view(&ret) == ubig_view(&a) * ubig_view(&b);
+pub assume_specification[ random::ubig_mul ](a: &UBig, b: &UBig) -> (ret: UBig)
+    ensures ubig_view(&ret) == ubig_view(a) * ubig_view(b);
 
 pub assume_specification[ random::ubig_sub ](a: &UBig, b: &UBig) -> (ret: UBig)
     requires ubig_view(a) >= ubig_view(b),
@@ -56,9 +56,9 @@ pub assume_specification[ random::ubig_to_u64 ](n: &UBig) -> (ret: u64)
 pub assume_specification[ random::ubig_is_odd ](n: &UBig) -> (ret: bool)
     ensures ret == (ubig_view(n) % 2 == 1);
 
-pub assume_specification[ random::ubig_div ](a: UBig, b: UBig) -> (ret: UBig)
-    requires ubig_view(&b) > 0,
-    ensures ubig_view(&ret) == ubig_view(&a) / ubig_view(&b);
+pub assume_specification[ random::ubig_div ](a: &UBig, b: &UBig) -> (ret: UBig)
+    requires ubig_view(b) > 0,
+    ensures ubig_view(&ret) == ubig_view(a) / ubig_view(b);
 
 #[verifier::external_body]
 pub fn ubig_lt(a: &UBig, b: &UBig) -> (ret: bool)
@@ -79,11 +79,11 @@ pub struct ExIBig(IBig);
 /// Ghost interpretation of an IBig as an int.
 pub uninterp spec fn ibig_view(n: &IBig) -> int;
 
-pub assume_specification[ random::ibig_from_ubig ](n: UBig) -> (ret: IBig)
-    ensures ibig_view(&ret) == ubig_view(&n) as int;
+pub assume_specification[ random::ibig_from_ubig ](n: &UBig) -> (ret: IBig)
+    ensures ibig_view(&ret) == ubig_view(n) as int;
 
-pub assume_specification[ random::ibig_neg ](n: IBig) -> (ret: IBig)
-    ensures ibig_view(&ret) == -ibig_view(&n);
+pub assume_specification[ random::ibig_neg ](n: &IBig) -> (ret: IBig)
+    ensures ibig_view(&ret) == -ibig_view(n);
 
 pub assume_specification[ random::ibig_is_zero ](n: &IBig) -> (ret: bool)
     ensures ret == (ibig_view(n) == 0int);
@@ -126,9 +126,9 @@ pub assume_specification[ random::rbig_into_parts ](r: &RBig) -> ((numer, denom)
         ubig_view(&denom) > 0,
         rbig_view(r) == ibig_view(&numer) as real / ubig_view(&denom) as real;
 
-pub assume_specification[ random::rbig_from_parts ](numer: IBig, denom: UBig) -> (ret: RBig)
-    requires ubig_view(&denom) > 0,
-    ensures rbig_view(&ret) == ibig_view(&numer) as real / ubig_view(&denom) as real;
+pub assume_specification[ random::rbig_from_parts ](numer: &IBig, denom: &UBig) -> (ret: RBig)
+    requires ubig_view(denom) > 0,
+    ensures rbig_view(&ret) == ibig_view(numer) as real / ubig_view(denom) as real;
 
 /// ⌊r⌋:  ibig_view(ret) == ⌊rbig_view(r)⌋,  and the defining bracketing.
 pub assume_specification[ random::rbig_floor ](r: &RBig) -> (ret: IBig)

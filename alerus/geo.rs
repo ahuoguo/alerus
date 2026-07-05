@@ -11,6 +11,7 @@
 use vstd::prelude::*;
 #[cfg(verus_keep_ghost)]
 use vstd::calc_macro::*;
+use random::{UBig, ubig_zero, ubig_succ};
 
 verus! {
 
@@ -20,6 +21,10 @@ use crate::rand_primitives::{rand_2_u64, thin_air};
 use crate::math::pow::{pow, archimedean_exp_growth};
 #[cfg(verus_keep_ghost)]
 use crate::math::real::real_assoc_mult;
+#[cfg(verus_keep_ghost)]
+use crate::extern_spec::ExUBig;
+#[cfg(verus_keep_ghost)]
+use crate::extern_spec::ubig_view;
 
 spec fn geo_credit_alloc(outcome: real, eps: real) -> real {
     if outcome == 0real { 0real } else { 2real * eps }
@@ -27,7 +32,7 @@ spec fn geo_credit_alloc(outcome: real, eps: real) -> real {
 
 /// Geometric distribution sampler (unbounded).
 /// Creates thin-air error credit and delegates to the bounded version.
-pub fn geometric() -> (ret: u64)
+pub fn geometric() -> (ret: UBig)
 {
     let Tracked(input_credit) = thin_air();
 
@@ -51,7 +56,7 @@ pub fn geometric() -> (ret: u64)
 pub fn bounded_geometric(
     Tracked(input_credit): Tracked<ErrorCreditResource>,
     Ghost(depth): Ghost<nat>,
-) -> (ret: u64)
+) -> (ret: UBig)
     requires
         exists |eps: real| {
             &&& eps > 0real
@@ -59,7 +64,7 @@ pub fn bounded_geometric(
             &&& eps * pow(2real, depth) >= 1real
         },
     ensures
-        ret >= 0,
+        ubig_view(&ret) >= 0,
     decreases depth,
 {
     let ghost eps: real;
@@ -85,7 +90,7 @@ pub fn bounded_geometric(
     );
 
     if val == 0 {
-        0
+        ubig_zero()
     } else {
         let ghost new_eps = 2real * eps;
         assert(geo_credit_alloc(val as real, eps) == new_eps);
@@ -106,7 +111,7 @@ pub fn bounded_geometric(
         }
 
         let rest = bounded_geometric(Tracked(outcome_credit), Ghost((depth - 1) as nat));
-        rest.wrapping_add(1u64)
+        ubig_succ(&rest)
     }
 }
 

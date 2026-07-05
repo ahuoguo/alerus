@@ -308,11 +308,11 @@ pub fn bounded_random_walk_1d(
     let (val, Tracked(outcome_credit)) = rand_2_u64(Tracked(credit), Ghost(alloc));
 
     if val == 0 {
-        let n_pred = ubig_pred(n.clone());
+        let n_pred = ubig_pred(n);
         if ubig_is_zero(&n_pred) { n_pred }
         else { bounded_random_walk_1d(&n_pred, Tracked(outcome_credit), Ghost((depth - 1) as nat)) }
     } else {
-        let n_succ = ubig_succ(n.clone());
+        let n_succ = ubig_succ(n);
         bounded_random_walk_1d(&n_succ, Tracked(outcome_credit), Ghost((depth - 1) as nat))
     }
 }

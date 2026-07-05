@@ -1457,7 +1457,9 @@ pub fn sample_discrete_gaussian(
     let floor_i = rbig_floor(scale);
     let t_i = ibig_add(&floor_i, &ibig_from_i64(1i64));
     let t_ubig = ibig_abs(&t_i);
-    let t_rbig = rbig_from_parts(ibig_from_ubig(t_ubig.clone()), ubig_from_u64(1u64));
+    let t_numer = ibig_from_ubig(&t_ubig);
+    let one = ubig_from_u64(1u64);
+    let t_rbig = rbig_from_parts(&t_numer, &one);
 
     let ghost snr = ubig_view(&sn) as real;
     let ghost sdr = ubig_view(&sd) as real;
@@ -1507,10 +1509,10 @@ pub fn sample_discrete_gaussian(
     }
 
     // Bignum constants:  sn², sd², den = 2·sn²·sd²·t².
-    let sn2 = ubig_mul(sn.clone(), sn.clone());
-    let sd2 = ubig_mul(sd.clone(), sd.clone());
-    let t2 = ubig_mul(t_ubig.clone(), t_ubig.clone());
-    let den = ubig_mul(ubig_mul(ubig_mul(sn2.clone(), sd2.clone()), t2), ubig_from_u64(2u64));
+    let sn2 = ubig_mul(&sn, &sn);
+    let sd2 = ubig_mul(&sd, &sd);
+    let t2 = ubig_mul(&t_ubig, &t_ubig);
+    let den = ubig_mul(&ubig_mul(&ubig_mul(&sn2, &sd2), &t2), &ubig_from_u64(2u64));
 
     // Thin-air slack + termination depth.
     let Tracked(slack_credit) = thin_air();
@@ -1573,8 +1575,8 @@ pub fn sample_discrete_gaussian(
 
         // bias = (|cand|·sd²·t − sn²)² / (2·sn²·sd²·t²)
         let a_ubig = ibig_abs(&cand);
-        let asdt = ubig_mul(ubig_mul(a_ubig, sd2.clone()), t_ubig.clone());
-        let base_i = ibig_sub(&ibig_from_ubig(asdt), &ibig_from_ubig(sn2.clone()));
+        let asdt = ubig_mul(&ubig_mul(&a_ubig, &sd2), &t_ubig);
+        let base_i = ibig_sub(&ibig_from_ubig(&asdt), &ibig_from_ubig(&sn2));
         let num_i = ibig_mul(&base_i, &base_i);
         let num = ibig_abs(&num_i);
 
@@ -1707,7 +1709,7 @@ pub fn sample_discrete_gaussian_entry(
         scale_denom > 0,
 {
     let scale = rbig_from_parts(
-        ibig_from_ubig(ubig_from_u64(scale_numer)), ubig_from_u64(scale_denom));
+        &ibig_from_ubig(&ubig_from_u64(scale_numer)), &ubig_from_u64(scale_denom));
     let ghost e: spec_fn(int) -> real = |_x: int| 0real;
     let Tracked(cred) = thin_air();
     let ghost eps: real;
