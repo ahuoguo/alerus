@@ -17,5 +17,4 @@ pub mod alias;
 pub mod alias_helper;
 pub mod proph_paradox;
 // pub mod proph_paradox_mutref;
-pub mod proph_paradox_self_resolve;
 
