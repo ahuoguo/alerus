@@ -102,37 +102,37 @@ pub open spec fn sum_of_weights(t: Alias, j: nat) -> nat
 }
 
 /// Σ_{i<j} weights(i)·ℰ(i)  (real).
-pub open spec fn wsum(t: Alias, e: spec_fn(real) -> real, j: nat) -> real
+pub open spec fn wsum(t: Alias, e: spec_fn(nat) -> real, j: nat) -> real
     decreases j,
 {
     if j == 0 {
         0real
     } else {
-        wsum(t, e, (j - 1) as nat) + (t.weights)((j - 1) as nat) as real * e((j - 1) as real)
+        wsum(t, e, (j - 1) as nat) + (t.weights)((j - 1) as nat) as real * e((j - 1) as nat)
     }
 }
 
 /// (1/m)·Σ aᵢ·ℰ(i).
-pub open spec fn alias_exp(t: Alias, e: spec_fn(real) -> real) -> real {
+pub open spec fn alias_exp(t: Alias, e: spec_fn(nat) -> real) -> real {
     wsum(t, e, t.n) / (t.m as real)
 }
 
 /// Bin i's total credit (ℰ summed over its m slots):  prob(i)·ℰ(i) + (m−prob(i))·ℰ(alias(i)).
 /// The inner draw averages this over the m thresholds, so inner_eps(i) = bin_credit(i)/m.
-pub open spec fn bin_credit(t: Alias, e: spec_fn(real) -> real, i: nat) -> real {
-    (t.prob)(i) as real * e(i as real)
-        + ((t.m - (t.prob)(i)) as nat) as real * e((t.alias)(i) as real)
+pub open spec fn bin_credit(t: Alias, e: spec_fn(nat) -> real, i: nat) -> real {
+    (t.prob)(i) as real * e(i)
+        + ((t.m - (t.prob)(i)) as nat) as real * e((t.alias)(i))
 }
 
 /// Σ_{i<j} bin_credit(i).
-pub open spec fn bin_sum(t: Alias, e: spec_fn(real) -> real, j: nat) -> real
+pub open spec fn bin_sum(t: Alias, e: spec_fn(nat) -> real, j: nat) -> real
     decreases j,
 {
     if j == 0 { 0real } else { bin_sum(t, e, (j - 1) as nat) + bin_credit(t, e, (j - 1) as nat) }
 }
 
 /// Credit the inner draw needs at bin i:  bin_credit(i)/m.  (= the outer draw's ℰ at i.)
-pub open spec fn inner_eps(t: Alias, e: spec_fn(real) -> real, i: nat) -> real {
+pub open spec fn inner_eps(t: Alias, e: spec_fn(nat) -> real, i: nat) -> real {
     bin_credit(t, e, i) / (t.m as real)
 }
 
@@ -150,24 +150,24 @@ pub open spec fn label_units(t: Alias, j: nat, k: nat) -> nat
 }
 
 /// Σ_{k<n} ℰ(k)·label_units(j,k)
-pub open spec fn label_credit_sum(t: Alias, e: spec_fn(real) -> real, j: nat, n: nat) -> real
+pub open spec fn label_credit_sum(t: Alias, e: spec_fn(nat) -> real, j: nat, n: nat) -> real
     decreases n,
 {
     if n == 0 {
         0real
     } else {
-        label_credit_sum(t, e, j, (n - 1) as nat) + e((n - 1) as real) * (label_units(t, j, (n - 1) as nat) as real)
+        label_credit_sum(t, e, j, (n - 1) as nat) + e((n - 1) as nat) * (label_units(t, j, (n - 1) as nat) as real)
     }
 }
 
 /// Σ_{k<n} ℰ(k)·bin_contrib(i,k) — bin i's contribution, label-grouped.
-pub open spec fn bin_contrib_sum(t: Alias, e: spec_fn(real) -> real, i: nat, n: nat) -> real
+pub open spec fn bin_contrib_sum(t: Alias, e: spec_fn(nat) -> real, i: nat, n: nat) -> real
     decreases n,
 {
     if n == 0 {
         0real
     } else {
-        bin_contrib_sum(t, e, i, (n - 1) as nat) + e((n - 1) as real) * (bin_contrib(t, i, (n - 1) as nat) as real)
+        bin_contrib_sum(t, e, i, (n - 1) as nat) + e((n - 1) as nat) * (bin_contrib(t, i, (n - 1) as nat) as real)
     }
 }
 
@@ -225,13 +225,13 @@ pub open spec fn seq_sum(s: Seq<u64>, j: nat) -> nat
 }
 
 /// Outer-draw allocation:  bin x ↦ the credit the inner draw needs there.
-pub open spec fn oalloc(t: Alias, e: spec_fn(real) -> real) -> spec_fn(real) -> real {
-    |x: real| inner_eps(t, e, x.floor() as nat)
+pub open spec fn oalloc(t: Alias, e: spec_fn(nat) -> real) -> spec_fn(nat) -> real {
+    |x: nat| inner_eps(t, e, x)
 }
 
 /// Inner-draw allocation at bin i:  threshold y ↦ ℰ(y<prob(i) ? i : alias(i)).
-pub open spec fn ialloc(t: Alias, e: spec_fn(real) -> real, i: nat) -> spec_fn(real) -> real {
-    |y: real| if y < (t.prob)(i) as real { e(i as real) } else { e((t.alias)(i) as real) }
+pub open spec fn ialloc(t: Alias, e: spec_fn(nat) -> real, i: nat) -> spec_fn(nat) -> real {
+    |y: nat| if y < (t.prob)(i) { e(i) } else { e((t.alias)(i)) }
 }
 
 /// Runtime alias table.  `prob[i]`/`alias[i]` are the two-label split of  bin i
@@ -265,25 +265,25 @@ impl AliasTable {
 #[verifier::spinoff_prover]
 pub fn sample_alias(
     tab: &AliasTable,
-    Ghost(e): Ghost<spec_fn(real) -> real>,
+    Ghost(e): Ghost<spec_fn(nat) -> real>,
     Tracked(credit): Tracked<ErrorCreditResource>,
     Ghost(eps): Ghost<real>,
 ) -> ((value, out_credit): (u64, Tracked<ErrorCreditResource>))
     requires
         tab.wf(),
-        forall |x: real| (#[trigger] e(x)) >= 0real,
+        forall |x: nat| (#[trigger] e(x)) >= 0real,
         eps >= alias_exp(tab@, e),
         credit@ =~= (Value { car: eps }),
     ensures
         value < tab.n,
-        out_credit@@ =~= (Value { car: e(value as real) }),
+        out_credit@@ =~= (Value { car: e(value as nat) }),
 {
     let ghost t = tab@;
     let ghost oa = oalloc(t, e);
 
     proof {
-        assert forall |k: nat| (#[trigger] oa(k as real)) >= 0real by {
-            lemma_inner_eps_nonneg(t, e, (k as real).floor() as nat);
+        assert forall |k: nat| (#[trigger] oa(k)) >= 0real by {
+            lemma_inner_eps_nonneg(t, e, k);
         }
         lemma_average_outer(t, e);
     }
@@ -612,17 +612,17 @@ pub fn build_alias(weights: Vec<u64>, m: u64) -> (ret: AliasTable)
 }
 
 pub fn sample_748_alias(
-    Ghost(e): Ghost<spec_fn(real) -> real>,
+    Ghost(e): Ghost<spec_fn(nat) -> real>,
     Tracked(input_credit): Tracked<ErrorCreditResource>,
     Ghost(eps): Ghost<real>,
 ) -> ((value, out_credit): (u64, Tracked<ErrorCreditResource>))
     requires
-        forall |x: real| (#[trigger] e(x)) >= 0real,
-        eps >= (7real * e(0real) + 4real * e(1real) + 8real * e(2real)) / 19real,
+        forall |x: nat| (#[trigger] e(x)) >= 0real,
+        eps >= (7real * e(0nat) + 4real * e(1nat) + 8real * e(2nat)) / 19real,
         input_credit@ =~= (Value { car: eps }),
     ensures
         value < 3,
-        out_credit@@ =~= (Value { car: e(value as real) }),
+        out_credit@@ =~= (Value { car: e(value as nat) }),
 {
     let mut w: Vec<u64> = Vec::new();
     w.push(7); w.push(4); w.push(8);
@@ -635,15 +635,15 @@ pub fn sample_748_alias(
 pub fn run_alias_zero() -> (ret: u64)
     ensures ret < 3,
 {
-    let ghost e = |x: real| 0real;
+    let ghost e = |x: nat| 0real;
     let Tracked(credit) = thin_air();
     let ghost eps = choose |sv: real|
         sv > 0real && (credit@ =~= (Value { car: sv }));
     proof {
-        assert((7real * e(0real) + 4real * e(1real) + 8real * e(2real)) / 19real == 0real)
+        assert((7real * e(0nat) + 4real * e(1nat) + 8real * e(2nat)) / 19real == 0real)
             by(nonlinear_arith)
-            requires e(0real) == 0real, e(1real) == 0real, e(2real) == 0real;
-        assert(eps >= (7real * e(0real) + 4real * e(1real) + 8real * e(2real)) / 19real);  // eps > 0 ≥ 0
+            requires e(0nat) == 0real, e(1nat) == 0real, e(2nat) == 0real;
+        assert(eps >= (7real * e(0nat) + 4real * e(1nat) + 8real * e(2nat)) / 19real);  // eps > 0 ≥ 0
     }
     let (r, _) = sample_748_alias(Ghost(e), Tracked(credit), Ghost(eps));
     r

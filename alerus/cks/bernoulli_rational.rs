@@ -55,8 +55,8 @@ pub proof fn lemma_bws_nonneg(prob: real, e: spec_fn(bool) -> real)
 pub open spec fn bernoulli_credit_alloc(
     numer: nat,
     e: spec_fn(bool) -> real,
-) -> spec_fn(real) -> real {
-    |i: real| if i < numer as real { e(true) } else { e(false) }
+) -> spec_fn(nat) -> real {
+    |i: nat| if i < numer { e(true) } else { e(false) }
 }
 
 /// Σ_{i<n} alloc(i) = numer·ℰ(true) + (n-numer)·ℰ(false)  when n ≥ numer,
@@ -77,24 +77,24 @@ proof fn lemma_sum_bernoulli(numer: nat, e: spec_fn(bool) -> real, n: nat)
     } else {
         lemma_sum_bernoulli(numer, e, (n - 1) as nat);
         let k = (n - 1) as nat;
-        assert(sum_credit(alloc, n) == sum_credit(alloc, k) + alloc(k as real));
+        assert(sum_credit(alloc, n) == sum_credit(alloc, k) + alloc(k));
         if n <= numer {
             assert(sum_credit(alloc, n) == n as real * e(true))
                 by(nonlinear_arith)
                 requires
-                    sum_credit(alloc, n) == sum_credit(alloc, k) + alloc(k as real),
+                    sum_credit(alloc, n) == sum_credit(alloc, k) + alloc(k),
                     sum_credit(alloc, k) == k as real * e(true),
-                    alloc(k as real) == e(true),
+                    alloc(k) == e(true),
                     n == k + 1;
         } else if k >= numer {
             assert(sum_credit(alloc, n) ==
                 numer as real * e(true) + (n - numer) as real * e(false))
                 by(nonlinear_arith)
                 requires
-                    sum_credit(alloc, n) == sum_credit(alloc, k) + alloc(k as real),
+                    sum_credit(alloc, n) == sum_credit(alloc, k) + alloc(k),
                     sum_credit(alloc, k) == numer as real * e(true)
                         + (k - numer) as real * e(false),
-                    alloc(k as real) == e(false),
+                    alloc(k) == e(false),
                     n == k + 1,
                     k >= numer;
         }
@@ -150,8 +150,8 @@ pub fn sample_bernoulli_rational(
 
     proof {
         lemma_bernoulli_average(nn, dn, e);
-        assert forall |i: nat| (#[trigger] alloc(i as real)) >= 0real by {
-            if (i as real) < nn as real {} else {}
+        assert forall |i: nat| (#[trigger] alloc(i)) >= 0real by {
+            if i < nn {} else {}
         };
     }
 

@@ -30,8 +30,8 @@ pub open spec fn spline_credit(n: nat, k: nat) -> real {
     (n as real) / ((n + k + 1) as real)
 }
 
-pub open spec fn spline_alloc(n: nat, k: nat) -> spec_fn(real) -> real {
-    |x: real| if x == 0real { 0real } else { (n + 1) as real / ((n + k + 1) as real) }
+pub open spec fn spline_alloc(n: nat, k: nat) -> spec_fn(nat) -> real {
+    |x: nat| if x == 0 { 0real } else { (n + 1) as real / ((n + k + 1) as real) }
 }
 
 /// Σ_{i<m} spline_alloc(i) = (m−1)·(n+1)/(n+k+1)  for m ≥ 1
@@ -45,12 +45,12 @@ pub proof fn lemma_spline_sum(n: nat, k: nat, m: nat)
     let alloc = spline_alloc(n, k);
     let c = (n + 1) as real / ((n + k + 1) as real);
     if m == 1 {
-        assert(alloc(0real) == 0real);
-        assert(sum_credit(alloc, 1nat) == sum_credit(alloc, 0nat) + alloc(0real));
+        assert(alloc(0nat) == 0real);
+        assert(sum_credit(alloc, 1nat) == sum_credit(alloc, 0nat) + alloc(0nat));
     } else {
         lemma_spline_sum(n, k, (m - 1) as nat);
-        assert(alloc((m - 1) as real) == c);
-        assert(sum_credit(alloc, m) == sum_credit(alloc, (m - 1) as nat) + alloc((m - 1) as real));
+        assert(alloc((m - 1) as nat) == c);
+        assert(sum_credit(alloc, m) == sum_credit(alloc, (m - 1) as nat) + alloc((m - 1) as nat));
         assert(((m - 2) as real) * c + c == ((m - 1) as real) * c) by(nonlinear_arith);
     }
 }
@@ -98,7 +98,7 @@ pub fn spline_aux(n: &UBig, Ghost(k): Ghost<nat>, Tracked(credit): Tracked<Error
     let ghost alloc = spline_alloc(nv, k);
     proof {
         lemma_spline_avg(nv, k);           // average_nat(nv+1, alloc) == spline_credit(nv,k)
-        assert forall |i: nat| (#[trigger] alloc(i as real)) >= 0real by {
+        assert forall |i: nat| (#[trigger] alloc(i)) >= 0real by {
             // each value is 0 or (nv+1)/(nv+k+1) ≥ 0
             assert((nv + 1) as real / ((nv + k + 1) as real) >= 0real) by(nonlinear_arith);
         }
@@ -111,7 +111,7 @@ pub fn spline_aux(n: &UBig, Ghost(k): Ghost<nat>, Tracked(credit): Tracked<Error
 
         proof {
             assert(ubig_view(&x) >= 1);
-            assert(alloc(ubig_view(&x) as real) == (nv + 1) as real / ((nv + k + 1) as real));
+            assert(alloc(ubig_view(&x)) == (nv + 1) as real / ((nv + k + 1) as real));
             if k == 0 {
                 assert((nv + 1) as real / ((nv + 0 + 1) as real) == 1real) by(nonlinear_arith);
                 ec_contradict(&out);

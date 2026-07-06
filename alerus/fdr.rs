@@ -83,7 +83,7 @@ use crate::math::pow::{pow, archimedean_exp_growth};
 /// ≤ `k` coin flips — the value the credit carries.  A run that exhausts its
 /// budget before accepting contributes 0.  One flip turns (v,c) into (2v, 2c+b),
 /// b ∈ {0,1} each w.p. ½, so fdr_f averages the two post-double `fdr_h` cases.
-pub open spec fn fdr_f(n: nat, e: spec_fn(real) -> real, v: nat, c: nat, k: nat) -> real
+pub open spec fn fdr_f(n: nat, e: spec_fn(nat) -> real, v: nat, c: nat, k: nat) -> real
     decreases k, 0nat,
 {
     if k == 0 {
@@ -97,12 +97,12 @@ pub open spec fn fdr_f(n: nat, e: spec_fn(real) -> real, v: nat, c: nat, k: nat)
 /// Evaluates an already-doubled state (v, c) — `fdr_f` feeds it (2·v, 2·c+b):
 /// accept if v ≥ n and c < n (output c), reject if v ≥ n and c ≥ n (restart the
 /// residual range (v−n, c−n)), otherwise keep doubling.
-pub open spec fn fdr_h(n: nat, e: spec_fn(real) -> real, v: nat, c: nat, k: nat) -> real
+pub open spec fn fdr_h(n: nat, e: spec_fn(nat) -> real, v: nat, c: nat, k: nat) -> real
     decreases k, 1nat,
 {
     if v >= n {
         if c < n {
-            e(c as real)                          // accept
+            e(c)                          // accept
         } else {
             fdr_f(n, e, (v - n) as nat, (c - n) as nat, k)   // reject, restart
         }
@@ -119,8 +119,8 @@ pub open spec fn fdr_h(n: nat, e: spec_fn(real) -> real, v: nat, c: nat, k: nat)
 // Both approximations are non-negative when ℰ ≥ 0.  The f/h split with matching
 // (k, tag) measures mirrors the spec fns' mutual recursion (f tag 0, h tag 1).
 
-pub proof fn lemma_fdr_f_nonneg(n: nat, e: spec_fn(real) -> real, v: nat, c: nat, k: nat)
-    requires forall |x: real| (#[trigger] e(x)) >= 0real,
+pub proof fn lemma_fdr_f_nonneg(n: nat, e: spec_fn(nat) -> real, v: nat, c: nat, k: nat)
+    requires forall |x: nat| (#[trigger] e(x)) >= 0real,
     ensures fdr_f(n, e, v, c, k) >= 0real,
     decreases k, 0nat,
 {
@@ -130,14 +130,14 @@ pub proof fn lemma_fdr_f_nonneg(n: nat, e: spec_fn(real) -> real, v: nat, c: nat
     }
 }
 
-pub proof fn lemma_fdr_h_nonneg(n: nat, e: spec_fn(real) -> real, v: nat, c: nat, k: nat)
-    requires forall |x: real| (#[trigger] e(x)) >= 0real,
+pub proof fn lemma_fdr_h_nonneg(n: nat, e: spec_fn(nat) -> real, v: nat, c: nat, k: nat)
+    requires forall |x: nat| (#[trigger] e(x)) >= 0real,
     ensures fdr_h(n, e, v, c, k) >= 0real,
     decreases k, 1nat,
 {
     if v >= n {
         if c < n {
-            assert(e(c as real) >= 0real);
+            assert(e(c) >= 0real);
         } else {
             lemma_fdr_f_nonneg(n, e, (v - n) as nat, (c - n) as nat, k);
         }
@@ -156,7 +156,7 @@ pub proof fn lemma_fdr_h_nonneg(n: nat, e: spec_fn(real) -> real, v: nat, c: nat
 
 /// Σ_{c<j} fdr_f(n,e,v,c,k)  — sum of the k-flip approximation over the first j
 /// values c at range v.  (S(v,k) := fdr_fsum_upto(n,e,v,v,k).)
-pub open spec fn fdr_fsum_upto(n: nat, e: spec_fn(real) -> real, v: nat, j: nat, k: nat) -> real
+pub open spec fn fdr_fsum_upto(n: nat, e: spec_fn(nat) -> real, v: nat, j: nat, k: nat) -> real
     decreases j,
 {
     if j == 0 { 0real }
@@ -164,7 +164,7 @@ pub open spec fn fdr_fsum_upto(n: nat, e: spec_fn(real) -> real, v: nat, j: nat,
 }
 
 /// Σ_{c<j} fdr_h(n,e,v,c,k).
-pub open spec fn fdr_hsum_upto(n: nat, e: spec_fn(real) -> real, v: nat, j: nat, k: nat) -> real
+pub open spec fn fdr_hsum_upto(n: nat, e: spec_fn(nat) -> real, v: nat, j: nat, k: nat) -> real
     decreases j,
 {
     if j == 0 { 0real }
@@ -172,7 +172,7 @@ pub open spec fn fdr_hsum_upto(n: nat, e: spec_fn(real) -> real, v: nat, j: nat,
 }
 
 /// Σ_{c<j} ( fdr_h(n,e,v,2c,k) + fdr_h(n,e,v,2c+1,k) ).
-pub open spec fn fdr_pairsum(n: nat, e: spec_fn(real) -> real, v: nat, j: nat, k: nat) -> real
+pub open spec fn fdr_pairsum(n: nat, e: spec_fn(nat) -> real, v: nat, j: nat, k: nat) -> real
     decreases j,
 {
     if j == 0 { 0real }
@@ -183,7 +183,7 @@ pub open spec fn fdr_pairsum(n: nat, e: spec_fn(real) -> real, v: nat, j: nat, k
 }
 
 /// n·average = Σ_{i<n} ℰ(i)  (n > 0):  just unfolds `average_nat`.
-pub proof fn lemma_fdr_average_sum(n: nat, e: spec_fn(real) -> real)
+pub proof fn lemma_fdr_average_sum(n: nat, e: spec_fn(nat) -> real)
     requires n > 0,
     ensures sum_credit(e, n) == (n as real) * average_nat(n, e),
 {
@@ -192,20 +192,20 @@ pub proof fn lemma_fdr_average_sum(n: nat, e: spec_fn(real) -> real)
 }
 
 /// sum_credit(ℰ, mm) = Σ_{i<mm} ℰ(i) ≥ 0 for ℰ ≥ 0.
-pub proof fn lemma_fdr_sum_nonneg(e: spec_fn(real) -> real, mm: nat)
-    requires forall |x: real| (#[trigger] e(x)) >= 0real,
+pub proof fn lemma_fdr_sum_nonneg(e: spec_fn(nat) -> real, mm: nat)
+    requires forall |x: nat| (#[trigger] e(x)) >= 0real,
     ensures sum_credit(e, mm) >= 0real,
     decreases mm,
 {
     if mm > 0 {
         lemma_fdr_sum_nonneg(e, (mm - 1) as nat);
-        assert(e((mm - 1) as real) >= 0real);   // sum_credit's term, ℰ ≥ 0
+        assert(e((mm - 1) as nat) >= 0real);   // sum_credit's term, ℰ ≥ 0
     }
 }
 
 /// average_nat(n, ℰ) ≥ 0 for ℰ ≥ 0  (n > 0).
-pub proof fn lemma_fdr_average_nonneg(n: nat, e: spec_fn(real) -> real)
-    requires forall |x: real| (#[trigger] e(x)) >= 0real, n > 0,
+pub proof fn lemma_fdr_average_nonneg(n: nat, e: spec_fn(nat) -> real)
+    requires forall |x: nat| (#[trigger] e(x)) >= 0real, n > 0,
     ensures average_nat(n, e) >= 0real,
 {
     lemma_fdr_sum_nonneg(e, n);
@@ -214,7 +214,7 @@ pub proof fn lemma_fdr_average_nonneg(n: nat, e: spec_fn(real) -> real)
 }
 
 /// Reindex:  Σ_{c<j}(fdr_h(v,2c)+fdr_h(v,2c+1)) = Σ_{c<2j} fdr_h(v,c).
-pub proof fn lemma_fdr_pairsum_eq_hsum(n: nat, e: spec_fn(real) -> real, v: nat, j: nat, k: nat)
+pub proof fn lemma_fdr_pairsum_eq_hsum(n: nat, e: spec_fn(nat) -> real, v: nat, j: nat, k: nat)
     ensures fdr_pairsum(n, e, v, j, k) == fdr_hsum_upto(n, e, v, 2 * j, k),
     decreases j,
 {
@@ -234,7 +234,7 @@ pub proof fn lemma_fdr_pairsum_eq_hsum(n: nat, e: spec_fn(real) -> real, v: nat,
 }
 
 /// fdr_fsum_upto(v,j,k+1) = ½ · fdr_pairsum(2v,j,k)  (term-by-term from fdr_f's recursion).
-pub proof fn lemma_fdr_fsum_half_pairsum(n: nat, e: spec_fn(real) -> real, v: nat, j: nat, k: nat)
+pub proof fn lemma_fdr_fsum_half_pairsum(n: nat, e: spec_fn(nat) -> real, v: nat, j: nat, k: nat)
     ensures fdr_fsum_upto(n, e, v, j, (k + 1) as nat) == (1real / 2real) * fdr_pairsum(n, e, 2 * v, j, k),
     decreases j,
 {
@@ -255,7 +255,7 @@ pub proof fn lemma_fdr_fsum_half_pairsum(n: nat, e: spec_fn(real) -> real, v: na
 }
 
 /// Below threshold (v < n): every h-term continues, so the h-sum equals the f-sum.
-pub proof fn lemma_fdr_hsum_eq_fsum_lt_n(n: nat, e: spec_fn(real) -> real, v: nat, j: nat, k: nat)
+pub proof fn lemma_fdr_hsum_eq_fsum_lt_n(n: nat, e: spec_fn(nat) -> real, v: nat, j: nat, k: nat)
     requires v < n,
     ensures fdr_hsum_upto(n, e, v, j, k) == fdr_fsum_upto(n, e, v, j, k),
     decreases j,
@@ -268,7 +268,7 @@ pub proof fn lemma_fdr_hsum_eq_fsum_lt_n(n: nat, e: spec_fn(real) -> real, v: na
 
 /// At/above threshold, the low part (c < n) sums the accept values ℰ — exactly the
 /// framework's sum_credit(ℰ, j) = Σ_{c<j} ℰ(c).
-pub proof fn lemma_fdr_hsum_low(n: nat, e: spec_fn(real) -> real, v: nat, j: nat, k: nat)
+pub proof fn lemma_fdr_hsum_low(n: nat, e: spec_fn(nat) -> real, v: nat, j: nat, k: nat)
     requires v >= n, j <= n,
     ensures fdr_hsum_upto(n, e, v, j, k) == sum_credit(e, j),
     decreases j,
@@ -276,14 +276,14 @@ pub proof fn lemma_fdr_hsum_low(n: nat, e: spec_fn(real) -> real, v: nat, j: nat
     if j > 0 {
         lemma_fdr_hsum_low(n, e, v, (j - 1) as nat, k);
         assert(((j - 1) as nat) < n);
-        assert(fdr_h(n, e, v, (j - 1) as nat, k) == e(((j - 1) as nat) as real));  // accept
+        assert(fdr_h(n, e, v, (j - 1) as nat, k) == e((j - 1) as nat));  // accept
         assert(((j - 1) as nat) as real == (j - 1) as real);    // = sum_credit's term
     }
 }
 
 /// Threshold split:  for v ≥ n and i ≤ v−n,
 ///   Σ_{c<n+i} fdr_h(v,c) = Σ_{c<n} ℰ(c)  +  Σ_{c'<i} fdr_f(v−n, c', k).
-pub proof fn lemma_fdr_hsum_split(n: nat, e: spec_fn(real) -> real, v: nat, i: nat, k: nat)
+pub proof fn lemma_fdr_hsum_split(n: nat, e: spec_fn(nat) -> real, v: nat, i: nat, k: nat)
     requires v >= n, i <= (v - n) as nat,
     ensures
         fdr_hsum_upto(n, e, v, (n + i) as nat, k)
@@ -305,8 +305,8 @@ pub proof fn lemma_fdr_hsum_split(n: nat, e: spec_fn(real) -> real, v: nat, i: n
 }
 
 /// S(v,k) := Σ_{c<v} fdr_f(v,c,k) ≤ v·average_nat(n,ℰ),  by induction on k k.
-pub proof fn lemma_fdr_sum_le(n: nat, e: spec_fn(real) -> real, v: nat, k: nat)
-    requires forall |x: real| (#[trigger] e(x)) >= 0real, n > 0,
+pub proof fn lemma_fdr_sum_le(n: nat, e: spec_fn(nat) -> real, v: nat, k: nat)
+    requires forall |x: nat| (#[trigger] e(x)) >= 0real, n > 0,
     ensures fdr_fsum_upto(n, e, v, v, k) <= (v as real) * average_nat(n, e),
     decreases k,
 {
@@ -350,7 +350,7 @@ pub proof fn lemma_fdr_sum_le(n: nat, e: spec_fn(real) -> real, v: nat, k: nat)
 }
 
 /// fdr_fsum_upto at k 0 is 0.
-pub proof fn lemma_fdr_fsum_zero(n: nat, e: spec_fn(real) -> real, v: nat, j: nat)
+pub proof fn lemma_fdr_fsum_zero(n: nat, e: spec_fn(nat) -> real, v: nat, j: nat)
     ensures fdr_fsum_upto(n, e, v, j, 0nat) == 0real,
     decreases j,
 {
@@ -364,8 +364,8 @@ pub proof fn lemma_fdr_fsum_zero(n: nat, e: spec_fn(real) -> real, v: nat, j: na
 /// average_nat(n, ℰ) = (1/n)·Σ_{i<n} ℰ(i)  (from `lemma_fdr_sum_le` at v = 1, where
 /// S(1, k) = fdr_f(1, 0, k)).  This is what lets `sample_fdr` take the real
 /// uniform-distribution precondition ε ≥ average_nat(n, ℰ).
-pub proof fn lemma_fdr_f_le_average(n: nat, e: spec_fn(real) -> real, k: nat)
-    requires forall |x: real| (#[trigger] e(x)) >= 0real, n > 0,
+pub proof fn lemma_fdr_f_le_average(n: nat, e: spec_fn(nat) -> real, k: nat)
+    requires forall |x: nat| (#[trigger] e(x)) >= 0real, n > 0,
     ensures fdr_f(n, e, 1, 0, k) <= average_nat(n, e),
 {
     reveal_with_fuel(fdr_fsum_upto, 2);
@@ -676,19 +676,19 @@ pub proof fn lemma_fdr_fail_witness(n: nat, delta: real)
 #[verifier::spinoff_prover]
 pub fn sample_fdr(
     n: u64,
-    Ghost(e): Ghost<spec_fn(real) -> real>,
+    Ghost(e): Ghost<spec_fn(nat) -> real>,
     Tracked(input_credit): Tracked<ErrorCreditResource>,
     Ghost(eps): Ghost<real>,
 ) -> ((value, out_credit): (u64, Tracked<ErrorCreditResource>))
     requires
         n > 1,
         n <= u64::MAX / 2,
-        forall |x: real| (#[trigger] e(x)) >= 0real,
+        forall |x: nat| (#[trigger] e(x)) >= 0real,
         eps >= average_nat(n as nat, e),
         input_credit@ =~= (Value { car: eps }),
     ensures
         value < n,
-        out_credit@@ =~= (Value { car: e(value as real) }),
+        out_credit@@ =~= (Value { car: e(value as nat) }),
 {
     // Thin-air room for the termination credit, and a depth with fail(1,0,depth) < s0.
     proof { lemma_fdr_average_nonneg(n as nat, e); }   // average_nat ≥ 0, hence eps ≥ 0
@@ -716,7 +716,7 @@ pub fn sample_fdr(
         invariant
             n > 1, n <= u64::MAX / 2,
             1 <= v, v < n, c < v,
-            forall |x: real| (#[trigger] e(x)) >= 0real,
+            forall |x: nat| (#[trigger] e(x)) >= 0real,
             credit@ =~= (Value { car: g_ce }),
             g_ce >= fdr_f(n as nat, e, v as nat, c as nat, k) + fdr_fail_f(n as nat, v as nat, c as nat, k),
         decreases k,
@@ -729,13 +729,13 @@ pub fn sample_fdr(
         }
         let ghost kk = k;
         // coin alloc: b ↦ fdr_h(2v,2c+b,k−1) + fdr_fail_h(2v,2c+b,k−1).
-        let ghost alloc = |x: real| {
-            let cc: nat = if x == 1real { 2 * (c as nat) + 1 } else { 2 * (c as nat) };
+        let ghost alloc = |x: nat| {
+            let cc: nat = if x == 1 { 2 * (c as nat) + 1 } else { 2 * (c as nat) };
             fdr_h(n as nat, e, 2 * (v as nat), cc, (kk - 1) as nat)
                 + fdr_fail_h(n as nat, 2 * (v as nat), cc, (kk - 1) as nat)
         };
         proof {
-            assert forall |i: nat| (#[trigger] alloc(i as real)) >= 0real by {
+            assert forall |i: nat| (#[trigger] alloc(i)) >= 0real by {
                 lemma_fdr_h_nonneg(n as nat, e, 2 * (v as nat), 2 * (c as nat), (kk - 1) as nat);
                 lemma_fdr_h_nonneg(n as nat, e, 2 * (v as nat), 2 * (c as nat) + 1, (kk - 1) as nat);
                 lemma_fdr_fail_h_nonneg(n as nat, 2 * (v as nat), 2 * (c as nat), (kk - 1) as nat);
@@ -746,11 +746,11 @@ pub fn sample_fdr(
             let ghost fdh1 = fdr_h(n as nat, e, 2 * (v as nat), 2 * (c as nat) + 1, (kk - 1) as nat);
             let ghost flh0 = fdr_fail_h(n as nat, 2 * (v as nat), 2 * (c as nat), (kk - 1) as nat);
             let ghost flh1 = fdr_fail_h(n as nat, 2 * (v as nat), 2 * (c as nat) + 1, (kk - 1) as nat);
-            assert((alloc(0real) + alloc(1real)) / 2real
+            assert((alloc(0) + alloc(1)) / 2real
                 == fdr_f(n as nat, e, v as nat, c as nat, kk)
                  + fdr_fail_f(n as nat, v as nat, c as nat, kk)) by(nonlinear_arith)
                 requires
-                    alloc(0real) == fdh0 + flh0, alloc(1real) == fdh1 + flh1,
+                    alloc(0) == fdh0 + flh0, alloc(1) == fdh1 + flh1,
                     fdr_f(n as nat, e, v as nat, c as nat, kk) == (fdh0 + fdh1) / 2real,
                     fdr_fail_f(n as nat, v as nat, c as nat, kk) == (flh0 + flh1) / 2real;
         }
@@ -758,7 +758,7 @@ pub fn sample_fdr(
         let (b, Tracked(out)) = rand_2_u64(Tracked(credit), Ghost(alloc));
         proof {
             credit = out;
-            g_ce = alloc(b as real);   // held credit is now alloc(b)
+            g_ce = alloc(b as nat);   // held credit is now alloc(b)
             k = (kk - 1) as nat;
         }
 
@@ -769,8 +769,7 @@ pub fn sample_fdr(
             if c < n {
                 // accept:  alloc(b) = fdr_h(v,c,k) + fdr_fail_h(v,c,k) = ℰ(c) + 0.
                 proof {
-                    assert((c as nat) as real == c as real);
-                    assert(g_ce == e(c as real));
+                    assert(g_ce == e(c as nat));
                 }
                 return (c, Tracked(credit));
             } else {

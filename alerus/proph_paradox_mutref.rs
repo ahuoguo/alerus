@@ -64,11 +64,11 @@ pub fn safe_with_half_credit_mutref(
     // The "prophecy" here is `*final(x)`: the value `*x` will take when
     // this function returns. We attempt to use it in a tracked credit
     // allocation — Verus's dependence tracker should refuse.
-    let credit_alloc: Ghost<spec_fn(real) -> real> =
-        Ghost(|y: real| credit_alloc_proph(*final(x), y));
+    let credit_alloc: Ghost<spec_fn(nat) -> real> =
+        Ghost(|y: nat| credit_alloc_proph(*final(x), y));
 
     proof {
-        assert(forall |i: nat| #[trigger] (credit_alloc@)(i as real) >= 0real);
+        assert(forall |i: nat| #[trigger] (credit_alloc@)(i) >= 0real);
         if *final(x) == 0 || *final(x) == 1 {
             credit_alloc_proph_sum(*final(x));
         }
@@ -82,8 +82,8 @@ pub fn safe_with_half_credit_mutref(
 
     proof {
         assert(*final(x) == val);
-        assert(val as real == *final(x) as real);
-        assert((credit_alloc@)(val as real) == 1real);
+        assert(val as nat == *final(x) as nat);
+        assert((credit_alloc@)(val as nat) == 1real);
         assert(outcome_credit@ =~= (Value { car: 1real }));
         ec_contradict(&outcome_credit);
     }

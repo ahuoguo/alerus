@@ -114,10 +114,10 @@ pub open spec fn rej_amp(d: nat) -> real {
 ///   h(u) = e^{−u/d} · ℰ(u) + (1 − e^{−u/d}) · rej_credit.
 pub open spec fn rej_credit_alloc(
     d: nat, e: spec_fn(nat) -> real, rej_credit: real,
-) -> spec_fn(real) -> real {
-    |u_real: real| {
-        let w = exp(-(u_real / d as real));
-        w * e(u_real.floor() as nat) + (1real - w) * rej_credit
+) -> spec_fn(nat) -> real {
+    |u: nat| {
+        let w = exp(-(u as real / d as real));
+        w * e(u) + (1real - w) * rej_credit
     }
 }
 
@@ -336,19 +336,18 @@ proof fn lemma_rej_sum_split(
         let w = exp(-(kr / d as real));
         lemma_rej_sum_split(d, e, rej_credit, k);
 
-        assert(kr.floor() as nat == k);
         assert(w == rej_weight(d, k));
-        assert(sum_credit(alloc, n) == sum_credit(alloc, k) + alloc(kr));
+        assert(sum_credit(alloc, n) == sum_credit(alloc, k) + alloc(k));
         assert(sum_credit(alloc, n)
             == rej_weighted_sum(d, e, n) + rej_credit * (n as real - rej_weight_sum(d, n)))
             by(nonlinear_arith)
             requires
                 sum_credit(alloc, k)
                     == rej_weighted_sum(d, e, k) + rej_credit * (k as real - rej_weight_sum(d, k)),
-                alloc(kr) == w * e(k) + (1real - w) * rej_credit,
+                alloc(k) == w * e(k) + (1real - w) * rej_credit,
                 rej_weighted_sum(d, e, n) == rej_weighted_sum(d, e, k) + w * e(k),
                 rej_weight_sum(d, n) == rej_weight_sum(d, k) + w,
-                sum_credit(alloc, n) == sum_credit(alloc, k) + alloc(kr),
+                sum_credit(alloc, n) == sum_credit(alloc, k) + alloc(k),
                 n == k + 1;
     }
 }
@@ -367,17 +366,15 @@ pub proof fn lemma_rej_alloc_nonneg(
         forall |u: nat| (#[trigger] e(u)) >= 0real,
     ensures
         forall |i: nat|
-            (#[trigger] rej_credit_alloc(d, e, rej_credit)(i as real)) >= 0real,
+            (#[trigger] rej_credit_alloc(d, e, rej_credit)(i)) >= 0real,
 {
     let alloc = rej_credit_alloc(d, e, rej_credit);
-    assert forall |i: nat| (#[trigger] alloc(i as real)) >= 0real by {
-        let ir = i as real;
-        let w = exp(-(ir / d as real));
-        assert(ir.floor() as nat == i);
+    assert forall |i: nat| (#[trigger] alloc(i)) >= 0real by {
+        let w = exp(-(i as real / d as real));
         lemma_rej_weight_pos(d, i);
-        assert(alloc(ir) >= 0real) by(nonlinear_arith)
+        assert(alloc(i) >= 0real) by(nonlinear_arith)
             requires
-                alloc(ir) == w * e(i) + (1real - w) * rej_credit,
+                alloc(i) == w * e(i) + (1real - w) * rej_credit,
                 0real < w, w <= 1real,
                 e(i) >= 0real, rej_credit >= 0real;
     };
@@ -462,26 +459,24 @@ proof fn lemma_rej_bws(
     ensures bernoulli_weighted_sum(
         exp(-(u as real / d as real)),
         rej_flip_e(e, u, rej_credit),
-    ) == rej_credit_alloc(d, e, rej_credit)(u as real),
+    ) == rej_credit_alloc(d, e, rej_credit)(u),
 {}
 
 /// rej_credit_alloc(d,e,rc)(0) = e(0):  acceptance at u = 0 is e^{−0/d} = 1.
 proof fn lemma_rej_alloc_at_zero(d: nat, e: spec_fn(nat) -> real, rc: real)
     requires d > 0,
-    ensures rej_credit_alloc(d, e, rc)(0real) == e(0nat),
+    ensures rej_credit_alloc(d, e, rc)(0nat) == e(0nat),
 {
     let alloc = rej_credit_alloc(d, e, rc);
-    assert(0real / d as real == 0real) by(nonlinear_arith) requires d > 0;
-    assert(-(0real / d as real) == 0real) by(nonlinear_arith) requires 0real / d as real == 0real;
+    assert(0nat as real / d as real == 0real) by(nonlinear_arith) requires d > 0;
+    assert(-(0nat as real / d as real) == 0real) by(nonlinear_arith) requires 0nat as real / d as real == 0real;
     axiom_exp_zero();
-    assert(exp(-(0real / d as real)) == 1real);
-    assert(0real.floor() == 0int);
-    assert(alloc(0real) == e(0nat)) by(nonlinear_arith)
+    assert(exp(-(0nat as real / d as real)) == 1real);
+    assert(alloc(0nat) == e(0nat)) by(nonlinear_arith)
         requires
-            alloc(0real) == exp(-(0real / d as real)) * e(0real.floor() as nat)
-                + (1real - exp(-(0real / d as real))) * rc,
-            exp(-(0real / d as real)) == 1real,
-            0real.floor() as nat == 0nat;
+            alloc(0nat) == exp(-(0nat as real / d as real)) * e(0nat)
+                + (1real - exp(-(0nat as real / d as real))) * rc,
+            exp(-(0nat as real / d as real)) == 1real;
 }
 
 /// average over Uniform{0} (d = 1) of rej_credit_alloc = e(0).
@@ -490,12 +485,12 @@ proof fn lemma_rej_avg_one_alloc(e: spec_fn(nat) -> real, rc: real)
 {
     let alloc = rej_credit_alloc(1nat, e, rc);
     lemma_rej_alloc_at_zero(1nat, e, rc);   // alloc(0) == e(0)
-    assert(sum_credit(alloc, 1nat) == alloc(0real)) by {
+    assert(sum_credit(alloc, 1nat) == alloc(0nat)) by {
         reveal_with_fuel(sum_credit, 2);
     }
     assert(average_nat(1nat, alloc) == e(0nat)) by(nonlinear_arith)
         requires average_nat(1nat, alloc) == sum_credit(alloc, 1nat) / (1nat as real),
-            sum_credit(alloc, 1nat) == alloc(0real), alloc(0real) == e(0nat);
+            sum_credit(alloc, 1nat) == alloc(0nat), alloc(0nat) == e(0nat);
 }
 
 /// For d = 1 the rejection average collapses to e(0):  rej_weighted_avg(1, e) = e(0).
@@ -544,7 +539,7 @@ pub fn sample_exp_rejection(
         proof {
             lemma_rej_avg_one(e);                 // rej_weighted_avg(1,e) == e(0)
             lemma_rej_avg_one_alloc(e, 0real);    // average_nat(1, alloc) == e(0)
-            lemma_rej_alloc_nonneg(d, e, 0real);  // forall i. alloc(i as real) >= 0
+            lemma_rej_alloc_nonneg(d, e, 0real);  // forall i. alloc(i) >= 0
         }
         let (u_val, Tracked(u_credit)) = rand_ubig(denom, Tracked(input_credit), Ghost(alloc));
         proof {
@@ -622,7 +617,7 @@ pub fn sample_exp_rejection(
 
         let ghost uvn = ubig_view(&u_val);
         let ghost g_flip_e = rej_flip_e(e, uvn, rej_credit);
-        let ghost g_h_val = alloc(uvn as real);
+        let ghost g_h_val = alloc(uvn);
 
         proof {
             assert(uvn as real / d as real >= 0real) by(nonlinear_arith)

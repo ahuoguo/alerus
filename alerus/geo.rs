@@ -28,8 +28,8 @@ use crate::extern_spec::ExUBig;
 #[cfg(verus_keep_ghost)]
 use crate::extern_spec::ubig_view;
 
-spec fn geo_credit_alloc(outcome: real, eps: real) -> real {
-    if outcome == 0real { 0real } else { 2real * eps }
+spec fn geo_credit_alloc(outcome: nat, eps: real) -> real {
+    if outcome == 0 { 0real } else { 2real * eps }
 }
 
 /// Geometric distribution sampler (unbounded).
@@ -88,14 +88,14 @@ pub fn bounded_geometric(
 
     let (val, Tracked(outcome_credit)) = rand_2_u64(
         Tracked(input_credit),
-        Ghost(|x: real| geo_credit_alloc(x, eps)),
+        Ghost(|x: nat| geo_credit_alloc(x, eps)),
     );
 
     if val == 0 {
         ubig_zero()
     } else {
         let ghost new_eps = 2real * eps;
-        assert(geo_credit_alloc(val as real, eps) == new_eps);
+        assert(geo_credit_alloc(val as nat, eps) == new_eps);
 
         proof {
             // Show: new_eps * 2^(depth-1) >= 1

@@ -135,7 +135,7 @@ pub struct Ddg {
 /// Fuel-bounded conditional expectation  E[ℰ(out) | internal DDG node (c, d)]  using
 /// ≤ `k` coin flips — the value the credit carries.  One flip turns the internal
 /// node (c, d) into its two children (c+1, 2d) and (c+1, 2d+1), each w.p. ½.
-pub open spec fn fldr_f(t: Ddg, e: spec_fn(real) -> real, c: nat, d: nat, k: nat) -> real
+pub open spec fn fldr_f(t: Ddg, e: spec_fn(nat) -> real, c: nat, d: nat, k: nat) -> real
     decreases k, 0nat,
 {
     if k == 0 {
@@ -149,12 +149,12 @@ pub open spec fn fldr_f(t: Ddg, e: spec_fn(real) -> real, c: nat, d: nat, k: nat
 /// Classify the node (c, d) just reached: a leaf (d < h(c)) is an accept (output its
 /// label) or a reject (restart at the root); an internal node (d ≥ h(c)) descends,
 /// continuing from relative position d − h(c).
-pub open spec fn fldr_g(t: Ddg, e: spec_fn(real) -> real, c: nat, d: nat, k: nat) -> real
+pub open spec fn fldr_g(t: Ddg, e: spec_fn(nat) -> real, c: nat, d: nat, k: nat) -> real
     decreases k, 1nat,
 {
     if d < (t.h)(c) {
         if (t.lab)(c, d) < t.n {
-            e((t.lab)(c, d) as real)                       // accept
+            e((t.lab)(c, d))                       // accept
         } else {
             fldr_f(t, e, 0, 0, k)                          // reject, restart at root
         }
@@ -168,7 +168,7 @@ pub open spec fn fldr_g(t: Ddg, e: spec_fn(real) -> real, c: nat, d: nat, k: nat
 // (= AC(c,j)), reject leaves contribute RJ(c)·Val_F (Val_F := fldr_f(0,0,F)).
 
 /// Σ_{d<j} fldr_g(t,e,c,d,F).
-pub open spec fn fldr_vs(t: Ddg, e: spec_fn(real) -> real, c: nat, j: nat, k: nat) -> real
+pub open spec fn fldr_vs(t: Ddg, e: spec_fn(nat) -> real, c: nat, j: nat, k: nat) -> real
     decreases j,
 {
     if j == 0 { 0real }
@@ -176,7 +176,7 @@ pub open spec fn fldr_vs(t: Ddg, e: spec_fn(real) -> real, c: nat, j: nat, k: na
 }
 
 /// Σ_{d<j} fldr_f(t,e,c,d,F).
-pub open spec fn fldr_vfsum(t: Ddg, e: spec_fn(real) -> real, c: nat, j: nat, k: nat) -> real
+pub open spec fn fldr_vfsum(t: Ddg, e: spec_fn(nat) -> real, c: nat, j: nat, k: nat) -> real
     decreases j,
 {
     if j == 0 { 0real }
@@ -184,7 +184,7 @@ pub open spec fn fldr_vfsum(t: Ddg, e: spec_fn(real) -> real, c: nat, j: nat, k:
 }
 
 /// Σ_{d<j} ( fldr_g(t,e,c,2d,F) + fldr_g(t,e,c,2d+1,F) ).
-pub open spec fn fldr_vpairsum(t: Ddg, e: spec_fn(real) -> real, c: nat, j: nat, k: nat) -> real
+pub open spec fn fldr_vpairsum(t: Ddg, e: spec_fn(nat) -> real, c: nat, j: nat, k: nat) -> real
     decreases j,
 {
     if j == 0 { 0real }
@@ -196,14 +196,14 @@ pub open spec fn fldr_vpairsum(t: Ddg, e: spec_fn(real) -> real, c: nat, j: nat,
 }
 
 /// Σ_{d<j, lab(c,d)<n} ℰ(lab(c,d))  — the accept-leaf value sum at level c.
-pub open spec fn fldr_ac(t: Ddg, e: spec_fn(real) -> real, c: nat, j: nat) -> real
+pub open spec fn fldr_ac(t: Ddg, e: spec_fn(nat) -> real, c: nat, j: nat) -> real
     decreases j,
 {
     if j == 0 {
         0real
     } else {
         fldr_ac(t, e, c, (j - 1) as nat)
-            + (if (t.lab)(c, (j - 1) as nat) < t.n { e((t.lab)(c, (j - 1) as nat) as real) } else { 0real })
+            + (if (t.lab)(c, (j - 1) as nat) < t.n { e((t.lab)(c, (j - 1) as nat)) } else { 0real })
     }
 }
 
@@ -212,14 +212,14 @@ pub open spec fn fldr_ac(t: Ddg, e: spec_fn(real) -> real, c: nat, j: nat) -> re
 // the double sum over (level, position) is then accumulated by induction on levels.
 
 /// Σ_{ℓ<n} count(c,ℓ,j)·ℰ(ℓ)  — the per-level accept sum grouped by label.
-pub open spec fn fldr_sumlab(t: Ddg, e: spec_fn(real) -> real, c: nat, j: nat, n: nat) -> real
+pub open spec fn fldr_sumlab(t: Ddg, e: spec_fn(nat) -> real, c: nat, j: nat, n: nat) -> real
     decreases n,
 {
     if n == 0 {
         0real
     } else {
         fldr_sumlab(t, e, c, j, (n - 1) as nat)
-            + (l_lbl_cnt_upto(t, c, (n - 1) as nat, j) as real) * e((n - 1) as real)
+            + (l_lbl_cnt_upto(t, c, (n - 1) as nat, j) as real) * e((n - 1) as nat)
     }
 }
 
@@ -227,7 +227,7 @@ pub open spec fn fldr_sumlab(t: Ddg, e: spec_fn(real) -> real, c: nat, j: nat, n
 // ewenc(K) = Σ_{c=1}^K AC(c,h(c))·2^{K−c}  equals  Σ_{ℓ<n} weights(ℓ)·ℰ(ℓ).
 
 /// Σ_{c=1}^{c} AC(c,h(c))·2^{K−c}  — e-weighted accept-leaf encoding over levels 1..c.
-pub open spec fn fldr_ewenc(t: Ddg, e: spec_fn(real) -> real, c: nat) -> real
+pub open spec fn fldr_ewenc(t: Ddg, e: spec_fn(nat) -> real, c: nat) -> real
     decreases c,
 {
     if c == 0 {
@@ -239,14 +239,14 @@ pub open spec fn fldr_ewenc(t: Ddg, e: spec_fn(real) -> real, c: nat) -> real
 }
 
 /// Σ_{ℓ<n} wenc(ℓ,c)·ℰ(ℓ)  — the per-label weight encoding summed over labels.
-pub open spec fn fldr_rhs_acc(t: Ddg, e: spec_fn(real) -> real, c: nat, n: nat) -> real
+pub open spec fn fldr_rhs_acc(t: Ddg, e: spec_fn(nat) -> real, c: nat, n: nat) -> real
     decreases n,
 {
     if n == 0 {
         0real
     } else {
         fldr_rhs_acc(t, e, c, (n - 1) as nat)
-            + (w_of_lbl_to_l(t, (n - 1) as nat, c) as real) * e((n - 1) as real)
+            + (w_of_lbl_to_l(t, (n - 1) as nat, c) as real) * e((n - 1) as nat)
     }
 }
 
@@ -260,20 +260,20 @@ pub open spec fn fldr_wsum_nat(t: Ddg, j: nat) -> nat
 }
 
 /// Σ_{i<j} weights(i)·ℰ(i)   (real).
-pub open spec fn fldr_wsum(t: Ddg, e: spec_fn(real) -> real, j: nat) -> real
+pub open spec fn fldr_wsum(t: Ddg, e: spec_fn(nat) -> real, j: nat) -> real
     decreases j,
 {
     if j == 0 {
         0real
     } else {
-        fldr_wsum(t, e, (j - 1) as nat) + (t.weights)((j - 1) as nat) as real * e((j - 1) as real)
+        fldr_wsum(t, e, (j - 1) as nat) + (t.weights)((j - 1) as nat) as real * e((j - 1) as nat)
     }
 }
 
 /// The expectation of `e` (ℰ) over the discrete distribution encoded by the weights,
 /// i.e. 𝔼_{i~p}[ℰ(i)] with p_i = aᵢ/m:  Σ_{i<n} (aᵢ/m)·ℰ(i) = (1/m)·Σ_{i<n} aᵢ·ℰ(i).
 /// The sampler precondition requires the credit ε to dominate this expectation.
-pub open spec fn fldr_exp(t: Ddg, e: spec_fn(real) -> real) -> real {
+pub open spec fn fldr_exp(t: Ddg, e: spec_fn(nat) -> real) -> real {
     fldr_wsum(t, e, t.n) / (t.m as real)
 }
 
@@ -406,7 +406,7 @@ pub open spec fn fldr_tr(t: Ddg, c: nat) -> real
 }
 
 /// Accept tail:  atr(c) = Σ_{c'=c}^K AC(c',h(c'))·2^{−(c'−c)} = AC(c,h(c)) + ½·atr(c+1).
-pub open spec fn fldr_atr(t: Ddg, e: spec_fn(real) -> real, c: nat) -> real
+pub open spec fn fldr_atr(t: Ddg, e: spec_fn(nat) -> real, c: nat) -> real
     decreases t.levels + 1 - c,
 {
     if c > t.levels {
@@ -496,18 +496,18 @@ pub fn pow2_exec(k: u64) -> (r: u64)
 /// by the value credit, almost-sure termination by the failure-probability credit.
 pub fn sample_fldr(
     tab: &FldrTable,
-    Ghost(e): Ghost<spec_fn(real) -> real>,
+    Ghost(e): Ghost<spec_fn(nat) -> real>,
     Tracked(input_credit): Tracked<ErrorCreditResource>,
     Ghost(eps): Ghost<real>,
 ) -> ((value, out_credit): (u64, Tracked<ErrorCreditResource>))
     requires
         tab.wf(),
-        forall |x: real| (#[trigger] e(x)) >= 0real,
+        forall |x: nat| (#[trigger] e(x)) >= 0real,
         eps >= fldr_exp(tab@, e),
         input_credit@ =~= (Value { car: eps }),
     ensures
         value < tab.n,
-        out_credit@@ =~= (Value { car: e(value as real) }),
+        out_credit@@ =~= (Value { car: e(value as nat) }),
 {
     let ghost t = tab@;
     proof { lemma_fldr_exp_nonneg(t, e); }       // ⇒ eps ≥ 0, for ec_combine below
@@ -536,7 +536,7 @@ pub fn sample_fldr(
             tab.wf(),
             (c as nat) < tab.levels as nat,
             (d as nat) + (t.h)(c as nat) < ddg_nodes(t, c as nat),
-            forall |x: real| (#[trigger] e(x)) >= 0real,
+            forall |x: nat| (#[trigger] e(x)) >= 0real,
             credit@ =~= (Value { car: g_ce }),
             g_ce >= fldr_f(t, e, c as nat, d as nat, k) + fldr_fail_f(t, c as nat, d as nat, k),
         decreases k,
@@ -550,12 +550,12 @@ pub fn sample_fldr(
         let ghost cn = c as nat;
         let ghost dn = d as nat;
         // coin alloc: b ↦ fldr_g(cn+1, 2d+b, k−1) + fldr_fail_g(cn+1, 2d+b, k−1)
-        let ghost alloc = |x: real| {
-            let d1: nat = if x == 1real { 2 * dn + 1 } else { 2 * dn };
+        let ghost alloc = |x: nat| {
+            let d1: nat = if x == 1 { 2 * dn + 1 } else { 2 * dn };
             fldr_g(t, e, cn + 1, d1, (k0 - 1) as nat) + fldr_fail_g(t, cn + 1, d1, (k0 - 1) as nat)
         };
         proof {
-            assert forall |i: nat| (#[trigger] alloc(i as real)) >= 0real by {
+            assert forall |i: nat| (#[trigger] alloc(i)) >= 0real by {
                 lemma_fldr_g_nonneg(t, e, cn + 1, 2 * dn, (k0 - 1) as nat);
                 lemma_fldr_g_nonneg(t, e, cn + 1, 2 * dn + 1, (k0 - 1) as nat);
                 lemma_fldr_fail_g_bounds(t, cn + 1, 2 * dn, (k0 - 1) as nat);
@@ -565,16 +565,16 @@ pub fn sample_fldr(
             let ghost fg1 = fldr_g(t, e, cn + 1, 2 * dn + 1, (k0 - 1) as nat);
             let ghost lg0 = fldr_fail_g(t, cn + 1, 2 * dn, (k0 - 1) as nat);
             let ghost lg1 = fldr_fail_g(t, cn + 1, 2 * dn + 1, (k0 - 1) as nat);
-            assert((alloc(0real) + alloc(1real)) / 2real
+            assert((alloc(0) + alloc(1)) / 2real
                 == fldr_f(t, e, cn, dn, k0) + fldr_fail_f(t, cn, dn, k0)) by(nonlinear_arith)
                 requires
-                    alloc(0real) == fg0 + lg0, alloc(1real) == fg1 + lg1,
+                    alloc(0) == fg0 + lg0, alloc(1) == fg1 + lg1,
                     fldr_f(t, e, cn, dn, k0) == (fg0 + fg1) / 2real,
                     fldr_fail_f(t, cn, dn, k0) == (lg0 + lg1) / 2real;
         }
 
         let (b, Tracked(out)) = rand_2_u64(Tracked(credit), Ghost(alloc));
-        proof { credit = out; g_ce = alloc(b as real); k = (k0 - 1) as nat; }
+        proof { credit = out; g_ce = alloc(b as nat); k = (k0 - 1) as nat; }
 
         // descend one level:  c ← c+1,  d ← 2d + b.  (2d can't overflow:
         // d < N(cn) ≤ 2^cn ≤ 2^levels ≤ 2^62.)
@@ -588,7 +588,7 @@ pub fn sample_fldr(
         // g_ce now tracks the child node (c, d); d < N(c) keeps the loop invariant,
         // and N(c) ≤ 2^c ≤ 2^levels ≤ usize::MAX makes the Vec indices below safe.
         proof {
-            assert(alloc(b as real)
+            assert(alloc(b as nat)
                 == fldr_g(t, e, cn + 1, d as nat, k)
                    + fldr_fail_g(t, cn + 1, d as nat, k));
             assert((d as nat) < ddg_nodes(t, cn + 1)) by(nonlinear_arith)
@@ -608,7 +608,7 @@ pub fn sample_fldr(
             // leaf at (c, d):  lab[c][d] is the label reached
             let lab = tab.lab[c as usize][d as usize];
             if lab < tab.n {
-                proof { assert(g_ce == e((lab as nat) as real)); }   // accept: fldr_g = ℰ(lab)
+                proof { assert(g_ce == e(lab as nat)); }   // accept: fldr_g = ℰ(lab)
                 return (lab, Tracked(credit));
             } else {
                 // reject → restart at the root
@@ -959,15 +959,15 @@ pub fn fldr_preprocess(weights: Vec<u64>, m: u64, levels: u64) -> (tab: FldrTabl
 pub fn run_fldr_zero() -> (ret: u64)
     ensures ret < 3,
 {
-    let ghost e = |x: real| 0real;
+    let ghost e = |x: nat| 0real;
     let Tracked(credit) = thin_air();
     let ghost eps = choose |sv: real|
         sv > 0real && (credit@ =~= (Value { car: sv }));
     proof {
-        assert((7real * e(0real) + 4real * e(1real) + 8real * e(2real)) / 19real == 0real)
+        assert((7real * e(0nat) + 4real * e(1nat) + 8real * e(2nat)) / 19real == 0real)
             by(nonlinear_arith)
-            requires e(0real) == 0real, e(1real) == 0real, e(2real) == 0real;
-        assert(eps >= (7real * e(0real) + 4real * e(1real) + 8real * e(2real)) / 19real);  // eps > 0 ≥ 0
+            requires e(0nat) == 0real, e(1nat) == 0real, e(2nat) == 0real;
+        assert(eps >= (7real * e(0nat) + 4real * e(1nat) + 8real * e(2nat)) / 19real);  // eps > 0 ≥ 0
     }
     let (r, _) = sample_748(Ghost(e), Tracked(credit), Ghost(eps));
     r
@@ -983,17 +983,17 @@ pub fn example_fldr() -> (ret: u64)
 /// Derive the finite spec from general FLDR spec
 #[verifier::spinoff_prover]
 pub fn sample_748(
-    Ghost(e): Ghost<spec_fn(real) -> real>,
+    Ghost(e): Ghost<spec_fn(nat) -> real>,
     Tracked(input_credit): Tracked<ErrorCreditResource>,
     Ghost(eps): Ghost<real>,
 ) -> ((value, out_credit): (u64, Tracked<ErrorCreditResource>))
     requires
-        forall |x: real| (#[trigger] e(x)) >= 0real,
-        eps >= (7real * e(0real) + 4real * e(1real) + 8real * e(2real)) / 19real,
+        forall |x: nat| (#[trigger] e(x)) >= 0real,
+        eps >= (7real * e(0nat) + 4real * e(1nat) + 8real * e(2nat)) / 19real,
         input_credit@ =~= (Value { car: eps }),
     ensures
         value < 3,
-        out_credit@@ =~= (Value { car: e(value as real) }),
+        out_credit@@ =~= (Value { car: e(value as nat) }),
 {
     let mut w: Vec<u64> = Vec::new();
     w.push(7);

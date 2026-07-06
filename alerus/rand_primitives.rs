@@ -31,21 +31,21 @@ use crate::extern_spec::ubig_view;
 /// Recursive sum of credit_alloc over [0, n)
 /// credit_alloc(i) is the error credit allocated to outcome i
 /// Defining this using `fold_left` was not that pleasant to work with
-pub open spec fn sum_credit(credit_alloc: spec_fn(real) -> real, n: nat) -> real
+pub open spec fn sum_credit(credit_alloc: spec_fn(nat) -> real, n: nat) -> real
     decreases n,
 {
     if n == 0 { 0real }
-    else { sum_credit(credit_alloc, (n - 1) as nat) + credit_alloc((n - 1) as real) }
+    else { sum_credit(credit_alloc, (n - 1) as nat) + credit_alloc((n - 1) as nat) }
 }
 
 /// Average of credit_alloc over [0, bound)
 /// This is the expected error credit when sampling uniformly from [0, bound)
-pub open spec fn average(bound: u64, credit_alloc: spec_fn(real) -> real) -> real {
+pub open spec fn average(bound: u64, credit_alloc: spec_fn(nat) -> real) -> real {
     sum_credit(credit_alloc, bound as nat) / bound as real
 }
 
 /// Average over [0, bound) with nat bound.
-pub open spec fn average_nat(bound: nat, credit_alloc: spec_fn(real) -> real) -> real {
+pub open spec fn average_nat(bound: nat, credit_alloc: spec_fn(nat) -> real) -> real {
     sum_credit(credit_alloc, bound) / bound as real
 }
 
@@ -53,18 +53,18 @@ pub open spec fn average_nat(bound: nat, credit_alloc: spec_fn(real) -> real) ->
 pub fn rand_u64(
     bound: u64,
     Tracked(e1): Tracked<ErrorCreditResource>,
-    Ghost(e2): Ghost<spec_fn(real) -> real>,
+    Ghost(e2): Ghost<spec_fn(nat) -> real>,
 ) -> ((n, out_credit): (u64, Tracked<ErrorCreditResource>))
     requires
       // ε₁ ≥ 𝔼(ℰ₂)
       bound > 0,
-      forall |i: nat| (#[trigger] e2(i as real)) >= 0real,
+      forall |i: nat| (#[trigger] e2(i)) >= 0real,
       exists |eps: real| (Value { car: eps } =~= e1@) && eps >= average(bound, e2),
     ensures
       // Result is in range [0, bound)
       n < bound,
       // owns ↯(ℰ₂(n))
-      (Value { car: e2(n as real) }) =~= out_credit@@,
+      (Value { car: e2(n as nat) }) =~= out_credit@@,
 {
     let bound_ubig = random::ubig_from_u64(bound);
     let (n_ubig, out_credit) = rand_ubig(&bound_ubig, Tracked(e1), Ghost(e2));
@@ -80,16 +80,16 @@ pub fn rand_u64(
 pub fn rand_ubig(
     bound: &UBig,
     Tracked(e1): Tracked<ErrorCreditResource>,
-    Ghost(e2): Ghost<spec_fn(real) -> real>,
+    Ghost(e2): Ghost<spec_fn(nat) -> real>,
 ) -> ((n, out_credit): (UBig, Tracked<ErrorCreditResource>))
     requires
         ubig_view(bound) > 0,
-        forall |i: nat| (#[trigger] e2(i as real)) >= 0real,
+        forall |i: nat| (#[trigger] e2(i)) >= 0real,
         exists |eps: real| (Value { car: eps } =~= e1@)
             && eps >= average_nat(ubig_view(bound), e2),
     ensures
         ubig_view(&n) < ubig_view(bound),
-        (Value { car: e2(ubig_view(&n) as real) }) =~= out_credit@@,
+        (Value { car: e2(ubig_view(&n)) }) =~= out_credit@@,
 {
     let val = random::rand_ubig(bound.clone());
     (val, Tracked::assume_new())
@@ -111,8 +111,8 @@ pub fn thin_air() -> (ret: Tracked<ErrorCreditResource>)
 }
 
 
-pub open spec fn flip_credit_alloc(x: real) -> real {
-    if x == 1real {
+pub open spec fn flip_credit_alloc(x: nat) -> real {
+    if x == 1 {
         0real
     } else {
         1real
@@ -124,21 +124,21 @@ pub open spec fn flip_credit_alloc(x: real) -> real {
 #[inline(always)]
 pub fn rand_2_u64(
     Tracked(input_credit): Tracked<ErrorCreditResource>,
-    Ghost(credit_alloc): Ghost<spec_fn(real) -> real>,
+    Ghost(credit_alloc): Ghost<spec_fn(nat) -> real>,
 ) -> ((n, out_credit): (u64, Tracked<ErrorCreditResource>))
     requires
-        forall |i: nat| (#[trigger] credit_alloc(i as real)) >= 0real,
+        forall |i: nat| (#[trigger] credit_alloc(i)) >= 0real,
         exists |eps: real| (Value { car: eps } =~= input_credit@) &&
-            eps >= (credit_alloc(0real) + credit_alloc(1real)) / 2real,
+            eps >= (credit_alloc(0) + credit_alloc(1)) / 2real,
     ensures
         n == 0 || n == 1,
-        (Value { car: credit_alloc(n as real) }) =~= out_credit@@,
+        (Value { car: credit_alloc(n as nat) }) =~= out_credit@@,
 {
     // Prove that average(2, credit_alloc) == (credit_alloc(0) + credit_alloc(1)) / 2
     // by unfolding sum_credit using asserts
-    assert(average(2u64, credit_alloc) == (credit_alloc(0real) + credit_alloc(1real)) / 2real) by {
-        // assert(sum_credit(credit_alloc, 2) == sum_credit(credit_alloc, 1) + credit_alloc(1real));
-        assert(sum_credit(credit_alloc, 1) == sum_credit(credit_alloc, 0) + credit_alloc(0real)); // OBSERVE
+    assert(average(2u64, credit_alloc) == (credit_alloc(0) + credit_alloc(1)) / 2real) by {
+        // assert(sum_credit(credit_alloc, 2) == sum_credit(credit_alloc, 1) + credit_alloc(1));
+        assert(sum_credit(credit_alloc, 1) == sum_credit(credit_alloc, 0) + credit_alloc(0)); // OBSERVE
         // assert(sum_credit(credit_alloc, 0) == 0real);
     };
     let (val, output_credit) = rand_u64(2u64, Tracked(input_credit), Ghost(credit_alloc));
@@ -154,8 +154,8 @@ pub fn flip(Tracked(input_credit): Tracked<ErrorCreditResource>) -> (ret: u64)
     ensures
         ret == 1,
 {
-    assert(flip_credit_alloc(0real) + flip_credit_alloc(1real) == 1real);
-    let (val, Tracked(outcome_credit)) = rand_2_u64(Tracked(input_credit), Ghost(|x: real| flip_credit_alloc(x)));
+    assert(flip_credit_alloc(0nat) + flip_credit_alloc(1nat) == 1real);
+    let (val, Tracked(outcome_credit)) = rand_2_u64(Tracked(input_credit), Ghost(|x: nat| flip_credit_alloc(x)));
 
     proof {
         if (val != 1) {
@@ -180,12 +180,12 @@ pub fn flip_and(Tracked(credit): Tracked<ErrorCreditResource>) -> (ret: bool)
 {
     let (b1, Tracked(c1)) = rand_2_u64(
         Tracked(credit),
-        Ghost(|x: real| if x == 1real { 1real / 2real } else { 0real }),
+        Ghost(|x: nat| if x == 1 { 1real / 2real } else { 0real }),
     );
 
     let (b2, Tracked(c2)) = rand_2_u64(
         Tracked(c1),
-        Ghost(|x: real| if b1 == 1 && x == 1real { 1real } else { 0real }),
+        Ghost(|x: nat| if b1 == 1 && x == 1 { 1real } else { 0real }),
     );
 
     proof {

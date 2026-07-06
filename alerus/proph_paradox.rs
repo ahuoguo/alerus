@@ -36,15 +36,15 @@ verus! {
 /// The point is that the average over `x in {0, 1}` is `1/2` whenever
 /// `pv in {0, 1}`, but after resolving the prophecy to the sampled `val`,
 /// the per-outcome credit on the "taken" branch collapses to exactly 1.
-pub open spec fn credit_alloc_proph(pv: u64, x: real) -> real {
-    if x == pv as real { 1real } else { 0real }
+pub open spec fn credit_alloc_proph(pv: u64, x: nat) -> real {
+    if x == pv as nat { 1real } else { 0real }
 }
 
 pub proof fn credit_alloc_proph_sum(pv: u64)
     requires
         pv == 0 || pv == 1,
     ensures
-        credit_alloc_proph(pv, 0real) + credit_alloc_proph(pv, 1real) == 1real,
+        credit_alloc_proph(pv, 0nat) + credit_alloc_proph(pv, 1nat) == 1real,
 {
 }
 
@@ -70,11 +70,11 @@ pub fn safe_with_half_credit(Tracked(input_credit): Tracked<ErrorCreditResource>
     // later (in this case, the result of `rand 1`).
     let p: Prophecy<u64> = Prophecy::<u64>::new();
 
-    let credit_alloc: Ghost<spec_fn(real) -> real> =
-        Ghost(|x: real| credit_alloc_proph(p@, x));
+    let credit_alloc: Ghost<spec_fn(nat) -> real> =
+        Ghost(|x: nat| credit_alloc_proph(p@, x));
 
     proof {
-        assert(forall |i: nat| #[trigger] (credit_alloc@)(i as real) >= 0real);
+        assert(forall |i: nat| #[trigger] (credit_alloc@)(i) >= 0real);
         if p@ == 0 || p@ == 1 {
             credit_alloc_proph_sum(p@);
         }
@@ -90,8 +90,8 @@ pub fn safe_with_half_credit(Tracked(input_credit): Tracked<ErrorCreditResource>
     // because `p@ == val`.
     proof {
         assert(p@ == val);
-        assert(val as real == p@ as real);
-        assert((credit_alloc@)(val as real) == 1real);
+        assert(val as nat == p@ as nat);
+        assert((credit_alloc@)(val as nat) == 1real);
         assert(outcome_credit@ =~= (Value { car: 1real }));
         ec_contradict(&outcome_credit);
     }

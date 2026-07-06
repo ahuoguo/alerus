@@ -240,8 +240,8 @@ proof fn lemma_div_gt_1(a: real, b: real)
 /// Credit allocation for uniform threshold sampling.
 /// - For outcomes i < threshold: credit = 0 (accepted, no amplification needed)
 /// - For outcomes i >= threshold: credit = amp * eps where amp = bound / (bound - threshold)
-pub open spec fn threshold_credit_alloc(bound: u64, threshold: u64, eps: real) -> spec_fn(real) -> real {
-    |i: real| if i < threshold as real { 0real } else { (bound as real / (bound - threshold) as real) * eps }
+pub open spec fn threshold_credit_alloc(bound: u64, threshold: u64, eps: real) -> spec_fn(nat) -> real {
+    |i: nat| if i < threshold as nat { 0real } else { (bound as real / (bound - threshold) as real) * eps }
 }
 
 /// Lemma: sum_credit(threshold_credit_alloc, n) for n <= threshold is 0,
@@ -265,18 +265,18 @@ proof fn lemma_sum_threshold(bound: u64, threshold: u64, eps: real, n: nat)
     } else {
         lemma_sum_threshold(bound, threshold, eps, (n - 1) as nat);
         let prev_sum = sum_credit(credit_alloc, (n - 1) as nat);
-        let curr_credit = credit_alloc((n - 1) as real);
+        let curr_credit = credit_alloc((n - 1) as nat);
 
         if n <= threshold {
             // n-1 < threshold, so credit_alloc(n-1) = 0
-            assert(((n - 1) as real) < threshold as real);
+            assert(((n - 1) as nat) < threshold as nat);
             assert(curr_credit == 0real);
             // prev_sum == 0 by IH (since n-1 <= threshold)
         } else if (n - 1) as nat <= threshold as nat {
             // Transition case: n > threshold but n-1 <= threshold
             // So n-1 == threshold, meaning n == threshold + 1
             // credit_alloc(n-1) = credit_alloc(threshold) = amp * eps (since threshold >= threshold)
-            assert(!(((n - 1) as real) < threshold as real));
+            assert(!(((n - 1) as nat) < threshold as nat));
             assert(curr_credit == amp * eps);
             // prev_sum == 0 by IH (since n-1 <= threshold)
             assert(prev_sum == 0real);
@@ -289,7 +289,7 @@ proof fn lemma_sum_threshold(bound: u64, threshold: u64, eps: real, n: nat)
             assert(sum_credit(credit_alloc, n) == (n - threshold) as real * amp * eps);
         } else {
             // Both in rejected region: n > threshold and n-1 > threshold
-            assert(!(((n - 1) as real) < threshold as real));
+            assert(!(((n - 1) as nat) < threshold as nat));
             assert(curr_credit == amp * eps);
             // prev_sum == (n-1-threshold) * amp * eps by IH
             // sum = prev_sum + amp * eps = (n-threshold) * amp * eps
@@ -386,16 +386,16 @@ impl SamplingScheme for UniformThresholdScheme {
 
         proof {
             lemma_average_bound(self.bound, self.threshold, eps);
-            assert forall |i: nat| (#[trigger] credit_alloc(i as real)) >= 0real by {
-                if (i as real) < self.threshold as real {
+            assert forall |i: nat| (#[trigger] credit_alloc(i)) >= 0real by {
+                if i < self.threshold as nat {
                 } else {
-                    assert(credit_alloc(i as real) == (self.bound as real / (self.bound - self.threshold) as real) * eps);
-                    assert(credit_alloc(i as real) >= 0real) by(nonlinear_arith)
+                    assert(credit_alloc(i) == (self.bound as real / (self.bound - self.threshold) as real) * eps);
+                    assert(credit_alloc(i) >= 0real) by(nonlinear_arith)
                         requires
                             eps > 0real,
                             self.bound as real > 0real,
                             (self.bound - self.threshold) as real > 0real,
-                            credit_alloc(i as real) == (self.bound as real / (self.bound - self.threshold) as real) * eps;
+                            credit_alloc(i) == (self.bound as real / (self.bound - self.threshold) as real) * eps;
                 }
             };
         }
@@ -404,7 +404,7 @@ impl SamplingScheme for UniformThresholdScheme {
 
         if val < self.threshold {
             proof {
-                assert(credit_alloc(val as real) == 0real);
+                assert(credit_alloc(val as nat) == 0real);
             }
             (val, SampleOutcome::Accepted)
         } else {
@@ -428,8 +428,8 @@ impl SamplingScheme for UniformThresholdScheme {
 ///   rejected (v ≥ threshold) → amp·eps + eps_avg  (fuels next iteration)
 pub open spec fn mixed_credit_alloc(
     threshold: u64, amp: real, e: spec_fn(u64) -> real, eps: real, eps_avg: real,
-) -> spec_fn(real) -> real {
-    |v: real| if v < threshold as real { e(v.floor() as u64) } else { amp * eps + eps_avg }
+) -> spec_fn(nat) -> real {
+    |v: nat| if v < threshold as nat { e(v as u64) } else { amp * eps + eps_avg }
 }
 
 /// For n <= threshold, mixed_credit_alloc agrees with |v| e(v.floor() as u64), so sums match.
@@ -440,7 +440,7 @@ proof fn lemma_sum_mixed_lower(
         n <= threshold,
     ensures
         sum_credit(mixed_credit_alloc(threshold, amp, e, eps, eps_avg), n) ==
-        sum_credit(|v: real| e(v.floor() as u64), n),
+        sum_credit(|v: nat| e(v as u64), n),
     decreases n,
 {
     let alloc = mixed_credit_alloc(threshold, amp, e, eps, eps_avg);
@@ -449,19 +449,19 @@ proof fn lemma_sum_mixed_lower(
     } else {
         lemma_sum_mixed_lower(threshold, amp, e, eps, eps_avg, (n - 1) as nat);
         // Step index n-1 < threshold: both credit fns return e(floor(n-1))
-        let ghost idx = (n - 1) as real;
-        assert(idx < threshold as real);
+        let ghost idx = (n - 1) as nat;
+        assert(idx < threshold as nat);
         // mixed_credit_alloc takes the then-branch when idx < threshold
-        assert(alloc(idx) == e(idx.floor() as u64)) by {
-            assert(idx < threshold as real);
+        assert(alloc(idx) == e(idx as u64)) by {
+            assert(idx < threshold as nat);
         };
-        assert((|v: real| e(v.floor() as u64))(idx) == e(idx.floor() as u64));
+        assert((|v: nat| e(v as u64))(idx) == e(idx as u64));
         // Unfold sum_credit on both sides so the solver sees the equality
         assert(sum_credit(alloc, n) ==
                sum_credit(alloc, (n - 1) as nat) + alloc(idx));
-        assert(sum_credit(|v: real| e(v.floor() as u64), n) ==
-               sum_credit(|v: real| e(v.floor() as u64), (n - 1) as nat) +
-               (|v: real| e(v.floor() as u64))(idx));
+        assert(sum_credit(|v: nat| e(v as u64), n) ==
+               sum_credit(|v: nat| e(v as u64), (n - 1) as nat) +
+               (|v: nat| e(v as u64))(idx));
     }
 }
 
@@ -484,18 +484,18 @@ proof fn lemma_sum_mixed_upper(
         // n > threshold, so n - 1 >= threshold
         lemma_sum_mixed_upper(threshold, amp, e, eps, eps_avg, (n - 1) as nat);
         // Step index n-1 >= threshold: credit = amp*eps+eps_avg
-        assert(!(((n - 1) as real) < threshold as real));
-        assert(alloc((n - 1) as real) == amp * eps + eps_avg);
+        assert(!(((n - 1) as nat) < threshold as nat));
+        assert(alloc((n - 1) as nat) == amp * eps + eps_avg);
         let ghost x = amp * eps + eps_avg;
         let ghost base = sum_credit(alloc, threshold as nat);
         // Unfold sum_credit(alloc, n) so nonlinear_arith can use it
-        assert(sum_credit(alloc, n) == sum_credit(alloc, (n - 1) as nat) + alloc((n - 1) as real));
+        assert(sum_credit(alloc, n) == sum_credit(alloc, (n - 1) as nat) + alloc((n - 1) as nat));
         // IH + step → (n-1-threshold+1) * x = (n-threshold) * x
         assert(sum_credit(alloc, n) == base + (n - threshold) as real * x) by(nonlinear_arith)
             requires
                 sum_credit(alloc, (n - 1) as nat) == base + ((n - 1) as nat - threshold as nat) as real * x,
-                alloc((n - 1) as real) == x,
-                sum_credit(alloc, n) == sum_credit(alloc, (n - 1) as nat) + alloc((n - 1) as real),
+                alloc((n - 1) as nat) == x,
+                sum_credit(alloc, n) == sum_credit(alloc, (n - 1) as nat) + alloc((n - 1) as nat),
                 n > threshold,
             ;
     }
@@ -517,15 +517,15 @@ proof fn lemma_mixed_alloc_average(
         amp == bound as real / (bound - threshold) as real,
         eps > 0real,
         eps_avg >= 0real,
-        eps_avg >= average(threshold, |v: real| e(v.floor() as u64)),
+        eps_avg >= average(threshold, |v: nat| e(v as u64)),
     ensures
         eps + eps_avg >= average(bound, mixed_credit_alloc(threshold, amp, e, eps, eps_avg)),
 {
     let alloc = mixed_credit_alloc(threshold, amp, e, eps, eps_avg);
-    let ghost e_real_sum = sum_credit(|v: real| e(v.floor() as u64), threshold as nat);
+    let ghost e_real_sum = sum_credit(|v: nat| e(v as u64), threshold as nat);
 
     // Unfold average definitions so nonlinear_arith can use them
-    assert(average(threshold, |v: real| e(v.floor() as u64)) == e_real_sum / threshold as real);
+    assert(average(threshold, |v: nat| e(v as u64)) == e_real_sum / threshold as real);
     assert(average(bound, alloc) == sum_credit(alloc, bound as nat) / bound as real);
     // Derive: eps_avg >= e_real_sum / threshold  (by transitivity from average defn)
     assert(eps_avg >= e_real_sum / threshold as real);
@@ -595,7 +595,7 @@ pub fn bounded_rejection_exp_preserving(
         forall |v: u64| (#[trigger] e(v)) >= 0real,
         input_credit@ =~= (Value { car: eps + eps_avg }),
         eps * pow(scheme.amp(), depth) >= 1real,
-        eps_avg >= average(scheme.threshold, |v: real| e(v.floor() as u64)),
+        eps_avg >= average(scheme.threshold, |v: nat| e(v as u64)),
     ensures
         value < scheme.threshold,
         out_credit@@ =~= (Value { car: e(value) }),
@@ -613,9 +613,9 @@ pub fn bounded_rejection_exp_preserving(
             ec_contradict(&input_credit);
         }
         lemma_mixed_alloc_average(scheme.bound, scheme.threshold, amp, e, eps, eps_avg);
-        assert forall |i: nat| (#[trigger] credit_alloc(i as real)) >= 0real by {
-            if (i as real) < scheme.threshold as real {
-                // unfolds to e((i as real).floor() as u64) >= 0
+        assert forall |i: nat| (#[trigger] credit_alloc(i)) >= 0real by {
+            if i < scheme.threshold as nat {
+                // unfolds to e(i as u64) >= 0
             } else {
                 assert(amp * eps + eps_avg >= 0real) by(nonlinear_arith)
                     requires amp > 1real, eps > 0real, eps_avg >= 0real;
@@ -630,19 +630,19 @@ pub fn bounded_rejection_exp_preserving(
     );
 
     if val < scheme.threshold {
-        let ghost vr = val as real;
-        assert(vr < scheme.threshold as real);
-        assert(vr.floor() as u64 == val);
-        // credit_alloc takes then-branch: e(vr.floor() as u64) == e(val)
+        let ghost vr = val as nat;
+        assert(vr < scheme.threshold as nat);
+        assert(vr as u64 == val);
+        // credit_alloc takes then-branch: e(vr as u64) == e(val)
         assert(credit_alloc(vr) == e(val)) by {
-            assert(vr < scheme.threshold as real);
-            assert(vr.floor() as u64 == val);
+            assert(vr < scheme.threshold as nat);
+            assert(vr as u64 == val);
         };
         (val, Tracked(outcome_credit))
     } else {
         let ghost new_eps = amp * eps;
-        assert(credit_alloc(val as real) == new_eps + eps_avg) by {
-            assert(!((val as real) < (scheme.threshold as real)));
+        assert(credit_alloc(val as nat) == new_eps + eps_avg) by {
+            assert(!((val as nat) < (scheme.threshold as nat)));
         };
 
         proof {
@@ -680,7 +680,7 @@ pub fn unbounded_rejection_exp_preserving(
         eps_avg >= 0real,
         forall |v: u64| (#[trigger] e(v)) >= 0real,
         input_credit@ =~= (Value { car: eps_avg }),
-        eps_avg >= average(scheme.threshold, |v: real| e(v.floor() as u64)),
+        eps_avg >= average(scheme.threshold, |v: nat| e(v as u64)),
     ensures
         value < scheme.threshold,
         out_credit@@ =~= (Value { car: e(value) }),

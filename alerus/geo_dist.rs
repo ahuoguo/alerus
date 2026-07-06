@@ -45,9 +45,9 @@ use crate::extern_spec::ExUBig;
 use crate::extern_spec::ubig_view;
 
 /// Credit allocation: outcome 0 → ℰ(0), outcome 1 → 2ε - ℰ(0).
-spec fn geo_dist_credit_alloc(e: spec_fn(nat) -> real, eps: real) -> spec_fn(real) -> real {
-    |outcome: real|
-        if outcome == 0real {
+spec fn geo_dist_credit_alloc(e: spec_fn(nat) -> real, eps: real) -> spec_fn(nat) -> real {
+    |outcome: nat|
+        if outcome == 0 {
             e(0nat)
         } else {
             2real * eps - e(0nat)
@@ -168,8 +168,8 @@ proof fn lemma_geo_dist_average(e: spec_fn(nat) -> real, eps: real)
         eps > 0real,
         2real * eps >= e(0nat),
     ensures
-        eps >= (geo_dist_credit_alloc(e, eps)(0real)
-              + geo_dist_credit_alloc(e, eps)(1real)) / 2real,
+        eps >= (geo_dist_credit_alloc(e, eps)(0nat)
+              + geo_dist_credit_alloc(e, eps)(1nat)) / 2real,
 {}
 
 /// ℰ(v) = 0 if v == 0, else 1. Series = 0.5.

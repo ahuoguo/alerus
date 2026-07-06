@@ -20,8 +20,8 @@ broadcast use {lemma_pow2_pos, lemma_pow2_unfold, lemma_pow2_strictly_increases}
 // Both approximations are non-negative when ℰ ≥ 0.  The f/g split with matching
 // (k, tag) measures mirrors the spec fns' mutual recursion (f tag 0, g tag 1).
 
-pub proof fn lemma_fldr_f_nonneg(t: Ddg, e: spec_fn(real) -> real, c: nat, d: nat, k: nat)
-    requires forall |x: real| (#[trigger] e(x)) >= 0real,
+pub proof fn lemma_fldr_f_nonneg(t: Ddg, e: spec_fn(nat) -> real, c: nat, d: nat, k: nat)
+    requires forall |x: nat| (#[trigger] e(x)) >= 0real,
     ensures fldr_f(t, e, c, d, k) >= 0real,
     decreases k, 0nat,
 {
@@ -31,14 +31,14 @@ pub proof fn lemma_fldr_f_nonneg(t: Ddg, e: spec_fn(real) -> real, c: nat, d: na
     }
 }
 
-pub proof fn lemma_fldr_g_nonneg(t: Ddg, e: spec_fn(real) -> real, c: nat, d: nat, k: nat)
-    requires forall |x: real| (#[trigger] e(x)) >= 0real,
+pub proof fn lemma_fldr_g_nonneg(t: Ddg, e: spec_fn(nat) -> real, c: nat, d: nat, k: nat)
+    requires forall |x: nat| (#[trigger] e(x)) >= 0real,
     ensures fldr_g(t, e, c, d, k) >= 0real,
     decreases k, 1nat,
 {
     if d < (t.h)(c) {
         if (t.lab)(c, d) < t.n {
-            assert(e((t.lab)(c, d) as real) >= 0real);
+            assert(e((t.lab)(c, d)) >= 0real);
         } else {
             lemma_fldr_f_nonneg(t, e, 0, 0, k);
         }
@@ -47,7 +47,7 @@ pub proof fn lemma_fldr_g_nonneg(t: Ddg, e: spec_fn(real) -> real, c: nat, d: na
     }
 }
 
-pub proof fn lemma_fldr_v_pairsum_eq_vs(t: Ddg, e: spec_fn(real) -> real, c: nat, j: nat, k: nat)
+pub proof fn lemma_fldr_v_pairsum_eq_vs(t: Ddg, e: spec_fn(nat) -> real, c: nat, j: nat, k: nat)
     ensures fldr_vpairsum(t, e, c, j, k) == fldr_vs(t, e, c, 2 * j, k),
     decreases j,
 {
@@ -62,7 +62,7 @@ pub proof fn lemma_fldr_v_pairsum_eq_vs(t: Ddg, e: spec_fn(real) -> real, c: nat
     }
 }
 
-pub proof fn lemma_fldr_v_vfsum_half_vpairsum(t: Ddg, e: spec_fn(real) -> real, c: nat, j: nat, k: nat)
+pub proof fn lemma_fldr_v_vfsum_half_vpairsum(t: Ddg, e: spec_fn(nat) -> real, c: nat, j: nat, k: nat)
     ensures fldr_vfsum(t, e, c, j, (k + 1) as nat) == (1real / 2real) * fldr_vpairsum(t, e, c + 1, j, k),
     decreases j,
 {
@@ -82,7 +82,7 @@ pub proof fn lemma_fldr_v_vfsum_half_vpairsum(t: Ddg, e: spec_fn(real) -> real, 
 
 /// Leaf part:  for j ≤ h(c) (all leaves), with labels ≤ n on level c,
 ///   VS(c,j,F) = AC(c,j) + (#reject leaves among first j)·Val_F.
-pub proof fn lemma_fldr_vs_leaf(t: Ddg, e: spec_fn(real) -> real, c: nat, j: nat, k: nat)
+pub proof fn lemma_fldr_vs_leaf(t: Ddg, e: spec_fn(nat) -> real, c: nat, j: nat, k: nat)
     requires
         j <= (t.h)(c),
         forall |d: nat| d < (t.h)(c) ==> #[trigger] (t.lab)(c, d) <= t.n,
@@ -105,7 +105,7 @@ pub proof fn lemma_fldr_vs_leaf(t: Ddg, e: spec_fn(real) -> real, c: nat, j: nat
     }
 }
 
-pub proof fn lemma_fldr_vs_internal(t: Ddg, e: spec_fn(real) -> real, c: nat, m: nat, k: nat)
+pub proof fn lemma_fldr_vs_internal(t: Ddg, e: spec_fn(nat) -> real, c: nat, m: nat, k: nat)
     ensures
         fldr_vs(t, e, c, ((t.h)(c) + m) as nat, k)
             == fldr_vs(t, e, c, (t.h)(c), k) + fldr_vfsum(t, e, c, m, k),
@@ -119,12 +119,12 @@ pub proof fn lemma_fldr_vs_internal(t: Ddg, e: spec_fn(real) -> real, c: nat, m:
 
 /// Adding leaf d=j−1 (label L = lab(c,j−1)) bumps count(c,L,·) by 1, so the
 /// grouped sum gains ℰ(L) iff L < n.
-pub proof fn lemma_fldr_sumlab_step(t: Ddg, e: spec_fn(real) -> real, c: nat, j: nat, n: nat)
+pub proof fn lemma_fldr_sumlab_step(t: Ddg, e: spec_fn(nat) -> real, c: nat, j: nat, n: nat)
     requires j >= 1,
     ensures
         fldr_sumlab(t, e, c, j, n)
             == fldr_sumlab(t, e, c, (j - 1) as nat, n)
-               + (if (t.lab)(c, (j - 1) as nat) < n { e((t.lab)(c, (j - 1) as nat) as real) } else { 0real }),
+               + (if (t.lab)(c, (j - 1) as nat) < n { e((t.lab)(c, (j - 1) as nat)) } else { 0real }),
     decreases n,
 {
     if n > 0 {
@@ -135,8 +135,8 @@ pub proof fn lemma_fldr_sumlab_step(t: Ddg, e: spec_fn(real) -> real, c: nat, j:
             == l_lbl_cnt_upto(t, c, lbl, (j - 1) as nat)
                + (if (t.lab)(c, (j - 1) as nat) == lbl { 1nat } else { 0nat }));
         if (t.lab)(c, (j - 1) as nat) == lbl {
-            assert((l_lbl_cnt_upto(t, c, lbl, j) as real) * e(lbl as real)
-                == (l_lbl_cnt_upto(t, c, lbl, (j - 1) as nat) as real) * e(lbl as real) + e(lbl as real))
+            assert((l_lbl_cnt_upto(t, c, lbl, j) as real) * e(lbl as nat)
+                == (l_lbl_cnt_upto(t, c, lbl, (j - 1) as nat) as real) * e(lbl as nat) + e(lbl as nat))
                 by(nonlinear_arith)
                 requires l_lbl_cnt_upto(t, c, lbl, j) as real == (l_lbl_cnt_upto(t, c, lbl, (j - 1) as nat) as real) + 1real;
         }
@@ -144,21 +144,21 @@ pub proof fn lemma_fldr_sumlab_step(t: Ddg, e: spec_fn(real) -> real, c: nat, j:
 }
 
 /// At j = 0 every count is 0, so the grouped sum is 0.
-pub proof fn lemma_fldr_sumlab_zero(t: Ddg, e: spec_fn(real) -> real, c: nat, n: nat)
+pub proof fn lemma_fldr_sumlab_zero(t: Ddg, e: spec_fn(nat) -> real, c: nat, n: nat)
     ensures fldr_sumlab(t, e, c, 0, n) == 0real,
     decreases n,
 {
     if n > 0 {
         lemma_fldr_sumlab_zero(t, e, c, (n - 1) as nat);
         assert(l_lbl_cnt_upto(t, c, (n - 1) as nat, 0) == 0);
-        assert((l_lbl_cnt_upto(t, c, (n - 1) as nat, 0) as real) * e((n - 1) as real) == 0real)
+        assert((l_lbl_cnt_upto(t, c, (n - 1) as nat, 0) as real) * e((n - 1) as nat) == 0real)
             by(nonlinear_arith)
             requires l_lbl_cnt_upto(t, c, (n - 1) as nat, 0) == 0;
     }
 }
 
 /// Single-level grouping:  AC(c,j) = Σ_{ℓ<n} count(c,ℓ,j)·ℰ(ℓ),  given labels ≤ n.
-pub proof fn lemma_fldr_ac_eq_sumlab(t: Ddg, e: spec_fn(real) -> real, c: nat, j: nat)
+pub proof fn lemma_fldr_ac_eq_sumlab(t: Ddg, e: spec_fn(nat) -> real, c: nat, j: nat)
     requires forall |d: nat| d < j ==> #[trigger] (t.lab)(c, d) <= t.n,
     ensures fldr_ac(t, e, c, j) == fldr_sumlab(t, e, c, j, t.n),
     decreases j,
@@ -170,7 +170,7 @@ pub proof fn lemma_fldr_ac_eq_sumlab(t: Ddg, e: spec_fn(real) -> real, c: nat, j
         lemma_fldr_ac_eq_sumlab(t, e, c, (j - 1) as nat);
         lemma_fldr_sumlab_step(t, e, c, j, t.n);
         let ghost gain = if (t.lab)(c, (j - 1) as nat) < t.n {
-            e((t.lab)(c, (j - 1) as nat) as real)
+            e((t.lab)(c, (j - 1) as nat))
         } else { 0real };
         assert(fldr_ac(t, e, c, j) == fldr_ac(t, e, c, (j - 1) as nat) + gain);
         assert(fldr_sumlab(t, e, c, j, t.n) == fldr_sumlab(t, e, c, (j - 1) as nat, t.n) + gain);
@@ -178,7 +178,7 @@ pub proof fn lemma_fldr_ac_eq_sumlab(t: Ddg, e: spec_fn(real) -> real, c: nat, j
 }
 
 /// One DDG level (value):  VS(c,N(c),F) = AC(c,h(c)) + RJ(c)·Val_F + ½·VS(c+1,N(c+1),F−1).
-pub proof fn lemma_fldr_v_level(t: Ddg, e: spec_fn(real) -> real, c: nat, k: nat)
+pub proof fn lemma_fldr_v_level(t: Ddg, e: spec_fn(nat) -> real, c: nat, k: nat)
     requires
         (t.h)(c) <= ddg_nodes(t, c),
         forall |d: nat| d < (t.h)(c) ==> #[trigger] (t.lab)(c, d) <= t.n,
@@ -201,7 +201,7 @@ pub proof fn lemma_fldr_v_level(t: Ddg, e: spec_fn(real) -> real, c: nat, k: nat
 }
 
 /// rhs_acc(c,n) = rhs_acc(c−1,n) + 2^{K−c}·sumlab(c,h(c),n)   (induction on n).
-pub proof fn lemma_fldr_rhs_acc_step(t: Ddg, e: spec_fn(real) -> real, c: nat, n: nat)
+pub proof fn lemma_fldr_rhs_acc_step(t: Ddg, e: spec_fn(nat) -> real, c: nat, n: nat)
     requires c >= 1,
     ensures
         fldr_rhs_acc(t, e, c, n)
@@ -226,20 +226,20 @@ pub proof fn lemma_fldr_rhs_acc_step(t: Ddg, e: spec_fn(real) -> real, c: nat, n
             by(nonlinear_arith)
             requires
                 fldr_rhs_acc(t, e, c, n)
-                    == fldr_rhs_acc(t, e, c, lbl) + (w_of_lbl_to_l(t, lbl, c) as real) * e(lbl as real),
+                    == fldr_rhs_acc(t, e, c, lbl) + (w_of_lbl_to_l(t, lbl, c) as real) * e(lbl as nat),
                 fldr_rhs_acc(t, e, c, lbl)
                     == fldr_rhs_acc(t, e, (c - 1) as nat, lbl) + p * fldr_sumlab(t, e, c, (t.h)(c), lbl),
                 (w_of_lbl_to_l(t, lbl, c) as real)
                     == (w_of_lbl_to_l(t, lbl, (c - 1) as nat) as real) + (cnt as real) * p,
                 fldr_rhs_acc(t, e, (c - 1) as nat, n)
-                    == fldr_rhs_acc(t, e, (c - 1) as nat, lbl) + (w_of_lbl_to_l(t, lbl, (c - 1) as nat) as real) * e(lbl as real),
+                    == fldr_rhs_acc(t, e, (c - 1) as nat, lbl) + (w_of_lbl_to_l(t, lbl, (c - 1) as nat) as real) * e(lbl as nat),
                 fldr_sumlab(t, e, c, (t.h)(c), n)
-                    == fldr_sumlab(t, e, c, (t.h)(c), lbl) + (cnt as real) * e(lbl as real);
+                    == fldr_sumlab(t, e, c, (t.h)(c), lbl) + (cnt as real) * e(lbl as nat);
     }
 }
 
 /// At c = K, the per-label encoding is the weight (validity), so rhs_acc(K,n) = wsum(n).
-pub proof fn lemma_fldr_rhs_acc_eq_wsum(t: Ddg, e: spec_fn(real) -> real, n: nat)
+pub proof fn lemma_fldr_rhs_acc_eq_wsum(t: Ddg, e: spec_fn(nat) -> real, n: nat)
     requires valid_ddg(t), n <= t.n,
     ensures fldr_rhs_acc(t, e, t.levels, n) == fldr_wsum(t, e, n),
     decreases n,
@@ -251,21 +251,21 @@ pub proof fn lemma_fldr_rhs_acc_eq_wsum(t: Ddg, e: spec_fn(real) -> real, n: nat
 }
 
 /// At c = 0 every encoding is 0, so rhs_acc(0,n) = 0.
-pub proof fn lemma_fldr_rhs_acc_zero(t: Ddg, e: spec_fn(real) -> real, n: nat)
+pub proof fn lemma_fldr_rhs_acc_zero(t: Ddg, e: spec_fn(nat) -> real, n: nat)
     ensures fldr_rhs_acc(t, e, 0, n) == 0real,
     decreases n,
 {
     if n > 0 {
         lemma_fldr_rhs_acc_zero(t, e, (n - 1) as nat);
         assert(w_of_lbl_to_l(t, (n - 1) as nat, 0) == 0);
-        assert((w_of_lbl_to_l(t, (n - 1) as nat, 0) as real) * e((n - 1) as real) == 0real)
+        assert((w_of_lbl_to_l(t, (n - 1) as nat, 0) as real) * e((n - 1) as nat) == 0real)
             by(nonlinear_arith)
             requires w_of_lbl_to_l(t, (n - 1) as nat, 0) == 0;
     }
 }
 
 /// ewenc(c) = rhs_acc(c,n)   (induction on c, using AC = sumlab per level).
-pub proof fn lemma_fldr_ewenc_eq_rhs(t: Ddg, e: spec_fn(real) -> real, c: nat)
+pub proof fn lemma_fldr_ewenc_eq_rhs(t: Ddg, e: spec_fn(nat) -> real, c: nat)
     requires valid_ddg(t), c <= t.levels,
     ensures fldr_ewenc(t, e, c) == fldr_rhs_acc(t, e, c, t.n),
     decreases c,
@@ -286,7 +286,7 @@ pub proof fn lemma_fldr_ewenc_eq_rhs(t: Ddg, e: spec_fn(real) -> real, c: nat)
 }
 
 /// The leaf-sum identity:  Σ_{c=1}^K AC(c,h(c))·2^{K−c} = Σ_{ℓ<n} weights(ℓ)·ℰ(ℓ).
-pub proof fn lemma_fldr_leafsum(t: Ddg, e: spec_fn(real) -> real)
+pub proof fn lemma_fldr_leafsum(t: Ddg, e: spec_fn(nat) -> real)
     requires valid_ddg(t),
     ensures fldr_ewenc(t, e, t.levels) == fldr_wsum(t, e, t.n),
 {
@@ -698,21 +698,21 @@ pub proof fn lemma_pow_lt(rho: real, delta: real)
 // fuel, Val_F ≤ T follows by (strong) induction on F — no limits.
 
 /// Σ_{d<j, lab<n} ℰ(lab) ≥ 0 for ℰ ≥ 0.
-pub proof fn lemma_fldr_ac_nonneg(t: Ddg, e: spec_fn(real) -> real, c: nat, j: nat)
-    requires forall |x: real| (#[trigger] e(x)) >= 0real,
+pub proof fn lemma_fldr_ac_nonneg(t: Ddg, e: spec_fn(nat) -> real, c: nat, j: nat)
+    requires forall |x: nat| (#[trigger] e(x)) >= 0real,
     ensures fldr_ac(t, e, c, j) >= 0real,
     decreases j,
 {
     if j > 0 {
         lemma_fldr_ac_nonneg(t, e, c, (j - 1) as nat);
         if (t.lab)(c, (j - 1) as nat) < t.n {
-            assert(e((t.lab)(c, (j - 1) as nat) as real) >= 0real);
+            assert(e((t.lab)(c, (j - 1) as nat)) >= 0real);
         }
     }
 }
 
 /// vfsum at fuel 0 is 0  (fldr_f(·,0) = 0).
-pub proof fn lemma_fldr_vfsum_zero(t: Ddg, e: spec_fn(real) -> real, c: nat, m: nat)
+pub proof fn lemma_fldr_vfsum_zero(t: Ddg, e: spec_fn(nat) -> real, c: nat, m: nat)
     ensures fldr_vfsum(t, e, c, m, 0) == 0real,
     decreases m,
 {
@@ -722,7 +722,7 @@ pub proof fn lemma_fldr_vfsum_zero(t: Ddg, e: spec_fn(real) -> real, c: nat, m: 
 }
 
 /// At fuel 0 only accept leaves contribute:  VS(c,N(c),0) = AC(c,h(c)).
-pub proof fn lemma_fldr_vs_base_zero(t: Ddg, e: spec_fn(real) -> real, c: nat)
+pub proof fn lemma_fldr_vs_base_zero(t: Ddg, e: spec_fn(nat) -> real, c: nat)
     requires
         (t.h)(c) <= ddg_nodes(t, c),
         forall |d: nat| d < (t.h)(c) ==> #[trigger] (t.lab)(c, d) <= t.n,
@@ -737,8 +737,8 @@ pub proof fn lemma_fldr_vs_base_zero(t: Ddg, e: spec_fn(real) -> real, c: nat)
     // fldr_f(t,e,0,0,0) == 0
 }
 
-pub proof fn lemma_fldr_atr_nonneg(t: Ddg, e: spec_fn(real) -> real, c: nat)
-    requires forall |x: real| (#[trigger] e(x)) >= 0real,
+pub proof fn lemma_fldr_atr_nonneg(t: Ddg, e: spec_fn(nat) -> real, c: nat)
+    requires forall |x: nat| (#[trigger] e(x)) >= 0real,
     ensures fldr_atr(t, e, c) >= 0real,
     decreases t.levels + 1 - c,
 {
@@ -749,7 +749,7 @@ pub proof fn lemma_fldr_atr_nonneg(t: Ddg, e: spec_fn(real) -> real, c: nat)
 }
 
 /// atr(c)·2^{K−c} + ewenc(c−1) = ewenc(K)  (connects the accept tail to the leaf-sum).
-pub proof fn lemma_fldr_atr_wenc(t: Ddg, e: spec_fn(real) -> real, c: nat)
+pub proof fn lemma_fldr_atr_wenc(t: Ddg, e: spec_fn(nat) -> real, c: nat)
     requires 1 <= c <= t.levels,
     ensures
         fldr_atr(t, e, c) * (pow2((t.levels - c) as nat) as real)
@@ -781,20 +781,20 @@ pub proof fn lemma_fldr_atr_wenc(t: Ddg, e: spec_fn(real) -> real, c: nat)
     }
 }
 
-pub proof fn lemma_fldr_wsum_nonneg(t: Ddg, e: spec_fn(real) -> real, j: nat)
-    requires forall |x: real| (#[trigger] e(x)) >= 0real,
+pub proof fn lemma_fldr_wsum_nonneg(t: Ddg, e: spec_fn(nat) -> real, j: nat)
+    requires forall |x: nat| (#[trigger] e(x)) >= 0real,
     ensures fldr_wsum(t, e, j) >= 0real,
     decreases j,
 {
     if j > 0 {
         lemma_fldr_wsum_nonneg(t, e, (j - 1) as nat);
-        assert((t.weights)((j - 1) as nat) as real * e((j - 1) as real) >= 0real) by(nonlinear_arith)
-            requires (t.weights)((j - 1) as nat) as real >= 0real, e((j - 1) as real) >= 0real;
+        assert((t.weights)((j - 1) as nat) as real * e((j - 1) as nat) >= 0real) by(nonlinear_arith)
+            requires (t.weights)((j - 1) as nat) as real >= 0real, e((j - 1) as nat) >= 0real;
     }
 }
 
-pub proof fn lemma_fldr_exp_nonneg(t: Ddg, e: spec_fn(real) -> real)
-    requires forall |x: real| (#[trigger] e(x)) >= 0real, t.m >= 1,
+pub proof fn lemma_fldr_exp_nonneg(t: Ddg, e: spec_fn(nat) -> real)
+    requires forall |x: nat| (#[trigger] e(x)) >= 0real, t.m >= 1,
     ensures fldr_exp(t, e) >= 0real,
 {
     lemma_fldr_wsum_nonneg(t, e, t.n);
@@ -805,10 +805,10 @@ pub proof fn lemma_fldr_exp_nonneg(t: Ddg, e: spec_fn(real) -> real)
 
 /// Downward value bound:  VS(c,N(c),g) ≤ atr(c) + tr(c)·tb,  given Val_{g2} ≤ tb for
 /// all g2 ≤ g.  (Accept analogue of `lemma_fldr_ffs_bound`; works for every g.)
-pub proof fn lemma_fldr_vs_bound(t: Ddg, e: spec_fn(real) -> real, c: nat, g: nat, tb: real)
+pub proof fn lemma_fldr_vs_bound(t: Ddg, e: spec_fn(nat) -> real, c: nat, g: nat, tb: real)
     requires
         valid_ddg(t),
-        forall |x: real| (#[trigger] e(x)) >= 0real,
+        forall |x: nat| (#[trigger] e(x)) >= 0real,
         1 <= c <= t.levels,
         tb >= 0real,
         forall |g2: nat| g2 <= g ==> (#[trigger] fldr_f(t, e, 0, 0, g2)) <= tb,
@@ -865,8 +865,8 @@ pub proof fn lemma_fldr_vs_bound(t: Ddg, e: spec_fn(real) -> real, c: nat, g: na
 }
 
 /// Correctness:  fldr_f(0,0,F) ≤ target = Σ_{i<n}(aᵢ/m)·ℰ(i),  by strong induction on F.
-pub proof fn lemma_fldr_val_le_target(t: Ddg, e: spec_fn(real) -> real, ff: nat)
-    requires valid_ddg(t), t.levels >= 1, forall |x: real| (#[trigger] e(x)) >= 0real,
+pub proof fn lemma_fldr_val_le_target(t: Ddg, e: spec_fn(nat) -> real, ff: nat)
+    requires valid_ddg(t), t.levels >= 1, forall |x: nat| (#[trigger] e(x)) >= 0real,
     ensures fldr_f(t, e, 0, 0, ff) <= fldr_exp(t, e),
     decreases ff,
 {
@@ -1528,8 +1528,8 @@ pub proof fn lemma_preprocess_valid(t: Ddg, bt: Ddg)
 
 /// Σ weights·ℰ vanishes when ℰ ≡ 0  (so `fldr_exp` is 0 — any positive credit funds it).
 #[verifier::spinoff_prover]
-pub proof fn lemma_fldr_wsum_zero(t: Ddg, e: spec_fn(real) -> real, j: nat)
-    requires forall |x: real| (#[trigger] e(x)) == 0real,
+pub proof fn lemma_fldr_wsum_zero(t: Ddg, e: spec_fn(nat) -> real, j: nat)
+    requires forall |x: nat| (#[trigger] e(x)) == 0real,
     ensures fldr_wsum(t, e, j) == 0real,
     decreases j,
 {

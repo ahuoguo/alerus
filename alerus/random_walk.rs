@@ -256,8 +256,8 @@ pub proof fn rw_ast(pos: nat, delta: real)
 }
 
 /// Credit allocation: fail_prob(steps-1, pos(-/+)1) for each coin outcome.
-spec fn rw_credit_alloc(outcome: real, steps: nat, pos: nat) -> real {
-    if outcome == 0real {
+spec fn rw_credit_alloc(outcome: nat, steps: nat, pos: nat) -> real {
+    if outcome == 0 {
         fail_prob((steps - 1) as nat, (pos - 1) as nat)
     } else {
         fail_prob((steps - 1) as nat, pos + 1)
@@ -297,14 +297,14 @@ pub fn bounded_random_walk_1d(
         if depth == 0nat { ec_contradict(&credit); }
     }
 
-    let ghost alloc = |x: real| rw_credit_alloc(x, depth, pos);
+    let ghost alloc = |x: nat| rw_credit_alloc(x, depth, pos);
 
     proof {
-        assert forall |i: nat| (#[trigger] alloc(i as real)) >= 0real by {
+        assert forall |i: nat| (#[trigger] alloc(i)) >= 0real by {
             if i == 0 { lemma_fail_prob_nonneg((depth - 1) as nat, (pos - 1) as nat); }
             else { lemma_fail_prob_nonneg((depth - 1) as nat, pos + 1); }
         };
-        assert(sum_credit(alloc, 1) == sum_credit(alloc, 0) + alloc(0real)); // OBSERVE
+        assert(sum_credit(alloc, 1) == sum_credit(alloc, 0) + alloc(0nat)); // OBSERVE
     }
 
     let (val, Tracked(outcome_credit)) = rand_2_u64(Tracked(credit), Ghost(alloc));
