@@ -19,6 +19,9 @@ use vstd::resource::Loc;
 #[cfg(verus_keep_ghost)]
 use vstd::resource::relations::frame_preserving_update;
 use vstd::prelude::*;
+#[cfg(verus_keep_ghost)]
+use crate::ec::ErrorCreditCarrier::Value;
+
 
 verus! {
 
@@ -41,12 +44,12 @@ pub enum ErrorCreditCarrier {
 
 impl ErrorCreditCarrier {
     pub closed spec fn zero() -> Self {
-        ErrorCreditCarrier::Value { car: 0real }
+        Value { car: 0real }
     }
 
     pub open spec fn value(self) -> Option<real> {
         match self {
-            ErrorCreditCarrier::Value { car } => Some(car),
+            Value { car } => Some(car),
             _ => None,
         }
     }
@@ -55,7 +58,7 @@ impl ErrorCreditCarrier {
 impl vstd::resource::algebra::ResourceAlgebra for ErrorCreditCarrier {
     closed spec fn valid(self) -> bool {
         match self {
-            ErrorCreditCarrier::Value { car } => 0real <= car < 1real,
+            Value { car } => 0real <= car < 1real,
             ErrorCreditCarrier::Empty => true,
             ErrorCreditCarrier::Invalid => false,
         }
@@ -63,13 +66,13 @@ impl vstd::resource::algebra::ResourceAlgebra for ErrorCreditCarrier {
 
     closed spec fn op(a: Self, b: Self) -> Self {
         match (a, b) {
-            (ErrorCreditCarrier::Value { car: c1 }, ErrorCreditCarrier::Value { car: c2 }) => {
+            (Value { car: c1 }, Value { car: c2 }) => {
                 // REVIEW: we have to bake in the `nonnegreal` part in the op
                 // I guess verus doesn't have a good way to express subset types like Dafny...
                 if c1 < 0real || c2 < 0real {
                     ErrorCreditCarrier::Invalid
                 } else {
-                    ErrorCreditCarrier::Value { car: c1 + c2 }
+                    Value { car: c1 + c2 }
                 }
 
             },
@@ -118,7 +121,7 @@ impl ErrorCreditResource {
 
     pub proof fn explode(tracked &self, c: real)
         requires
-            self@ =~= (ErrorCreditCarrier::Value { car: c }),
+            self@ =~= (Value { car: c }),
             c >= 1real,
         ensures
             !self@.valid(),
@@ -137,12 +140,12 @@ pub proof fn ec_contradict(tracked e: &ErrorCreditResource)
     requires
         exists |car: real| {
             &&& car >= 1real
-            &&& e@ =~= (ErrorCreditCarrier::Value { car })
+            &&& e@ =~= (Value { car })
         }
     ensures
         false,
 {
-    let car = choose|v: real| e@ == (ErrorCreditCarrier::Value { car: v });
+    let car = choose|v: real| e@ == (Value { car: v });
     e.explode(car);
     e.valid();
     assert(!e@.valid());
@@ -156,12 +159,12 @@ pub proof fn ec_combine(
     v2: real,
 ) -> (tracked out: ErrorCreditResource)
     requires
-        c1@ =~= (ErrorCreditCarrier::Value { car: v1 }),
-        c2@ =~= (ErrorCreditCarrier::Value { car: v2 }),
+        c1@ =~= (Value { car: v1 }),
+        c2@ =~= (Value { car: v2 }),
         v1 >= 0real,
         v2 >= 0real,
     ensures
-        out@ =~= (ErrorCreditCarrier::Value { car: v1 + v2 }),
+        out@ =~= (Value { car: v1 + v2 }),
 {
     use_type_invariant(&c1);
     use_type_invariant(&c2);
@@ -176,17 +179,17 @@ pub proof fn ec_split(
     v2: real,
 ) -> (tracked (c1, c2): (ErrorCreditResource, ErrorCreditResource))
     requires
-        c@ =~= (ErrorCreditCarrier::Value { car: v1 + v2 }),
+        c@ =~= (Value { car: v1 + v2 }),
         v1 >= 0real,
         v2 >= 0real,
     ensures
-        c1@ =~= (ErrorCreditCarrier::Value { car: v1 }),
-        c2@ =~= (ErrorCreditCarrier::Value { car: v2 }),
+        c1@ =~= (Value { car: v1 }),
+        c2@ =~= (Value { car: v2 }),
 {
     use_type_invariant(&c);
     let tracked (r1, r2) = c.r.split(
-        ErrorCreditCarrier::Value { car: v1 },
-        ErrorCreditCarrier::Value { car: v2 },
+        Value { car: v1 },
+        Value { car: v2 },
     );
     (ErrorCreditResource { r: r1 }, ErrorCreditResource { r: r2 })
 }
@@ -196,25 +199,25 @@ pub proof fn ec_split(
 /// by "uniqueness" of unit
 pub proof fn ec_zero() -> (tracked out: ErrorCreditResource)
     ensures
-        out@ =~= (ErrorCreditCarrier::Value { car: 0real }),
+        out@ =~= (Value { car: 0real }),
 {
     let tracked u = Resource::<ErrorCreditCarrier>::create_unit(EC_GLOBAL_LOC());
     assert(frame_preserving_update(
         ErrorCreditCarrier::Empty,
-        ErrorCreditCarrier::Value { car: 0real },
+        Value { car: 0real },
     )) by {
         assert forall |c: ErrorCreditCarrier|
             #![trigger ErrorCreditCarrier::op(ErrorCreditCarrier::Empty, c)]
             ErrorCreditCarrier::op(ErrorCreditCarrier::Empty, c).valid()
-            implies ErrorCreditCarrier::op(ErrorCreditCarrier::Value { car: 0real }, c).valid() by {
+            implies ErrorCreditCarrier::op(Value { car: 0real }, c).valid() by {
             match c {
-                ErrorCreditCarrier::Value { car } => {},
+                Value { car } => {},
                 ErrorCreditCarrier::Empty => {},
                 ErrorCreditCarrier::Invalid => {},
             }
         }
     };
-    let tracked r = u.update(ErrorCreditCarrier::Value { car: 0real });
+    let tracked r = u.update(Value { car: 0real });
     ErrorCreditResource { r }
 }
 
