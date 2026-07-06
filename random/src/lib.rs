@@ -157,3 +157,21 @@ pub fn rbig_from_parts(numer: &IBig, denom: &UBig) -> RBig {
 pub fn rbig_floor(r: &RBig) -> IBig {
     r.clone().floor()
 }
+
+/// The rational 1.
+#[inline(always)]
+pub fn rbig_one() -> RBig {
+    RBig::ONE
+}
+
+/// a > b.
+#[inline(always)]
+pub fn rbig_gt(a: &RBig, b: &RBig) -> bool {
+    a > b
+}
+
+/// a - b.
+#[inline(always)]
+pub fn rbig_sub(a: &RBig, b: &RBig) -> RBig {
+    a.clone() - b.clone()
+}
