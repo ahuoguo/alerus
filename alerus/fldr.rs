@@ -100,6 +100,8 @@ use vstd::prelude::*;
 
 verus! {
 use crate::ec::*;
+#[cfg(verus_keep_ghost)]
+use crate::ec::ErrorCreditCarrier::Value;
 use crate::rand_primitives::{thin_air, rand_2_u64};
 #[cfg(verus_keep_ghost)]
 use crate::math::pow::{pow, archimedean_pow};
@@ -502,15 +504,15 @@ pub fn sample_fldr(
         tab.wf(),
         forall |x: real| (#[trigger] e(x)) >= 0real,
         eps >= fldr_exp(tab@, e),
-        input_credit@ =~= (ErrorCreditCarrier::Value { car: eps }),
+        input_credit@ =~= (Value { car: eps }),
     ensures
         value < tab.n,
-        out_credit@@ =~= (ErrorCreditCarrier::Value { car: e(value as real) }),
+        out_credit@@ =~= (Value { car: e(value as real) }),
 {
     let ghost t = tab@;
     proof { lemma_fldr_exp_nonneg(t, e); }       // ⇒ eps ≥ 0, for ec_combine below
     let Tracked(slack) = thin_air();
-    let ghost s0 = choose |sv: real| sv > 0real && (slack@ =~= (ErrorCreditCarrier::Value { car: sv }));
+    let ghost s0 = choose |sv: real| sv > 0real && (slack@ =~= (Value { car: sv }));
     let tracked mut credit = ec_combine(input_credit, slack, eps, s0);   // ↯(eps + s0)
     let ghost mut k: nat;
     proof {
@@ -535,7 +537,7 @@ pub fn sample_fldr(
             (c as nat) < tab.levels as nat,
             (d as nat) + (t.h)(c as nat) < ddg_nodes(t, c as nat),
             forall |x: real| (#[trigger] e(x)) >= 0real,
-            credit@ =~= (ErrorCreditCarrier::Value { car: g_ce }),
+            credit@ =~= (Value { car: g_ce }),
             g_ce >= fldr_f(t, e, c as nat, d as nat, k) + fldr_fail_f(t, c as nat, d as nat, k),
         decreases k,
     {
@@ -960,7 +962,7 @@ pub fn run_fldr_zero() -> (ret: u64)
     let ghost e = |x: real| 0real;
     let Tracked(credit) = thin_air();
     let ghost eps = choose |sv: real|
-        sv > 0real && (credit@ =~= (ErrorCreditCarrier::Value { car: sv }));
+        sv > 0real && (credit@ =~= (Value { car: sv }));
     proof {
         assert((7real * e(0real) + 4real * e(1real) + 8real * e(2real)) / 19real == 0real)
             by(nonlinear_arith)
@@ -988,10 +990,10 @@ pub fn sample_748(
     requires
         forall |x: real| (#[trigger] e(x)) >= 0real,
         eps >= (7real * e(0real) + 4real * e(1real) + 8real * e(2real)) / 19real,
-        input_credit@ =~= (ErrorCreditCarrier::Value { car: eps }),
+        input_credit@ =~= (Value { car: eps }),
     ensures
         value < 3,
-        out_credit@@ =~= (ErrorCreditCarrier::Value { car: e(value as real) }),
+        out_credit@@ =~= (Value { car: e(value as real) }),
 {
     let mut w: Vec<u64> = Vec::new();
     w.push(7);

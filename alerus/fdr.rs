@@ -71,6 +71,8 @@ use vstd::prelude::*;
 verus! {
 
 use crate::ec::*;
+#[cfg(verus_keep_ghost)]
+use crate::ec::ErrorCreditCarrier::Value;
 use crate::rand_primitives::{thin_air, rand_2_u64};
 #[cfg(verus_keep_ghost)]
 use crate::rand_primitives::{sum_credit, average_nat};
@@ -683,15 +685,15 @@ pub fn sample_fdr(
         n <= u64::MAX / 2,
         forall |x: real| (#[trigger] e(x)) >= 0real,
         eps >= average_nat(n as nat, e),
-        input_credit@ =~= (ErrorCreditCarrier::Value { car: eps }),
+        input_credit@ =~= (Value { car: eps }),
     ensures
         value < n,
-        out_credit@@ =~= (ErrorCreditCarrier::Value { car: e(value as real) }),
+        out_credit@@ =~= (Value { car: e(value as real) }),
 {
     // Thin-air room for the termination credit, and a depth with fail(1,0,depth) < s0.
     proof { lemma_fdr_average_nonneg(n as nat, e); }   // average_nat ≥ 0, hence eps ≥ 0
     let Tracked(slack) = thin_air();
-    let ghost s0 = choose |sv: real| sv > 0real && (slack@ =~= (ErrorCreditCarrier::Value { car: sv }));
+    let ghost s0 = choose |sv: real| sv > 0real && (slack@ =~= (Value { car: sv }));
     let tracked mut credit = ec_combine(input_credit, slack, eps, s0);   // ↯(eps + s0)
     let ghost mut k: nat;
     proof {
@@ -715,7 +717,7 @@ pub fn sample_fdr(
             n > 1, n <= u64::MAX / 2,
             1 <= v, v < n, c < v,
             forall |x: real| (#[trigger] e(x)) >= 0real,
-            credit@ =~= (ErrorCreditCarrier::Value { car: g_ce }),
+            credit@ =~= (Value { car: g_ce }),
             g_ce >= fdr_f(n as nat, e, v as nat, c as nat, k) + fdr_fail_f(n as nat, v as nat, c as nat, k),
         decreases k,
     {

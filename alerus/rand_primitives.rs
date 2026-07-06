@@ -20,6 +20,8 @@ verus! {
 
 use crate::ec::*;
 #[cfg(verus_keep_ghost)]
+use crate::ec::ErrorCreditCarrier::Value;
+#[cfg(verus_keep_ghost)]
 use crate::math::pow::pow;
 #[cfg(verus_keep_ghost)]
 use crate::extern_spec::ExUBig;
@@ -57,12 +59,12 @@ pub fn rand_u64(
       // ε₁ ≥ 𝔼(ℰ₂)
       bound > 0,
       forall |i: nat| (#[trigger] e2(i as real)) >= 0real,
-      exists |eps: real| (ErrorCreditCarrier::Value { car: eps } =~= e1@) && eps >= average(bound, e2),
+      exists |eps: real| (Value { car: eps } =~= e1@) && eps >= average(bound, e2),
     ensures
       // Result is in range [0, bound)
       n < bound,
       // owns ↯(ℰ₂(n))
-      (ErrorCreditCarrier::Value { car: e2(n as real) }) =~= out_credit@@,
+      (Value { car: e2(n as real) }) =~= out_credit@@,
 {
     let bound_ubig = random::ubig_from_u64(bound);
     let (n_ubig, out_credit) = rand_ubig(&bound_ubig, Tracked(e1), Ghost(e2));
@@ -83,11 +85,11 @@ pub fn rand_ubig(
     requires
         ubig_view(bound) > 0,
         forall |i: nat| (#[trigger] e2(i as real)) >= 0real,
-        exists |eps: real| (ErrorCreditCarrier::Value { car: eps } =~= e1@)
+        exists |eps: real| (Value { car: eps } =~= e1@)
             && eps >= average_nat(ubig_view(bound), e2),
     ensures
         ubig_view(&n) < ubig_view(bound),
-        (ErrorCreditCarrier::Value { car: e2(ubig_view(&n) as real) }) =~= out_credit@@,
+        (Value { car: e2(ubig_view(&n) as real) }) =~= out_credit@@,
 {
     let val = random::rand_ubig(bound.clone());
     (val, Tracked::assume_new())
@@ -103,7 +105,7 @@ pub fn rand_ubig(
 pub fn thin_air() -> (ret: Tracked<ErrorCreditResource>)
     ensures
         // owns ↯(ε) for ε > 0
-        exists |eps: real| eps > 0.0 && (ErrorCreditCarrier::Value { car: eps } =~= ret@@),
+        exists |eps: real| eps > 0.0 && (Value { car: eps } =~= ret@@),
 {
     Tracked::assume_new()
 }
@@ -126,11 +128,11 @@ pub fn rand_2_u64(
 ) -> ((n, out_credit): (u64, Tracked<ErrorCreditResource>))
     requires
         forall |i: nat| (#[trigger] credit_alloc(i as real)) >= 0real,
-        exists |eps: real| (ErrorCreditCarrier::Value { car: eps } =~= input_credit@) &&
+        exists |eps: real| (Value { car: eps } =~= input_credit@) &&
             eps >= (credit_alloc(0real) + credit_alloc(1real)) / 2real,
     ensures
         n == 0 || n == 1,
-        (ErrorCreditCarrier::Value { car: credit_alloc(n as real) }) =~= out_credit@@,
+        (Value { car: credit_alloc(n as real) }) =~= out_credit@@,
 {
     // Prove that average(2, credit_alloc) == (credit_alloc(0) + credit_alloc(1)) / 2
     // by unfolding sum_credit using asserts
@@ -148,7 +150,7 @@ pub fn rand_2_u64(
 // {v. v == true }
 pub fn flip(Tracked(input_credit): Tracked<ErrorCreditResource>) -> (ret: u64)
     requires
-        (ErrorCreditCarrier::Value { car: 0.5real }) == input_credit@,
+        (Value { car: 0.5real }) == input_credit@,
     ensures
         ret == 1,
 {
@@ -172,7 +174,7 @@ pub fn flip(Tracked(input_credit): Tracked<ErrorCreditResource>) -> (ret: u64)
 // {v. v == false }
 pub fn flip_and(Tracked(credit): Tracked<ErrorCreditResource>) -> (ret: bool)
     requires
-        credit@ =~= (ErrorCreditCarrier::Value { car: 1real / 4real }),
+        credit@ =~= (Value { car: 1real / 4real }),
     ensures
         ret == false,
 {

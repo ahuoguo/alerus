@@ -76,6 +76,8 @@ use vstd::prelude::*;
 verus! {
 
 use crate::ec::*;
+#[cfg(verus_keep_ghost)]
+use crate::ec::ErrorCreditCarrier::Value;
 use crate::rand_primitives::{rand_u64, thin_air};
 #[cfg(verus_keep_ghost)]
 use crate::rand_primitives::{sum_credit, average, average_nat};
@@ -271,10 +273,10 @@ pub fn sample_alias(
         tab.wf(),
         forall |x: real| (#[trigger] e(x)) >= 0real,
         eps >= alias_exp(tab@, e),
-        credit@ =~= (ErrorCreditCarrier::Value { car: eps }),
+        credit@ =~= (Value { car: eps }),
     ensures
         value < tab.n,
-        out_credit@@ =~= (ErrorCreditCarrier::Value { car: e(value as real) }),
+        out_credit@@ =~= (Value { car: e(value as real) }),
 {
     let ghost t = tab@;
     let ghost oa = oalloc(t, e);
@@ -617,10 +619,10 @@ pub fn sample_748_alias(
     requires
         forall |x: real| (#[trigger] e(x)) >= 0real,
         eps >= (7real * e(0real) + 4real * e(1real) + 8real * e(2real)) / 19real,
-        input_credit@ =~= (ErrorCreditCarrier::Value { car: eps }),
+        input_credit@ =~= (Value { car: eps }),
     ensures
         value < 3,
-        out_credit@@ =~= (ErrorCreditCarrier::Value { car: e(value as real) }),
+        out_credit@@ =~= (Value { car: e(value as real) }),
 {
     let mut w: Vec<u64> = Vec::new();
     w.push(7); w.push(4); w.push(8);
@@ -636,7 +638,7 @@ pub fn run_alias_zero() -> (ret: u64)
     let ghost e = |x: real| 0real;
     let Tracked(credit) = thin_air();
     let ghost eps = choose |sv: real|
-        sv > 0real && (credit@ =~= (ErrorCreditCarrier::Value { car: sv }));
+        sv > 0real && (credit@ =~= (Value { car: sv }));
     proof {
         assert((7real * e(0real) + 4real * e(1real) + 8real * e(2real)) / 19real == 0real)
             by(nonlinear_arith)

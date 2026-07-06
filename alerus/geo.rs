@@ -16,6 +16,8 @@ use random::{UBig, ubig_zero, ubig_succ};
 verus! {
 
 use crate::ec::*;
+#[cfg(verus_keep_ghost)]
+use crate::ec::ErrorCreditCarrier::Value;
 use crate::rand_primitives::{rand_2_u64, thin_air};
 #[cfg(verus_keep_ghost)]
 use crate::math::pow::{pow, archimedean_exp_growth};
@@ -60,7 +62,7 @@ pub fn bounded_geometric(
     requires
         exists |eps: real| {
             &&& eps > 0real
-            &&& input_credit@ =~= (ErrorCreditCarrier::Value { car: eps })
+            &&& input_credit@ =~= (Value { car: eps })
             &&& eps * pow(2real, depth) >= 1real
         },
     ensures
@@ -72,7 +74,7 @@ pub fn bounded_geometric(
     proof {
         eps = choose |v: real| {
             &&& v > 0real
-            &&& input_credit@ =~= (ErrorCreditCarrier::Value { car: v })
+            &&& input_credit@ =~= (Value { car: v })
             &&& v * pow(2real, depth) >= 1real
         };
 

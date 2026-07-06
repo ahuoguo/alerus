@@ -21,6 +21,8 @@ use vstd::prelude::*;
 use vstd::proph::Prophecy;
 
 use crate::ec::*;
+#[cfg(verus_keep_ghost)]
+use crate::ec::ErrorCreditCarrier::Value;
 use crate::rand_primitives::rand_2_u64;
 
 verus! {
@@ -59,7 +61,7 @@ pub fn havoc()
 /// even though it always terminates in `havoc()`.
 pub fn safe_with_half_credit(Tracked(input_credit): Tracked<ErrorCreditResource>)
     requires
-        input_credit@ =~= (ErrorCreditCarrier::Value { car: 1real / 2real }),
+        input_credit@ =~= (Value { car: 1real / 2real }),
     ensures
         true
 {
@@ -90,7 +92,7 @@ pub fn safe_with_half_credit(Tracked(input_credit): Tracked<ErrorCreditResource>
         assert(p@ == val);
         assert(val as real == p@ as real);
         assert((credit_alloc@)(val as real) == 1real);
-        assert(outcome_credit@ =~= (ErrorCreditCarrier::Value { car: 1real }));
+        assert(outcome_credit@ =~= (Value { car: 1real }));
         ec_contradict(&outcome_credit);
     }
 

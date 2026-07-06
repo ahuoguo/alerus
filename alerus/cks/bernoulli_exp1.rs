@@ -27,6 +27,8 @@ use random::{ubig_from_u64, ubig_succ, ubig_mul_u64, ubig_mul, ubig_is_odd, UBig
 verus! {
 
 use crate::ec::*;
+#[cfg(verus_keep_ghost)]
+use crate::ec::ErrorCreditCarrier::Value;
 use crate::rand_primitives::thin_air;
 #[cfg(verus_keep_ghost)]
 use crate::math::pow::{pow, archimedean_exp_growth};
@@ -602,10 +604,10 @@ pub fn sample_bernoulli_exp1(
         e(true) >= 0real,
         e(false) >= 0real,
         eps >= 0real,
-        input_credit@ =~= (ErrorCreditCarrier::Value { car: eps }),
+        input_credit@ =~= (Value { car: eps }),
         eps >= bernoulli_weighted_sum(exp(-(numer_x as real / denom_x as real)), e),
     ensures
-        out_credit@@ =~= (ErrorCreditCarrier::Value { car: e(value) }),
+        out_credit@@ =~= (Value { car: e(value) }),
 {
     let ghost x = numer_x as real / denom_x as real;
 
@@ -625,7 +627,7 @@ pub fn sample_bernoulli_exp1(
     let ghost init_depth: nat;
     proof {
         init_slack = choose |v: real| v > 0real &&
-            (ErrorCreditCarrier::Value { car: v } =~= slack_credit@);
+            (Value { car: v } =~= slack_credit@);
         archimedean_exp_growth(init_slack, 2real);
         let d0: nat = choose |k: nat| init_slack * pow(2real, k) >= 1real;
         init_depth = d0 + 1;
@@ -657,8 +659,8 @@ pub fn sample_bernoulli_exp1(
             g_pk == exp1_p_formula(x, ubig_view(&k)),
             g_dist_eps >= 0real,
             g_slack_val > 0real,
-            dist_credit@ =~= (ErrorCreditCarrier::Value { car: g_dist_eps }),
-            slack_credit@ =~= (ErrorCreditCarrier::Value { car: g_slack_val }),
+            dist_credit@ =~= (Value { car: g_dist_eps }),
+            slack_credit@ =~= (Value { car: g_slack_val }),
             g_dist_eps >= bernoulli_weighted_sum(g_pk, e),
             g_slack_val * slack_product(x, ubig_view(&k), g_depth) >= 1real,
         decreases g_depth,
@@ -782,10 +784,10 @@ pub fn sample_bernoulli_exp1_ubig(
         e(true) >= 0real,
         e(false) >= 0real,
         eps >= 0real,
-        input_credit@ =~= (ErrorCreditCarrier::Value { car: eps }),
+        input_credit@ =~= (Value { car: eps }),
         eps >= bernoulli_weighted_sum(exp(-(ubig_view(numer) as real / ubig_view(denom) as real)), e),
     ensures
-        out_credit@@ =~= (ErrorCreditCarrier::Value { car: e(value) }),
+        out_credit@@ =~= (Value { car: e(value) }),
 {
     let ghost nv = ubig_view(numer);
     let ghost dv = ubig_view(denom);
@@ -804,7 +806,7 @@ pub fn sample_bernoulli_exp1_ubig(
     let ghost init_depth: nat;
     proof {
         init_slack = choose |v: real| v > 0real &&
-            (ErrorCreditCarrier::Value { car: v } =~= slack_credit@);
+            (Value { car: v } =~= slack_credit@);
         archimedean_exp_growth(init_slack, 2real);
         let d0: nat = choose |kk: nat| init_slack * pow(2real, kk) >= 1real;
         init_depth = d0 + 1;
@@ -836,8 +838,8 @@ pub fn sample_bernoulli_exp1_ubig(
             g_pk == exp1_p_formula(x, ubig_view(&k)),
             g_dist_eps >= 0real,
             g_slack_val > 0real,
-            dist_credit@ =~= (ErrorCreditCarrier::Value { car: g_dist_eps }),
-            slack_credit@ =~= (ErrorCreditCarrier::Value { car: g_slack_val }),
+            dist_credit@ =~= (Value { car: g_dist_eps }),
+            slack_credit@ =~= (Value { car: g_slack_val }),
             g_dist_eps >= bernoulli_weighted_sum(g_pk, e),
             g_slack_val * slack_product(x, ubig_view(&k), g_depth) >= 1real,
         decreases g_depth,

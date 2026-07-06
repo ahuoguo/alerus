@@ -43,6 +43,8 @@ verus! {
 
 use crate::ec::*;
 #[cfg(verus_keep_ghost)]
+use crate::ec::ErrorCreditCarrier::Value;
+#[cfg(verus_keep_ghost)]
 use crate::math::pow::{pow, archimedean_exp_growth};
 #[cfg(verus_keep_ghost)]
 use crate::math::real::real_assoc_mult;
@@ -524,11 +526,11 @@ pub fn sample_exp_rejection(
         ubig_view(denom) > 0,
         forall |u: nat| (#[trigger] e(u)) >= 0real,
         eps_avg >= 0real,
-        input_credit@ =~= (ErrorCreditCarrier::Value { car: eps_avg }),
+        input_credit@ =~= (Value { car: eps_avg }),
         eps_avg >= rej_weighted_avg(ubig_view(denom), e),
     ensures
         ubig_view(&value) < ubig_view(denom),
-        out_credit@@ =~= (ErrorCreditCarrier::Value { car: e(ubig_view(&value)) }),
+        out_credit@@ =~= (Value { car: e(ubig_view(&value)) }),
 {
     let ghost d = ubig_view(denom);
 
@@ -560,7 +562,7 @@ pub fn sample_exp_rejection(
     let ghost init_eps: real;
     proof {
         init_eps = choose |v: real| v > 0real &&
-            (ErrorCreditCarrier::Value { car: v } =~= eps_credit@);
+            (Value { car: v } =~= eps_credit@);
     }
     let tracked mut credit = ec_combine(input_credit, eps_credit, eps_avg, init_eps);
 
@@ -587,11 +589,11 @@ pub fn sample_exp_rejection(
             amp == rej_amp(d),
             // Credit invariant (still rejecting).
             !accepted ==> g_eps > 0real,
-            !accepted ==> credit@ =~= (ErrorCreditCarrier::Value { car: g_eps + eps_avg }),
+            !accepted ==> credit@ =~= (Value { car: g_eps + eps_avg }),
             !accepted ==> g_eps * pow(amp, g_depth) >= 1real,
             // Accept postcondition.
             accepted ==> ubig_view(&u) < ubig_view(denom),
-            accepted ==> credit@ =~= (ErrorCreditCarrier::Value { car: e(ubig_view(&u)) }),
+            accepted ==> credit@ =~= (Value { car: e(ubig_view(&u)) }),
         decreases g_depth,
     {
         proof {

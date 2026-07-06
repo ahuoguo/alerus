@@ -35,6 +35,8 @@ use random::{UBig, ubig_zero, ubig_succ, ubig_pred, ubig_is_zero, ubig_from_u64}
 verus! {
 
 use crate::ec::*;
+#[cfg(verus_keep_ghost)]
+use crate::ec::ErrorCreditCarrier::Value;
 use crate::rand_primitives::{rand_2_u64, thin_air};
 #[cfg(verus_keep_ghost)]
 use crate::rand_primitives::sum_credit;
@@ -274,7 +276,7 @@ pub fn bounded_random_walk_1d(
 ) -> (ret: UBig)
     requires
         exists |eps: real| {
-            &&& credit@ =~= (ErrorCreditCarrier::Value { car: eps })
+            &&& credit@ =~= (Value { car: eps })
             &&& eps >= fail_prob(depth, ubig_view(n))
         },
     decreases depth,
@@ -289,7 +291,7 @@ pub fn bounded_random_walk_1d(
     proof {
         pos = ubig_view(n);
         eps = choose |v: real| {
-            &&& credit@ =~= (ErrorCreditCarrier::Value { car: v })
+            &&& credit@ =~= (Value { car: v })
             &&& v >= fail_prob(depth, pos)
         };
         if depth == 0nat { ec_contradict(&credit); }

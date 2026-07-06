@@ -51,6 +51,8 @@ use random::{UBig};
 verus! {
 
 use crate::ec::*;
+#[cfg(verus_keep_ghost)]
+use crate::ec::ErrorCreditCarrier::Value;
 use crate::rand_primitives::thin_air;
 use crate::cks::discrete_laplace::sample_discrete_laplace_fast;
 use crate::cks::bernoulli_exp::sample_bernoulli_exp_rbig;
@@ -1440,13 +1442,13 @@ pub fn sample_discrete_gaussian(
         rbig_view(scale) > 0real,
         forall |x: int| (#[trigger] e(x)) >= 0real,
         eps > 0real,
-        input_credit@ =~= (ErrorCreditCarrier::Value { car: eps }),
+        input_credit@ =~= (Value { car: eps }),
         gauss_expectation_bounded_by(
             exp(-(1real / ((rbig_view(scale).floor() + 1) as real))),
             rbig_view(scale) * rbig_view(scale),
             (rbig_view(scale).floor() + 1) as real, e, eps),
     ensures
-        out_credit@@ =~= (ErrorCreditCarrier::Value { car: e(ibig_view(&value)) }),
+        out_credit@@ =~= (Value { car: e(ibig_view(&value)) }),
 {
     // scale = sn/sd  (sn ≥ 1 since scale > 0, sd ≥ 1).
     let parts = rbig_into_parts(scale);
@@ -1520,7 +1522,7 @@ pub fn sample_discrete_gaussian(
     let ghost init_depth: nat;
     proof {
         init_slack = choose |v: real| v > 0real &&
-            (ErrorCreditCarrier::Value { car: v } =~= slack_credit@);
+            (Value { car: v } =~= slack_credit@);
         archimedean_exp_growth(init_slack, amp);
         init_depth = choose |k: nat| init_slack * pow(amp, k) >= 1real;
     }
@@ -1540,7 +1542,7 @@ pub fn sample_discrete_gaussian(
             0real < p < 1real, sigma2 > 0real, tr >= 1real, 0real < cst < 1real, amp > 1real,
             forall |x: int| (#[trigger] e(x)) >= 0real,
             eps > 0real, g_slack > 0real,
-            credit@ =~= (ErrorCreditCarrier::Value { car: eps + g_slack }),
+            credit@ =~= (Value { car: eps + g_slack }),
             dg_series_bounded_by(p, sigma2, tr, e, eps),
             ubig_view(&sn2) == ubig_view(&sn) * ubig_view(&sn),
             ubig_view(&sd2) == ubig_view(&sd) * ubig_view(&sd),
@@ -1725,7 +1727,7 @@ pub fn sample_discrete_gaussian_entry(
     let ghost eps: real;
     proof {
         eps = choose |v: real| v > 0real &&
-            (ErrorCreditCarrier::Value { car: v } =~= cred@);
+            (Value { car: v } =~= cred@);
         // rbig_view(scale) = scale_numer/scale_denom > 0.
         assert(rbig_view(&scale) == scale_numer as real / scale_denom as real);
         assert(rbig_view(&scale) > 0real) by(nonlinear_arith)

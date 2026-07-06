@@ -16,6 +16,8 @@ use random::{UBig, ubig_succ, ubig_is_zero, ubig_from_u64};
 verus! {
 
 use crate::ec::*;
+#[cfg(verus_keep_ghost)]
+use crate::ec::ErrorCreditCarrier::Value;
 use crate::rand_primitives::{rand_ubig, thin_air};
 #[cfg(verus_keep_ghost)]
 use crate::rand_primitives::{average_nat, sum_credit};
@@ -88,7 +90,7 @@ pub proof fn lemma_spline_credit_le(n: nat, k: nat, eps: real)
 // ∀ n. [ ↯( n/(n+k+1) )] spline n [ True ]
 pub fn spline_aux(n: &UBig, Ghost(k): Ghost<nat>, Tracked(credit): Tracked<ErrorCreditResource>)
     requires
-        credit@ =~= (ErrorCreditCarrier::Value { car: spline_credit(ubig_view(n), k) }),
+        credit@ =~= (Value { car: spline_credit(ubig_view(n), k) }),
     decreases k,
 {
     let ghost nv = ubig_view(n);           // current position value
@@ -127,7 +129,7 @@ pub fn spline(n: u64) {
     let ghost eps: real;
     let ghost k: nat;
     proof {
-        eps = choose |v: real| v > 0real && cred@ =~= (ErrorCreditCarrier::Value { car: v });
+        eps = choose |v: real| v > 0real && cred@ =~= (Value { car: v });
         let n1 = ubig_view(&n_big);
         // pick k ≥ n/ε  (Archimedean), so spline_credit(n,k) ≤ ε.
         assert((n1 as real) / eps >= 0real) by(nonlinear_arith) requires eps > 0real;

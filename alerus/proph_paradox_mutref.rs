@@ -23,6 +23,8 @@ use vstd::resource::algebra::ResourceAlgebra;
 use vstd::prelude::*;
 
 use crate::ec::*;
+#[cfg(verus_keep_ghost)]
+use crate::ec::ErrorCreditCarrier::Value;
 use crate::rand_primitives::rand_2_u64;
 #[cfg(verus_keep_ghost)]
 use crate::proph_paradox::{credit_alloc_proph, credit_alloc_proph_sum};
@@ -55,7 +57,7 @@ pub fn safe_with_half_credit_mutref(
     Tracked(input_credit): Tracked<ErrorCreditResource>,
 )
     requires
-        input_credit@ =~= (ErrorCreditCarrier::Value { car: 1real / 2real }),
+        input_credit@ =~= (Value { car: 1real / 2real }),
     ensures
         true
 {
@@ -82,7 +84,7 @@ pub fn safe_with_half_credit_mutref(
         assert(*final(x) == val);
         assert(val as real == *final(x) as real);
         assert((credit_alloc@)(val as real) == 1real);
-        assert(outcome_credit@ =~= (ErrorCreditCarrier::Value { car: 1real }));
+        assert(outcome_credit@ =~= (Value { car: 1real }));
         ec_contradict(&outcome_credit);
     }
 

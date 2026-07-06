@@ -20,6 +20,8 @@ use random::UBig;
 verus! {
 
 use crate::ec::*;
+#[cfg(verus_keep_ghost)]
+use crate::ec::ErrorCreditCarrier::Value;
 use crate::rand_primitives::rand_ubig;
 #[cfg(verus_keep_ghost)]
 use crate::rand_primitives::{average_nat, sum_credit};
@@ -137,10 +139,10 @@ pub fn sample_bernoulli_rational(
         e(true) >= 0real,
         e(false) >= 0real,
         eps > 0real,
-        input_credit@ =~= (ErrorCreditCarrier::Value { car: eps }),
+        input_credit@ =~= (Value { car: eps }),
         eps >= bernoulli_weighted_sum(ubig_view(numer) as real / ubig_view(denom) as real, e),
     ensures
-        out_credit@@ =~= (ErrorCreditCarrier::Value { car: e(value) }),
+        out_credit@@ =~= (Value { car: e(value) }),
 {
     let ghost nn = ubig_view(numer);
     let ghost dn = ubig_view(denom);

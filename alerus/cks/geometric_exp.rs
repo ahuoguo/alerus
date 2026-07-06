@@ -19,6 +19,8 @@ verus! {
 
 use crate::ec::*;
 #[cfg(verus_keep_ghost)]
+use crate::ec::ErrorCreditCarrier::Value;
+#[cfg(verus_keep_ghost)]
 use crate::extern_spec::{ExUBig, ubig_view};
 #[cfg(verus_keep_ghost)]
 use crate::math::pow::{pow, archimedean_exp_growth};
@@ -196,10 +198,10 @@ pub fn sample_geometric_exp(
         p == exp(-(numer_x as real / denom_x as real)),
         forall |k: nat| (#[trigger] e(k)) >= 0real,
         dist_bound >= 0real,
-        input_credit@ =~= (ErrorCreditCarrier::Value { car: dist_bound }),
+        input_credit@ =~= (Value { car: dist_bound }),
         geo_exp_series_bounded_by(p, e, dist_bound),
     ensures
-        out_credit@@ =~= (ErrorCreditCarrier::Value { car: e(ubig_view(&value)) }),
+        out_credit@@ =~= (Value { car: e(ubig_view(&value)) }),
 {
     // Obtain slack credit and depth bound for termination
     let Tracked(slack_credit) = thin_air();
@@ -210,7 +212,7 @@ pub fn sample_geometric_exp(
 
     proof {
         slack = choose |v: real| v > 0real &&
-            (ErrorCreditCarrier::Value { car: v } =~= slack_credit@);
+            (Value { car: v } =~= slack_credit@);
         assert(inv_p > 1real) by(nonlinear_arith)
             requires 0real < p < 1real, inv_p == 1real / p;
         archimedean_exp_growth(slack, inv_p);
@@ -241,7 +243,7 @@ pub fn sample_geometric_exp(
             forall |i: nat| #[trigger] g_e(i) == e(i + g_kn),
             g_eps > 0real,
             g_slack > 0real,
-            credit@ =~= (ErrorCreditCarrier::Value { car: g_eps }),
+            credit@ =~= (Value { car: g_eps }),
             geo_exp_series_bounded_by(p, g_e, g_eps - g_slack),
             g_slack * pow(1real / p, g_depth) >= 1real,
         decreases g_depth,

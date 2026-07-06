@@ -30,6 +30,8 @@ use random::ubig_add;
 verus! {
 
 use crate::ec::*;
+#[cfg(verus_keep_ghost)]
+use crate::ec::ErrorCreditCarrier::Value;
 use crate::rand_primitives::{rand_2_u64, thin_air};
 #[cfg(verus_keep_ghost)]
 use crate::math::pow::{pow, archimedean_exp_growth};
@@ -66,11 +68,11 @@ pub fn bounded_geo_dist(
         forall |i: nat| (#[trigger] e(i)) >= 0real,
         eps > 0real,
         slack > 0real,
-        input_credit@ =~= (ErrorCreditCarrier::Value { car: eps }),
+        input_credit@ =~= (Value { car: eps }),
         geo_series_bounded_by(e, eps - slack),
         slack * pow(2real, depth) >= 1real,
     ensures
-        out_credit@@ =~= (ErrorCreditCarrier::Value { car: e(ubig_view(&value)) }),
+        out_credit@@ =~= (Value { car: e(ubig_view(&value)) }),
     decreases depth,
 {
     proof {
@@ -130,10 +132,10 @@ pub fn unbounded_geo_dist(
     requires
         forall |i: nat| (#[trigger] e(i)) >= 0real,
         dist_bound >= 0real,
-        input_credit@ =~= (ErrorCreditCarrier::Value { car: dist_bound }),
+        input_credit@ =~= (Value { car: dist_bound }),
         geo_series_bounded_by(e, dist_bound),
     ensures
-        out_credit@@ =~= (ErrorCreditCarrier::Value { car: e(ubig_view(&value)) }),
+        out_credit@@ =~= (Value { car: e(ubig_view(&value)) }),
 {
     let Tracked(slack_credit) = thin_air();
 
@@ -142,7 +144,7 @@ pub fn unbounded_geo_dist(
 
     proof {
         slack = choose |v: real| v > 0real &&
-            (ErrorCreditCarrier::Value { car: v } =~= slack_credit@);
+            (Value { car: v } =~= slack_credit@);
         archimedean_exp_growth(slack, 2real);
         depth = choose |k: nat| slack * pow(2real, k) >= 1real;
     }
@@ -180,7 +182,7 @@ pub fn example_geo_must_be_zero(
     Tracked(credit): Tracked<ErrorCreditResource>,
 ) -> (ret: UBig)
     requires
-        credit@ =~= (ErrorCreditCarrier::Value { car: 0.5real }),
+        credit@ =~= (Value { car: 0.5real }),
     ensures
         ubig_view(&ret) == 0,
 {
@@ -286,7 +288,7 @@ pub fn example_geo_tail_bound(
     Tracked(credit): Tracked<ErrorCreditResource>,
 ) -> (ret: UBig)
     requires
-        credit@ =~= (ErrorCreditCarrier::Value { car: 0.25real }),
+        credit@ =~= (Value { car: 0.25real }),
     ensures
         ubig_view(&ret) <= 1,
 {

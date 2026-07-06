@@ -26,6 +26,8 @@ verus! {
 
 use crate::ec::*;
 #[cfg(verus_keep_ghost)]
+use crate::ec::ErrorCreditCarrier::Value;
+#[cfg(verus_keep_ghost)]
 use crate::cks::bernoulli_rational::{bernoulli_weighted_sum, lemma_bws_nonneg};
 use crate::cks::bernoulli_exp1::{sample_bernoulli_exp1, sample_bernoulli_exp1_ubig};
 #[cfg(verus_keep_ghost)]
@@ -120,10 +122,10 @@ pub fn sample_bernoulli_exp(
         e(true) >= 0real,
         e(false) >= 0real,
         eps >= 0real,
-        input_credit@ =~= (ErrorCreditCarrier::Value { car: eps }),
+        input_credit@ =~= (Value { car: eps }),
         eps >= bernoulli_weighted_sum(exp(-(numer_x as real / denom_x as real)), e),
     ensures
-        out_credit@@ =~= (ErrorCreditCarrier::Value { car: e(value) }),
+        out_credit@@ =~= (Value { car: e(value) }),
 {
     let mut remaining_numer = numer_x;
     let ghost mut g_prob = exp(-(numer_x as real / denom_x as real));
@@ -139,7 +141,7 @@ pub fn sample_bernoulli_exp(
             remaining_numer <= numer_x,
             g_prob == exp(-(remaining_numer as real / denom_x as real)),
             0real <= g_prob <= 1real,
-            credit@ =~= (ErrorCreditCarrier::Value { car: g_eps }),
+            credit@ =~= (Value { car: g_eps }),
             g_eps >= bernoulli_weighted_sum(g_prob, e),
         decreases remaining_numer as int,
     {
@@ -268,10 +270,10 @@ pub fn sample_bernoulli_exp_rbig(
         e(true) >= 0real,
         e(false) >= 0real,
         eps >= 0real,
-        input_credit@ =~= (ErrorCreditCarrier::Value { car: eps }),
+        input_credit@ =~= (Value { car: eps }),
         eps >= bernoulli_weighted_sum(exp(-rbig_view(&x)), e),
     ensures
-        out_credit@@ =~= (ErrorCreditCarrier::Value { car: e(value) }),
+        out_credit@@ =~= (Value { car: e(value) }),
 {
     let one = rbig_one();
 
@@ -307,7 +309,7 @@ pub fn sample_bernoulli_exp_rbig(
             rbig_view(&x) == rn as real / dv as real,
             g_prob == exp(-(rn as real / dv as real)),
             0real <= g_prob <= 1real,
-            credit@ =~= (ErrorCreditCarrier::Value { car: g_eps }),
+            credit@ =~= (Value { car: g_eps }),
             g_eps >= bernoulli_weighted_sum(g_prob, e),
         decreases rn,
     {
