@@ -137,4 +137,13 @@ pub assume_specification[ random::rbig_floor ](r: &RBig) -> (ret: IBig)
         ibig_view(&ret) as real <= rbig_view(r),
         rbig_view(r) < (ibig_view(&ret) + 1) as real;
 
+pub assume_specification[ random::rbig_one ]() -> (ret: RBig)
+    ensures rbig_view(&ret) == 1real;
+
+pub assume_specification[ random::rbig_gt ](a: &RBig, b: &RBig) -> (ret: bool)
+    ensures ret == (rbig_view(a) > rbig_view(b));
+
+pub assume_specification[ random::rbig_sub ](a: &RBig, b: &RBig) -> (ret: RBig)
+    ensures rbig_view(&ret) == rbig_view(a) - rbig_view(b);
+
 } // verus!

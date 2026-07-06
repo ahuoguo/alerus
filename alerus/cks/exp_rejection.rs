@@ -51,11 +51,11 @@ use crate::math::exp::{exp, axiom_exp_zero, axiom_exp_neg_range, axiom_exp_neg_s
 use crate::rand_primitives::{thin_air, rand_ubig};
 #[cfg(verus_keep_ghost)]
 use crate::rand_primitives::{average_nat, sum_credit};
-use crate::cks::bernoulli_exp::sample_bernoulli_exp_ubig;
-use random::{UBig, ubig_from_u64};
+use crate::cks::bernoulli_exp::sample_bernoulli_exp_rbig;
+use random::{UBig, ubig_from_u64, rbig_from_parts, ibig_from_ubig};
 use crate::extern_spec::ubig_lt;
 #[cfg(verus_keep_ghost)]
-use crate::extern_spec::ubig_view;
+use crate::extern_spec::{ubig_view, ibig_view, rbig_view};
 #[cfg(verus_keep_ghost)]
 use crate::cks::bernoulli_rational::bernoulli_weighted_sum;
 
@@ -629,8 +629,16 @@ pub fn sample_exp_rejection(
             lemma_rej_bws(d, uvn, e, rej_credit);
         }
 
-        let (heads, Tracked(flip_out)) = sample_bernoulli_exp_ubig(
-            &u_val, denom, Ghost(g_flip_e), Tracked(u_credit), Ghost(g_h_val),
+        // Bernoulli(exp(−u_val/denom)) — build the rational u_val/denom.
+        let x_arg = rbig_from_parts(&ibig_from_ubig(&u_val), denom);
+        proof {
+            // rbig_view(&x_arg) == uvn/d, so the exp preconditions carry over.
+            assert(rbig_view(&x_arg) == uvn as real / d as real);
+            assert(rbig_view(&x_arg) >= 0real) by(nonlinear_arith)
+                requires rbig_view(&x_arg) == uvn as real / d as real, d > 0;
+        }
+        let (heads, Tracked(flip_out)) = sample_bernoulli_exp_rbig(
+            x_arg, Ghost(g_flip_e), Tracked(u_credit), Ghost(g_h_val),
         );
 
         if heads {

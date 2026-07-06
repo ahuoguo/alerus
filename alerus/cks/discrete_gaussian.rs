@@ -53,7 +53,7 @@ verus! {
 use crate::ec::*;
 use crate::rand_primitives::thin_air;
 use crate::cks::discrete_laplace::sample_discrete_laplace_fast;
-use crate::cks::bernoulli_exp::sample_bernoulli_exp_ubig;
+use crate::cks::bernoulli_exp::sample_bernoulli_exp_rbig;
 #[cfg(verus_keep_ghost)]
 use crate::extern_spec::{ibig_view, ubig_view, rbig_view, ExRBig};
 #[cfg(verus_keep_ghost)]
@@ -1649,8 +1649,18 @@ pub fn sample_discrete_gaussian(
                 + (1real - gauss_accept(sigma2, tr, cand_i)) * rc);
         }
 
-        let (heads, Tracked(out_credit)) = sample_bernoulli_exp_ubig(
-            &num, &den, Ghost(accept_e), Tracked(dl_credit), Ghost(g_dl_cand),
+        // Bernoulli(exp(−num/den)) — build the rational num/den.
+        let x_arg = rbig_from_parts(&ibig_from_ubig(&num), &den);
+        proof {
+            assert(rbig_view(&x_arg) == num_r / den_r);
+            assert(rbig_view(&x_arg) >= 0real) by(nonlinear_arith)
+                requires rbig_view(&x_arg) == num_r / den_r,
+                    num_r == ubig_view(&num) as real, den_r == ubig_view(&den) as real,
+                    ubig_view(&den) > 0;
+            assert(exp(-rbig_view(&x_arg)) == exp(-(num_r / den_r)));
+        }
+        let (heads, Tracked(out_credit)) = sample_bernoulli_exp_rbig(
+            x_arg, Ghost(accept_e), Tracked(dl_credit), Ghost(g_dl_cand),
         );
 
         if heads {

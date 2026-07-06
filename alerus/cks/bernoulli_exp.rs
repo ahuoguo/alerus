@@ -20,7 +20,7 @@ use vstd::prelude::*;
 #[cfg(verus_keep_ghost)]
 use vstd::calc_macro::*;
 
-use random::{UBig, ubig_sub, ubig_is_zero};
+use random::{UBig, RBig, ubig_is_zero, rbig_into_parts, rbig_one, rbig_gt, rbig_sub, ibig_abs};
 
 verus! {
 
@@ -31,8 +31,7 @@ use crate::cks::bernoulli_exp1::{sample_bernoulli_exp1, sample_bernoulli_exp1_ub
 #[cfg(verus_keep_ghost)]
 use crate::math::exp::{exp, axiom_exp_neg_range, axiom_exp_add, lemma_exp_decompose, axiom_exp_zero};
 #[cfg(verus_keep_ghost)]
-use crate::extern_spec::ubig_view;
-use crate::extern_spec::ubig_lt;
+use crate::extern_spec::{ubig_view, ibig_view, rbig_view};
 
 /// Credit allocation for the Bernoulli(exp(-1)) flip at each iteration.
 /// heads: continue with bws(prob_remaining, e)
@@ -256,63 +255,76 @@ proof fn lemma_exp_decompose_ubig(num: nat, den: nat)
         requires frac == (num - den) as real / den as real, den > 0, num > den;
 }
 
-/// Bignum variant of [`sample_bernoulli_exp`]: Bernoulli(exp(−x)) for x ≥ 0 with
-/// x = numer/denom given as arbitrary-precision `UBig`s.  Same expectation
-/// preservation rule.  The exp(−1) flips reuse the u64 `sample_bernoulli_exp1(1,1)`;
-/// the final fractional flip uses `sample_bernoulli_exp1_ubig`.
-pub fn sample_bernoulli_exp_ubig(
-    numer: &UBig,
-    denom: &UBig,
+// version that's closest to opendp
+// https://docs.rs/opendp/latest/opendp/traits/samplers/cks20/fn.sample_bernoulli_exp.html
+pub fn sample_bernoulli_exp_rbig(
+    mut x: RBig,
     Ghost(e): Ghost<spec_fn(bool) -> real>,
     Tracked(input_credit): Tracked<ErrorCreditResource>,
     Ghost(eps): Ghost<real>,
 ) -> ((value, out_credit): (bool, Tracked<ErrorCreditResource>))
     requires
-        ubig_view(denom) > 0,
+        rbig_view(&x) >= 0real,
         e(true) >= 0real,
         e(false) >= 0real,
         eps >= 0real,
         input_credit@ =~= (ErrorCreditCarrier::Value { car: eps }),
-        eps >= bernoulli_weighted_sum(exp(-(ubig_view(numer) as real / ubig_view(denom) as real)), e),
+        eps >= bernoulli_weighted_sum(exp(-rbig_view(&x)), e),
     ensures
         out_credit@@ =~= (ErrorCreditCarrier::Value { car: e(value) }),
 {
-    let ghost dv = ubig_view(denom);
-    let mut remaining = numer.clone();
-    let ghost mut g_prob = exp(-(ubig_view(numer) as real / dv as real));
+    let one = rbig_one();
+
+    // Ghost decomposition x = rn/dv (dv fixed) from x's reduced parts.
+    // (x_num/x_den are consumed only in the proof below, hence ghost-only in exec.)
+    #[allow(unused_variables)]
+    let (x_num, x_den) = rbig_into_parts(&x);
+    let ghost dv = ubig_view(&x_den);
+    let ghost mut rn = ibig_view(&x_num) as nat;
+    let ghost mut g_prob = exp(-(rn as real / dv as real));
     let ghost mut g_eps = eps;
     let tracked mut credit = input_credit;
 
     proof {
-        assert(ubig_view(numer) as real / dv as real >= 0real) by(nonlinear_arith)
-            requires dv > 0;
-        axiom_exp_neg_range(ubig_view(numer) as real / dv as real);
+        // x ≥ 0 and dv > 0 ⇒ numerator ≥ 0, so rn as real == numerator.
+        assert(ibig_view(&x_num) >= 0) by(nonlinear_arith)
+            requires rbig_view(&x) == ibig_view(&x_num) as real / dv as real,
+                rbig_view(&x) >= 0real, dv > 0;
+        assert(rn as int == ibig_view(&x_num));
+        assert(rbig_view(&x) == rn as real / dv as real);
+        assert(rn as real / dv as real >= 0real) by(nonlinear_arith) requires dv > 0;
+        axiom_exp_neg_range(rn as real / dv as real);   // 0 ≤ g_prob ≤ 1
+        assert(exp(-rbig_view(&x)) == g_prob);
     }
 
-    // While x > 1 (remaining > denom): flip Bernoulli(exp(−1)); tails ⇒ false.
-    while ubig_lt(denom, &remaining)
+    // While x > 1: flip Bernoulli(exp(−1)); tails ⇒ false.
+    while rbig_gt(&x, &one)
         invariant
-            dv == ubig_view(denom), dv > 0,
+            rbig_view(&one) == 1real,
+            dv > 0,
             e(true) >= 0real,
             e(false) >= 0real,
-            g_prob == exp(-(ubig_view(&remaining) as real / dv as real)),
+            rbig_view(&x) == rn as real / dv as real,
+            g_prob == exp(-(rn as real / dv as real)),
             0real <= g_prob <= 1real,
             credit@ =~= (ErrorCreditCarrier::Value { car: g_eps }),
             g_eps >= bernoulli_weighted_sum(g_prob, e),
-        decreases ubig_view(&remaining),
+        decreases rn,
     {
-        let ghost rv = ubig_view(&remaining);
         let ghost p1 = exp(-1real);
-        let ghost prob_remaining = exp(-((rv - dv) as real / dv as real));
+        let ghost prob_remaining = exp(-((rn - dv) as real / dv as real));
         let ghost flip_e = exp_flip_e(prob_remaining, e);
 
         proof {
+            // rbig_view(&x) > 1 and == rn/dv ⇒ rn > dv.
+            assert(rn > dv) by(nonlinear_arith)
+                requires rbig_view(&x) > 1real, rbig_view(&x) == rn as real / dv as real, dv > 0;
             // g_prob == exp(−1) · prob_remaining
-            lemma_exp_decompose_ubig(rv, dv);
+            lemma_exp_decompose_ubig(rn, dv);
             axiom_exp_neg_range(1real);
-            assert((rv - dv) as real / dv as real >= 0real) by(nonlinear_arith)
-                requires rv > dv, dv > 0;
-            axiom_exp_neg_range((rv - dv) as real / dv as real);
+            assert((rn - dv) as real / dv as real >= 0real) by(nonlinear_arith)
+                requires rn > dv, dv > 0;
+            axiom_exp_neg_range((rn - dv) as real / dv as real);
             lemma_exp_flip_average(prob_remaining, e);
             lemma_bws_nonneg(g_prob, e);
             lemma_bws_nonneg(prob_remaining, e);
@@ -325,28 +337,49 @@ pub fn sample_bernoulli_exp_ubig(
             1u64, 1u64, Ghost(flip_e), Tracked(credit), Ghost(g_eps),
         );
 
-        if !heads {
+        if heads {
+            // x -= 1  ⇔  rn -= dv; carry the boosted credit forward.
+            let new_x = rbig_sub(&x, &one);
+            proof {
+                let old_rn = rn;
+                rn = (old_rn - dv) as nat;
+                assert(rbig_view(&new_x) == rn as real / dv as real) by(nonlinear_arith)
+                    requires rbig_view(&new_x) == old_rn as real / dv as real - 1real,
+                        rn == old_rn - dv, old_rn > dv, dv > 0;
+                g_prob = prob_remaining;
+                g_eps = bernoulli_weighted_sum(prob_remaining, e);
+                credit = out_credit;
+            }
+            x = new_x;
+        } else {
+            // Tails: any Bernoulli(exp(−1)) is false ⇒ the product is false.
             return (false, Tracked(out_credit));
         }
-
-        let new_remaining = ubig_sub(&remaining, denom);
-        proof {
-            assert(ubig_view(&new_remaining) == rv - dv);
-            g_prob = prob_remaining;
-            g_eps = bernoulli_weighted_sum(prob_remaining, e);
-            credit = out_credit;
-        }
-        remaining = new_remaining;
     }
 
-    // Now remaining ≤ denom, so frac = remaining/denom ∈ [0, 1].
-    let is_zero = ubig_is_zero(&remaining);
+    // Now x ≤ 1: frac(x) = numf/denf ∈ [0, 1].
+    let (numf_i, denf) = rbig_into_parts(&x);
+    let numf = ibig_abs(&numf_i);
+    proof {
+        // Loop invariant still holds ⇒ rbig_view(&x) == rn/dv ≥ 0.
+        assert(rbig_view(&x) >= 0real) by(nonlinear_arith)
+            requires rbig_view(&x) == rn as real / dv as real, dv > 0;
+        // x ≥ 0 and denf > 0 ⇒ numerator ≥ 0, so ubig_view(&numf) == numerator.
+        assert(ibig_view(&numf_i) >= 0) by(nonlinear_arith)
+            requires rbig_view(&x) == ibig_view(&numf_i) as real / ubig_view(&denf) as real,
+                rbig_view(&x) >= 0real, ubig_view(&denf) > 0;
+        assert(rbig_view(&x) == ubig_view(&numf) as real / ubig_view(&denf) as real);
+    }
+
+    let is_zero = ubig_is_zero(&numf);
     if is_zero {
         // exp(0) = 1, so Bernoulli(1) is deterministically true; split off e(true).
         proof {
             axiom_exp_zero();
-            assert(ubig_view(&remaining) as real / dv as real == 0real) by(nonlinear_arith)
-                requires ubig_view(&remaining) == 0, dv > 0;
+            assert(rbig_view(&x) == 0real) by(nonlinear_arith)
+                requires rbig_view(&x) == ubig_view(&numf) as real / ubig_view(&denf) as real,
+                    ubig_view(&numf) == 0, ubig_view(&denf) > 0;
+            assert(g_prob == 1real);
             assert(bernoulli_weighted_sum(1real, e) == e(true)) by(nonlinear_arith)
                 requires bernoulli_weighted_sum(1real, e) == 1real * e(true) + (1real - 1real) * e(false);
         }
@@ -355,12 +388,20 @@ pub fn sample_bernoulli_exp_ubig(
         return (true, Tracked(ret_credit));
     }
 
-    // 0 < remaining ≤ denom.
-    proof { lemma_bws_nonneg(g_prob, e); }
+    // 0 < numf ≤ denf.
+    proof {
+        lemma_bws_nonneg(g_prob, e);
+        // x ≤ 1 (loop exit) ⇒ numf ≤ denf; and g_prob == exp(−(numf/denf)).
+        assert(ubig_view(&numf) <= ubig_view(&denf)) by(nonlinear_arith)
+            requires rbig_view(&x) <= 1real,
+                rbig_view(&x) == ubig_view(&numf) as real / ubig_view(&denf) as real,
+                ubig_view(&denf) > 0;
+        assert(exp(-(ubig_view(&numf) as real / ubig_view(&denf) as real)) == g_prob);
+    }
 
     sample_bernoulli_exp1_ubig(
-        &remaining,
-        denom,
+        &numf,
+        &denf,
         Ghost(e),
         Tracked(credit),
         Ghost(g_eps),
