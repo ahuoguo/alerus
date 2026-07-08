@@ -5,7 +5,7 @@
 //!   - [FM 26]   https://arxiv.org/abs/2509.06410
 //!   - [LAFI 26] https://popl26.sigplan.org/details/lafi-2026-papers/19/
 //!
-//! ── Algorithm (Lumbroso) ──────────────────────────────────────────────────────
+//! ## Algorithm (Lumbroso)
 //! ```text
 //!   v ← 1; c ← 0
 //!   loop {
@@ -25,7 +25,6 @@
 //!   [{ ↯(ε) }] sample_fdr(n) [{ v. ↯(ℰ(v)) }]
 //! ```
 //!
-//! ── Idea: two credits at one budget (cf. random_walk.rs) ──────────────────────
 //! Per execution path, the error-credit framework tracks two non-negative reals.
 //!
 //!  (1) VALUE — the conditional expectation  fdr_f(v,c,k) = E[ℰ(out) | state (v,c)]
