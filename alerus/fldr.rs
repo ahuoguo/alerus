@@ -110,7 +110,6 @@ use vstd::arithmetic::div_mod::{lemma_fundamental_div_mod, lemma_fundamental_div
 #[cfg(verus_keep_ghost)]
 use vstd::arithmetic::power2::{pow2, lemma_pow2_pos, lemma_pow2_unfold, lemma_pow2_strictly_increases, lemma_pow2_adds, lemma2_to64};
 
-broadcast use {lemma_pow2_pos, lemma_pow2_unfold, lemma_pow2_strictly_increases};
 
 #[cfg(verus_keep_ghost)]
 use crate::fldr_helper::*;
@@ -279,13 +278,13 @@ pub open spec fn fldr_exp(t: Ddg, e: spec_fn(nat) -> real) -> real {
 
 /// Number of DDG nodes entering level c:  N(0)=1 (the root), N(c)=2·(N(c−1)−h(c−1)).
 /// Leaves at level c−1 are removed; each remaining internal node has two children.
-pub open spec fn ddg_nodes(t: Ddg, c: nat) -> nat
+pub open spec fn num_nodes(t: Ddg, c: nat) -> nat
     decreases c,
 {
     if c == 0 {
         1
     } else {
-        2 * ((ddg_nodes(t, (c - 1) as nat) - (t.h)((c - 1) as nat)) as nat)
+        2 * ((num_nodes(t, (c - 1) as nat) - (t.h)((c - 1) as nat)) as nat)
     }
 }
 
@@ -326,8 +325,8 @@ pub open spec fn valid_ddg(t: Ddg) -> bool {
     &&& t.m >= 1
     &&& t.m == fldr_wsum_nat(t, t.n)
     &&& (t.h)(0) == 0
-    &&& ddg_nodes(t, (t.levels + 1) as nat) == 0
-    &&& (forall |c: nat| 1 <= c <= t.levels ==> (t.h)(c) <= #[trigger] ddg_nodes(t, c))
+    &&& num_nodes(t, (t.levels + 1) as nat) == 0
+    &&& (forall |c: nat| 1 <= c <= t.levels ==> (t.h)(c) <= #[trigger] num_nodes(t, c))
     &&& (forall |c: nat, d: nat| d < (t.h)(c) ==> #[trigger] (t.lab)(c, d) <= t.n)
     &&& (forall |lbl: nat| lbl < t.n ==> #[trigger] w_of_lbl_to_l(t, lbl, t.levels) == (t.weights)(lbl))
     &&& pow2(t.levels) >= t.m
@@ -427,8 +426,9 @@ pub struct FldrTable {
     pub lab: Vec<Vec<u64>>,
 }
 
-impl FldrTable {
-    pub open spec fn view(self) -> Ddg {
+impl View for FldrTable {
+    type V = Ddg;
+    open spec fn view(&self) -> Ddg {
         Ddg {
             n: self.n as nat,
             weights: |i: nat| if i < self.weights@.len() { self.weights@[i as int] as nat } else { 0nat },
@@ -443,8 +443,51 @@ impl FldrTable {
                 },
         }
     }
+}
 
-    pub open spec fn wf(self) -> bool {
+/// Every correctness and termination proof in this module is stated over the spec
+/// view [`Ddg`], so the sampler is already abstract at the proof level.  A `DdgTable`
+/// supplies the four executable reads the sampling loop performs — `levels`, `n`,
+/// `h[c]`, `lab[c][d]` — plus the well-formedness predicate [`DdgTable::wf`].  Any
+/// type implementing this trait can be fed to [`sample_fldr`].
+pub trait DdgTable: View<V = Ddg> {
+    /// Representation well-formedness.  Opaque to generic clients; the facts the
+    /// sampler relies on are surfaced by [`DdgTable::wf_props`].
+    spec fn wf(&self) -> bool;
+
+    /// Law: `wf` implies the view-level invariant and the overflow bounds that make
+    /// the sampler's `2·d + b` arithmetic and `usize` indexing safe.
+    proof fn wf_props(&self)
+        requires self.wf(),
+        ensures
+            valid_ddg(self@),
+            self@.levels >= 1,
+            pow2(self@.levels) <= 4611686018427387904,   // 2^62
+            pow2(self@.levels) <= usize::MAX as nat;
+
+    /// Number of levels K.
+    fn levels(&self) -> (r: u64)
+        requires self.wf(),
+        ensures r as nat == self@.levels;
+
+    /// Reject label / outcome count n.
+    fn n(&self) -> (r: u64)
+        requires self.wf(),
+        ensures r as nat == self@.n;
+
+    /// h(c): number of leaves at level c.
+    fn get_h(&self, c: u64) -> (r: u64)
+        requires self.wf(), c as nat <= self@.levels,
+        ensures r as nat == (self@.h)(c as nat);
+
+    /// lab(c, d): label of the d-th leaf at level c.
+    fn get_lab(&self, c: u64, d: u64) -> (r: u64)
+        requires self.wf(), c as nat <= self@.levels, (d as nat) < (self@.h)(c as nat),
+        ensures r as nat == (self@.lab)(c as nat, d as nat);
+}
+
+impl DdgTable for FldrTable {
+    open spec fn wf(&self) -> bool {
         &&& valid_ddg(self@)
         &&& self.levels >= 1
         &&& pow2(self.levels as nat) <= 4611686018427387904   // 2^62, for u64 overflow safety
@@ -452,6 +495,63 @@ impl FldrTable {
         &&& self.h@.len() == self.levels + 1
         &&& self.lab@.len() == self.levels + 1
         &&& forall|c: int| 0 <= c <= self.levels ==> (#[trigger] self.lab@[c]@.len()) == self.h@[c]
+    }
+
+    proof fn wf_props(&self) {
+        // Every conjunct is immediate from the (open) `wf` body; `self@.levels`
+        // unfolds to `self.levels as nat`.
+    }
+
+    fn levels(&self) -> (r: u64) {
+        self.levels
+    }
+
+    fn n(&self) -> (r: u64) {
+        self.n
+    }
+
+    fn get_h(&self, c: u64) -> (r: u64) {
+        proof {
+            // levels ≤ 62 (else pow2(levels) > 2^62, against wf), so c ≤ levels fits usize.
+            lemma_pow2_62();
+            if self.levels > 62 { lemma_pow2_strictly_increases(62nat, self.levels as nat); }
+            assert(self.h@.len() == self.levels + 1);        // from wf
+            assert((c as nat) < self.h@.len());              // c ≤ levels < len
+            assert((self@.h)(c as nat) == self.h@[c as int] as nat);   // closure eval
+        }
+        let r = self.h[c as usize];
+        assert(r as nat == (self@.h)(c as nat));             // r == h@[c]
+        r
+    }
+
+    fn get_lab(&self, c: u64, d: u64) -> (r: u64) {
+        proof {
+            // levels ≤ 62, so c ≤ levels fits usize (no truncation on `c as usize`).
+            lemma_pow2_62();
+            if self.levels > 62 { lemma_pow2_strictly_increases(62nat, self.levels as nat); }
+            assert(self.h@.len() == self.levels + 1);            // from wf
+            assert(self.lab@.len() == self.levels + 1);          // from wf
+            assert((c as nat) < self.lab@.len());                // c ≤ levels < len
+            // c ≤ levels < h.len(), so (self@.h)(c) is the c-th entry of h.
+            assert((self@.h)(c as nat) == self.h@[c as int] as nat);
+            // wf's forall: the c-th lab row has h(c) entries, and d < h(c).
+            assert(self.lab@[c as int]@.len() == self.h@[c as int]);
+            assert((d as nat) < self.lab@[c as int]@.len());
+            // both view-closure guards hold ⇒ it picks lab[c][d].
+            assert((self@.lab)(c as nat, d as nat) == self.lab@[c as int]@[d as int] as nat);
+            // d fits usize: d < h(c) ≤ N(c) ≤ pow2(c) ≤ pow2(levels) ≤ usize::MAX.
+            assert((self@.h)(c as nat) <= num_nodes(self@, c as nat));
+            lemma_num_nodes_le_pow2(self@, c as nat);
+            lemma_pow2_mono(c as nat, self.levels as nat);
+        }
+        let row: &Vec<u64> = &self.lab[c as usize];
+        proof {
+            assert(row@ =~= self.lab@[c as int]@);           // outer Vec index
+            assert((d as nat) < row@.len());
+        }
+        let r = row[d as usize];
+        assert(r as nat == (self@.lab)(c as nat, d as nat)); // r == lab@[c]@[d]
+        r
     }
 }
 
@@ -474,6 +574,8 @@ pub fn pow2_exec(k: u64) -> (r: u64)
         proof {
             lemma_pow2_62();
             lemma_pow2_mono(i as nat, 61);                  // i ≤ 61 in the body
+            lemma_pow2_unfold(62nat);                       // pow2(62) == 2·pow2(61)
+            lemma_pow2_unfold((i + 1) as nat);              // pow2(i+1) == 2·pow2(i)
             assert(pow2(61) * 2 == pow2(62));
             assert(pow2((i + 1) as nat) == 2 * pow2(i as nat));
         }
@@ -494,8 +596,10 @@ pub fn pow2_exec(k: u64) -> (r: u64)
 ///
 /// `tab` is a well-formed (preprocessed, validated) DDG table.  Correctness is funded
 /// by the value credit, almost-sure termination by the failure-probability credit.
-pub fn sample_fldr(
-    tab: &FldrTable,
+#[verifier::spinoff_prover]
+#[verifier::rlimit(100)]
+pub fn sample_fldr<T: DdgTable>(
+    tab: &T,
     Ghost(e): Ghost<spec_fn(nat) -> real>,
     Tracked(input_credit): Tracked<ErrorCreditResource>,
     Ghost(eps): Ghost<real>,
@@ -506,11 +610,14 @@ pub fn sample_fldr(
         eps >= fldr_exp(tab@, e),
         input_credit@ =~= (Value { car: eps }),
     ensures
-        value < tab.n,
+        (value as nat) < tab@.n,
         out_credit@@ =~= (Value { car: e(value as nat) }),
 {
     let ghost t = tab@;
-    proof { lemma_fldr_exp_nonneg(t, e); }       // ⇒ eps ≥ 0, for ec_combine below
+    proof {
+        tab.wf_props(); // valid_ddg(t) + overflow bounds
+        lemma_fldr_exp_nonneg(t, e);
+    }
     let Tracked(slack) = thin_air();
     let ghost s0 = choose |sv: real| sv > 0real && (slack@ =~= (Value { car: sv }));
     let tracked mut credit = ec_combine(input_credit, slack, eps, s0);   // ↯(eps + s0)
@@ -534,14 +641,15 @@ pub fn sample_fldr(
         invariant
             t == tab@,
             tab.wf(),
-            (c as nat) < tab.levels as nat,
-            (d as nat) + (t.h)(c as nat) < ddg_nodes(t, c as nat),
+            (c as nat) < t.levels,
+            (d as nat) + (t.h)(c as nat) < num_nodes(t, c as nat),
             forall |x: nat| (#[trigger] e(x)) >= 0real,
             credit@ =~= (Value { car: g_ce }),
             g_ce >= fldr_f(t, e, c as nat, d as nat, k) + fldr_fail_f(t, c as nat, d as nat, k),
         decreases k,
     {
         proof {
+            tab.wf_props();                          // valid_ddg(t) + pow2 bounds this iteration
             if k == 0 {
                 ec_contradict(&credit);              // fail_f(c,d,0)=1 ⇒ g_ce ≥ 1, impossible
             }
@@ -579,8 +687,11 @@ pub fn sample_fldr(
         // descend one level:  c ← c+1,  d ← 2d + b.  (2d can't overflow:
         // d < N(cn) ≤ 2^cn ≤ 2^levels ≤ 2^62.)
         proof {
-            lemma_ddg_nodes_le_pow2(t, cn);
-            lemma_pow2_mono(cn, tab.levels as nat);
+            lemma_num_nodes_le_pow2(t, cn);
+            lemma_pow2_mono(cn, t.levels);
+            // levels ≤ 62 (else pow2(levels) > 2^62, contradicting wf), so c+1 fits u64.
+            lemma_pow2_62();
+            if t.levels > 62 { lemma_pow2_strictly_increases(62nat, t.levels); }
         }
         c = c + 1;
         d = 2 * d + b;
@@ -591,23 +702,23 @@ pub fn sample_fldr(
             assert(alloc(b as nat)
                 == fldr_g(t, e, cn + 1, d as nat, k)
                    + fldr_fail_g(t, cn + 1, d as nat, k));
-            assert((d as nat) < ddg_nodes(t, cn + 1)) by(nonlinear_arith)
+            assert((d as nat) < num_nodes(t, cn + 1)) by(nonlinear_arith)
                 requires
-                    (dn as int) + (t.h)(cn) < ddg_nodes(t, cn),
-                    (t.h)(cn) <= ddg_nodes(t, cn),
-                    ddg_nodes(t, cn + 1) == 2 * ((ddg_nodes(t, cn) - (t.h)(cn)) as nat),
+                    (dn as int) + (t.h)(cn) < num_nodes(t, cn),
+                    (t.h)(cn) <= num_nodes(t, cn),
+                    num_nodes(t, cn + 1) == 2 * ((num_nodes(t, cn) - (t.h)(cn)) as nat),
                     d == 2 * dn + (b as nat), b <= 1;
-            lemma_ddg_nodes_le_pow2(t, (cn + 1) as nat);
-            lemma_pow2_mono((cn + 1) as nat, tab.levels as nat);
+            lemma_num_nodes_le_pow2(t, (cn + 1) as nat);
+            lemma_pow2_mono((cn + 1) as nat, t.levels);
             lemma_pow2_gt((cn + 1) as nat);
         }
 
-        let hc: u64 = tab.h[c as usize];
+        let hc: u64 = tab.get_h(c);
 
         if d < hc {
             // leaf at (c, d):  lab[c][d] is the label reached
-            let lab = tab.lab[c as usize][d as usize];
-            if lab < tab.n {
+            let lab = tab.get_lab(c, d);
+            if lab < tab.n() {
                 proof { assert(g_ce == e(lab as nat)); }   // accept: fldr_g = ℰ(lab)
                 return (lab, Tracked(credit));
             } else {
@@ -620,9 +731,9 @@ pub fn sample_fldr(
             // internal → renumber within the level:  d ← d − h(c)
             proof {
                 lemma_ddg_close(t);                                  // N(K) = h(K) ⇒ c < levels
-                assert((c as nat) < tab.levels as nat) by {
-                    if (c as nat) == tab.levels as nat {
-                        assert(ddg_nodes(t, tab.levels as nat) == (t.h)(tab.levels as nat));
+                assert((c as nat) < t.levels) by {
+                    if (c as nat) == t.levels {
+                        assert(num_nodes(t, t.levels) == (t.h)(t.levels));
                     }
                 }
                 assert(g_ce == fldr_f(t, e, cn + 1, ((d as nat) - (t.h)(cn + 1)) as nat, k)
@@ -832,6 +943,7 @@ pub fn build_level(
         decreases n + 1 - i,
     {
         let a_i: u64 = if i < n { weights[i] } else { rej_u };   // aᵢ  (reject weight at i = n)
+        proof { lemma_pow2_pos((levels - j) as nat); }            // p_j == pow2(K−j) ≥ 1
         let w: bool = (a_i / p_j) % 2 == 1;                        // bit (K−j) of aᵢ
         if w {
             labd.push(i as u64);
