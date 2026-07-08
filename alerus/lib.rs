@@ -12,6 +12,8 @@ pub mod random_walk;
 pub mod fdr;
 pub mod spline;
 pub mod fldr;
+pub mod fldr_old;
+pub mod alias_old;
 pub mod fldr_helper;
 pub mod alias;
 pub mod alias_helper;

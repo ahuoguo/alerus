@@ -110,310 +110,11 @@ use vstd::arithmetic::div_mod::{lemma_fundamental_div_mod, lemma_fundamental_div
 #[cfg(verus_keep_ghost)]
 use vstd::arithmetic::power2::{pow2, lemma_pow2_pos, lemma_pow2_unfold, lemma_pow2_strictly_increases, lemma_pow2_adds, lemma2_to64};
 
+broadcast use {lemma_pow2_pos, lemma_pow2_unfold, lemma_pow2_strictly_increases};
 
 #[cfg(verus_keep_ghost)]
 use crate::fldr_helper::*;
-
-// ── The preprocessed DDG table (spec view) ────────────────────────────────────
-
-/// A preprocessed FLDR table: the Knuth–Yao DDG of a weight vector.  `n` real
-/// outcomes 0..n−1; the label `n` means *reject*.  `m = Σ_{i<n} weights(i)` and
-/// `levels = K = ⌈log₂ m⌉`.  `h(c)` is the number of leaves at level c (1 ≤ c ≤ K);
-/// `lab(c, d)` is the label (in 0..n) of the d-th leaf at level c, for d < h(c).
-pub struct Ddg {
-    pub n: nat,
-    pub weights: spec_fn(nat) -> nat,
-    pub m: nat,
-    pub levels: nat,
-    pub h: spec_fn(nat) -> nat,
-    pub lab: spec_fn(nat, nat) -> nat,
-}
-
-// ── VALUE: the conditional-expectation approximations ─────────────────────
-
-/// Fuel-bounded conditional expectation  E[ℰ(out) | internal DDG node (c, d)]  using
-/// ≤ `k` coin flips — the value the credit carries.  One flip turns the internal
-/// node (c, d) into its two children (c+1, 2d) and (c+1, 2d+1), each w.p. ½.
-pub open spec fn fldr_f(t: Ddg, e: spec_fn(nat) -> real, c: nat, d: nat, k: nat) -> real
-    decreases k, 0nat,
-{
-    if k == 0 {
-        0real
-    } else {
-        (fldr_g(t, e, c + 1, 2 * d, (k - 1) as nat)
-            + fldr_g(t, e, c + 1, 2 * d + 1, (k - 1) as nat)) / 2real
-    }
-}
-
-/// Classify the node (c, d) just reached: a leaf (d < h(c)) is an accept (output its
-/// label) or a reject (restart at the root); an internal node (d ≥ h(c)) descends,
-/// continuing from relative position d − h(c).
-pub open spec fn fldr_g(t: Ddg, e: spec_fn(nat) -> real, c: nat, d: nat, k: nat) -> real
-    decreases k, 1nat,
-{
-    if d < (t.h)(c) {
-        if (t.lab)(c, d) < t.n {
-            e((t.lab)(c, d))                       // accept
-        } else {
-            fldr_f(t, e, 0, 0, k)                          // reject, restart at root
-        }
-    } else {
-        fldr_f(t, e, c, (d - (t.h)(c)) as nat, k)          // internal, descend
-    }
-}
-
-// ── Value level-sum machinery (mirrors the fail machinery, with an accept term) ─
-// VS(c,j,F) = Σ_{d<j} fldr_g(c,d,F).  Leaf part: accept leaves contribute Σ ℰ(lab)
-// (= AC(c,j)), reject leaves contribute RJ(c)·Val_F (Val_F := fldr_f(0,0,F)).
-
-/// Σ_{d<j} fldr_g(t,e,c,d,F).
-pub open spec fn fldr_vs(t: Ddg, e: spec_fn(nat) -> real, c: nat, j: nat, k: nat) -> real
-    decreases j,
-{
-    if j == 0 { 0real }
-    else { fldr_vs(t, e, c, (j - 1) as nat, k) + fldr_g(t, e, c, (j - 1) as nat, k) }
-}
-
-/// Σ_{d<j} fldr_f(t,e,c,d,F).
-pub open spec fn fldr_vfsum(t: Ddg, e: spec_fn(nat) -> real, c: nat, j: nat, k: nat) -> real
-    decreases j,
-{
-    if j == 0 { 0real }
-    else { fldr_vfsum(t, e, c, (j - 1) as nat, k) + fldr_f(t, e, c, (j - 1) as nat, k) }
-}
-
-/// Σ_{d<j} ( fldr_g(t,e,c,2d,F) + fldr_g(t,e,c,2d+1,F) ).
-pub open spec fn fldr_vpairsum(t: Ddg, e: spec_fn(nat) -> real, c: nat, j: nat, k: nat) -> real
-    decreases j,
-{
-    if j == 0 { 0real }
-    else {
-        fldr_vpairsum(t, e, c, (j - 1) as nat, k)
-            + fldr_g(t, e, c, (2 * ((j - 1) as nat)) as nat, k)
-            + fldr_g(t, e, c, (2 * ((j - 1) as nat) + 1) as nat, k)
-    }
-}
-
-/// Σ_{d<j, lab(c,d)<n} ℰ(lab(c,d))  — the accept-leaf value sum at level c.
-pub open spec fn fldr_ac(t: Ddg, e: spec_fn(nat) -> real, c: nat, j: nat) -> real
-    decreases j,
-{
-    if j == 0 {
-        0real
-    } else {
-        fldr_ac(t, e, c, (j - 1) as nat)
-            + (if (t.lab)(c, (j - 1) as nat) < t.n { e((t.lab)(c, (j - 1) as nat)) } else { 0real })
-    }
-}
-
-// ── Leaf-sum identity: regroup the accept-leaf value sum AC by label ──────────
-// AC(c,j) = Σ_{ℓ<n} count(c,ℓ,j)·ℰ(ℓ).  Proved via the single-level grouping below;
-// the double sum over (level, position) is then accumulated by induction on levels.
-
-/// Σ_{ℓ<n} count(c,ℓ,j)·ℰ(ℓ)  — the per-level accept sum grouped by label.
-pub open spec fn fldr_sumlab(t: Ddg, e: spec_fn(nat) -> real, c: nat, j: nat, n: nat) -> real
-    decreases n,
-{
-    if n == 0 {
-        0real
-    } else {
-        fldr_sumlab(t, e, c, j, (n - 1) as nat)
-            + (l_lbl_cnt_upto(t, c, (n - 1) as nat, j) as real) * e((n - 1) as nat)
-    }
-}
-
-// Accumulate the single-level grouping over levels:  the e-weighted accept encoding
-// ewenc(K) = Σ_{c=1}^K AC(c,h(c))·2^{K−c}  equals  Σ_{ℓ<n} weights(ℓ)·ℰ(ℓ).
-
-/// Σ_{c=1}^{c} AC(c,h(c))·2^{K−c}  — e-weighted accept-leaf encoding over levels 1..c.
-pub open spec fn fldr_ewenc(t: Ddg, e: spec_fn(nat) -> real, c: nat) -> real
-    decreases c,
-{
-    if c == 0 {
-        0real
-    } else {
-        fldr_ewenc(t, e, (c - 1) as nat)
-            + fldr_ac(t, e, c, (t.h)(c)) * (pow2((t.levels - c) as nat) as real)
-    }
-}
-
-/// Σ_{ℓ<n} wenc(ℓ,c)·ℰ(ℓ)  — the per-label weight encoding summed over labels.
-pub open spec fn fldr_rhs_acc(t: Ddg, e: spec_fn(nat) -> real, c: nat, n: nat) -> real
-    decreases n,
-{
-    if n == 0 {
-        0real
-    } else {
-        fldr_rhs_acc(t, e, c, (n - 1) as nat)
-            + (w_of_lbl_to_l(t, (n - 1) as nat, c) as real) * e((n - 1) as nat)
-    }
-}
-
-// ── Validity of the preprocessed table + the loaded target ────────────────
-
-/// Σ_{i<j} weights(i)   (nat) — used to pin down m = total weight.
-pub open spec fn fldr_wsum_nat(t: Ddg, j: nat) -> nat
-    decreases j,
-{
-    if j == 0 { 0 } else { fldr_wsum_nat(t, (j - 1) as nat) + (t.weights)((j - 1) as nat) }
-}
-
-/// Σ_{i<j} weights(i)·ℰ(i)   (real).
-pub open spec fn fldr_wsum(t: Ddg, e: spec_fn(nat) -> real, j: nat) -> real
-    decreases j,
-{
-    if j == 0 {
-        0real
-    } else {
-        fldr_wsum(t, e, (j - 1) as nat) + (t.weights)((j - 1) as nat) as real * e((j - 1) as nat)
-    }
-}
-
-/// The expectation of `e` (ℰ) over the discrete distribution encoded by the weights,
-/// i.e. 𝔼_{i~p}[ℰ(i)] with p_i = aᵢ/m:  Σ_{i<n} (aᵢ/m)·ℰ(i) = (1/m)·Σ_{i<n} aᵢ·ℰ(i).
-/// The sampler precondition requires the credit ε to dominate this expectation.
-pub open spec fn fldr_exp(t: Ddg, e: spec_fn(nat) -> real) -> real {
-    fldr_wsum(t, e, t.n) / (t.m as real)
-}
-
-/// Number of DDG nodes entering level c:  N(0)=1 (the root), N(c)=2·(N(c−1)−h(c−1)).
-/// Leaves at level c−1 are removed; each remaining internal node has two children.
-pub open spec fn num_nodes(t: Ddg, c: nat) -> nat
-    decreases c,
-{
-    if c == 0 {
-        1
-    } else {
-        2 * ((num_nodes(t, (c - 1) as nat) - (t.h)((c - 1) as nat)) as nat)
-    }
-}
-
-/// #{ d < j : lab(c,d) = lbl }  — leaves of label `lbl` among the first j leaves at level c.
-pub open spec fn l_lbl_cnt_upto(t: Ddg, c: nat, lbl: nat, j: nat) -> nat
-    decreases j,
-{
-    if j == 0 {
-        0
-    } else {
-        l_lbl_cnt_upto(t, c, lbl, (j - 1) as nat)
-            + (if (t.lab)(c, (j - 1) as nat) == lbl { 1nat } else { 0nat })
-    }
-}
-
-/// Σ_{c=1}^{l} count(c, lbl)·2^{K−c}  — the weight encoded by label `lbl`'s
-/// leaves over levels 1..l  (a leaf at level c covers 2^{K−c} of the 2^K base cells).
-pub open spec fn w_of_lbl_to_l(t: Ddg, lbl: nat, l: nat) -> nat
-    decreases l,
-{
-    if l == 0 {
-        0
-    } else {
-        w_of_lbl_to_l(t, lbl, (l - 1) as nat)
-            + l_lbl_cnt_upto(t, l, lbl, (t.h)(l)) * pow2((t.levels - l) as nat)
-    }
-}
-
-/// The table `t` is a well-formed Knuth–Yao DDG for its weight vector:
-///  - m = Σ weights ≥ 1
-///  - h(0) = 0 (the root, at level 0, is internal);
-///  - the tree closes exactly after K = levels levels: N(K+1) = 0;
-///  - every level c ∈ 1..K has h(c) ≤ N(c) leaves, each labelled in 0..=n (n = reject);
-///  - each real label ℓ's leaves encode its weight:  Σ_c count(c,ℓ)·2^{K−c} = aₗ;
-///  - the reject label n encodes the slack 2^K − m.
-/// (These are exactly the obligations the preprocessing must discharge.)
-pub open spec fn valid_ddg(t: Ddg) -> bool {
-    &&& t.m >= 1
-    &&& t.m == fldr_wsum_nat(t, t.n)
-    &&& (t.h)(0) == 0
-    &&& num_nodes(t, (t.levels + 1) as nat) == 0
-    &&& (forall |c: nat| 1 <= c <= t.levels ==> (t.h)(c) <= #[trigger] num_nodes(t, c))
-    &&& (forall |c: nat, d: nat| d < (t.h)(c) ==> #[trigger] (t.lab)(c, d) <= t.n)
-    &&& (forall |lbl: nat| lbl < t.n ==> #[trigger] w_of_lbl_to_l(t, lbl, t.levels) == (t.weights)(lbl))
-    &&& pow2(t.levels) >= t.m
-    &&& w_of_lbl_to_l(t, t.n, t.levels) == (pow2(t.levels) - t.m) as nat
-}
-
-// credit distribution for termination
-pub open spec fn fldr_fail_f(t: Ddg, c: nat, d: nat, k: nat) -> real
-    decreases k, 0nat,
-{
-    if k == 0 {
-        1real
-    } else {
-        (fldr_fail_g(t, c + 1, 2 * d, (k - 1) as nat)
-            + fldr_fail_g(t, c + 1, 2 * d + 1, (k - 1) as nat)) / 2real
-    }
-}
-
-pub open spec fn fldr_fail_g(t: Ddg, c: nat, d: nat, k: nat) -> real
-    decreases k, 1nat,
-{
-    if d < (t.h)(c) {
-        if (t.lab)(c, d) < t.n {
-            0real                                  // accept → no failure
-        } else {
-            fldr_fail_f(t, 0, 0, k)                // reject → restart at root
-        }
-    } else {
-        fldr_fail_f(t, c, (d - (t.h)(c)) as nat, k)  // internal, descend
-    }
-}
-
-// ── Level-sum machinery for the epoch bound (mirrors fdr.rs's FS machinery) ────
-// FFS(c,j,k) = Σ_{d<j} fail_g(c,d,k).  The reject leaves of level c contribute
-// RJ(c)·Fail_F (Fail_F := fail_f(0,0,k)); the internal nodes recurse to level c+1.
-// One level:  FFS(c, N(c), k) = RJ(c)·Fail_F + ½·FFS(c+1, N(c+1), k−1).
-
-/// Σ_{d<j} fldr_fail_g(t,c,d,k).
-pub open spec fn fldr_fail_ffs(t: Ddg, c: nat, j: nat, k: nat) -> real
-    decreases j,
-{
-    if j == 0 { 0real }
-    else { fldr_fail_ffs(t, c, (j - 1) as nat, k) + fldr_fail_g(t, c, (j - 1) as nat, k) }
-}
-
-/// Σ_{d<j} fldr_fail_f(t,c,d,k).
-pub open spec fn fldr_fail_fsum(t: Ddg, c: nat, j: nat, k: nat) -> real
-    decreases j,
-{
-    if j == 0 { 0real }
-    else { fldr_fail_fsum(t, c, (j - 1) as nat, k) + fldr_fail_f(t, c, (j - 1) as nat, k) }
-}
-
-/// Σ_{d<j} ( fldr_fail_g(t,c,2d,k) + fldr_fail_g(t,c,2d+1,k) ).
-pub open spec fn fldr_fail_pairsum(t: Ddg, c: nat, j: nat, k: nat) -> real
-    decreases j,
-{
-    if j == 0 { 0real }
-    else {
-        fldr_fail_pairsum(t, c, (j - 1) as nat, k)
-            + fldr_fail_g(t, c, (2 * ((j - 1) as nat)) as nat, k)
-            + fldr_fail_g(t, c, (2 * ((j - 1) as nat) + 1) as nat, k)
-    }
-}
-
-/// Tail reject mass from level c:  TR(c) = Σ_{c'=c}^{K} RJ(c')·2^{−(c'−c)},
-/// where RJ(c') = #reject leaves at level c'.  Satisfies TR(c) = RJ(c) + ½·TR(c+1).
-pub open spec fn fldr_tr(t: Ddg, c: nat) -> real
-    decreases t.levels + 1 - c,
-{
-    if c > t.levels {
-        0real
-    } else {
-        (l_lbl_cnt_upto(t, c, t.n, (t.h)(c)) as real) + (1real / 2real) * fldr_tr(t, c + 1)
-    }
-}
-
-/// Accept tail:  atr(c) = Σ_{c'=c}^K AC(c',h(c'))·2^{−(c'−c)} = AC(c,h(c)) + ½·atr(c+1).
-pub open spec fn fldr_atr(t: Ddg, e: spec_fn(nat) -> real, c: nat) -> real
-    decreases t.levels + 1 - c,
-{
-    if c > t.levels {
-        0real
-    } else {
-        fldr_ac(t, e, c, (t.h)(c)) + (1real / 2real) * fldr_atr(t, e, c + 1)
-    }
-}
+use crate::fldr::*;
 
 /// Runtime DDG table.  `h[0..=K]` (h[0]=0) are the per-level leaf counts; `lab[c]`
 /// holds the h[c] labels at level c; `weights`/`m`/`levels` carry the totals.
@@ -426,9 +127,8 @@ pub struct FldrTable {
     pub lab: Vec<Vec<u64>>,
 }
 
-impl View for FldrTable {
-    type V = Ddg;
-    open spec fn view(&self) -> Ddg {
+impl FldrTable {
+    pub open spec fn view(self) -> Ddg {
         Ddg {
             n: self.n as nat,
             weights: |i: nat| if i < self.weights@.len() { self.weights@[i as int] as nat } else { 0nat },
@@ -443,51 +143,8 @@ impl View for FldrTable {
                 },
         }
     }
-}
 
-/// Every correctness and termination proof in this module is stated over the spec
-/// view [`Ddg`], so the sampler is already abstract at the proof level.  A `DdgTable`
-/// supplies the four executable reads the sampling loop performs — `levels`, `n`,
-/// `h[c]`, `lab[c][d]` — plus the well-formedness predicate [`DdgTable::wf`].  Any
-/// type implementing this trait can be fed to [`sample_fldr`].
-pub trait DdgTable: View<V = Ddg> {
-    /// Representation well-formedness.  Opaque to generic clients; the facts the
-    /// sampler relies on are surfaced by [`DdgTable::wf_props`].
-    spec fn wf(&self) -> bool;
-
-    /// Law: `wf` implies the view-level invariant and the overflow bounds that make
-    /// the sampler's `2·d + b` arithmetic and `usize` indexing safe.
-    proof fn wf_props(&self)
-        requires self.wf(),
-        ensures
-            valid_ddg(self@),
-            self@.levels >= 1,
-            pow2(self@.levels) <= 4611686018427387904,   // 2^62
-            pow2(self@.levels) <= usize::MAX as nat;
-
-    /// Number of levels K.
-    fn levels(&self) -> (r: u64)
-        requires self.wf(),
-        ensures r as nat == self@.levels;
-
-    /// Reject label / outcome count n.
-    fn n(&self) -> (r: u64)
-        requires self.wf(),
-        ensures r as nat == self@.n;
-
-    /// h(c): number of leaves at level c.
-    fn get_h(&self, c: u64) -> (r: u64)
-        requires self.wf(), c as nat <= self@.levels,
-        ensures r as nat == (self@.h)(c as nat);
-
-    /// lab(c, d): label of the d-th leaf at level c.
-    fn get_lab(&self, c: u64, d: u64) -> (r: u64)
-        requires self.wf(), c as nat <= self@.levels, (d as nat) < (self@.h)(c as nat),
-        ensures r as nat == (self@.lab)(c as nat, d as nat);
-}
-
-impl DdgTable for FldrTable {
-    open spec fn wf(&self) -> bool {
+    pub open spec fn wf(self) -> bool {
         &&& valid_ddg(self@)
         &&& self.levels >= 1
         &&& pow2(self.levels as nat) <= 4611686018427387904   // 2^62, for u64 overflow safety
@@ -495,39 +152,6 @@ impl DdgTable for FldrTable {
         &&& self.h@.len() == self.levels + 1
         &&& self.lab@.len() == self.levels + 1
         &&& forall|c: int| 0 <= c <= self.levels ==> (#[trigger] self.lab@[c]@.len()) == self.h@[c]
-    }
-
-    proof fn wf_props(&self) {
-        // Every conjunct is immediate from the (open) `wf` body; `self@.levels`
-        // unfolds to `self.levels as nat`.
-    }
-
-    fn levels(&self) -> (r: u64) {
-        self.levels
-    }
-
-    fn n(&self) -> (r: u64) {
-        self.n
-    }
-
-    fn get_h(&self, c: u64) -> (r: u64) {
-        proof {
-            // c fits usize: c ≤ levels ≤ 62  (else pow2(levels) > 2^62, against wf).
-            lemma_pow2_62();
-            if self.levels > 62 { lemma_pow2_strictly_increases(62nat, self.levels as nat); }
-        }
-        self.h[c as usize]
-    }
-
-    fn get_lab(&self, c: u64, d: u64) -> (r: u64) {
-        proof {
-            // c fits usize: c ≤ levels ≤ 62.  d fits usize: d < h(c) ≤ N(c) ≤ pow2(levels) ≤ usize::MAX.
-            lemma_pow2_62();
-            if self.levels > 62 { lemma_pow2_strictly_increases(62nat, self.levels as nat); }
-            lemma_num_nodes_le_pow2(self@, c as nat);
-            lemma_pow2_mono(c as nat, self.levels as nat);
-        }
-        self.lab[c as usize][d as usize]
     }
 }
 
@@ -550,8 +174,6 @@ pub fn pow2_exec(k: u64) -> (r: u64)
         proof {
             lemma_pow2_62();
             lemma_pow2_mono(i as nat, 61);                  // i ≤ 61 in the body
-            lemma_pow2_unfold(62nat);                       // pow2(62) == 2·pow2(61)
-            lemma_pow2_unfold((i + 1) as nat);              // pow2(i+1) == 2·pow2(i)
             assert(pow2(61) * 2 == pow2(62));
             assert(pow2((i + 1) as nat) == 2 * pow2(i as nat));
         }
@@ -572,10 +194,8 @@ pub fn pow2_exec(k: u64) -> (r: u64)
 ///
 /// `tab` is a well-formed (preprocessed, validated) DDG table.  Correctness is funded
 /// by the value credit, almost-sure termination by the failure-probability credit.
-#[verifier::spinoff_prover]
-#[verifier::rlimit(100)]
-pub fn sample_fldr<T: DdgTable>(
-    tab: &T,
+pub fn sample_fldr(
+    tab: &FldrTable,
     Ghost(e): Ghost<spec_fn(nat) -> real>,
     Tracked(input_credit): Tracked<ErrorCreditResource>,
     Ghost(eps): Ghost<real>,
@@ -586,14 +206,11 @@ pub fn sample_fldr<T: DdgTable>(
         eps >= fldr_exp(tab@, e),
         input_credit@ =~= (Value { car: eps }),
     ensures
-        (value as nat) < tab@.n,
+        value < tab.n,
         out_credit@@ =~= (Value { car: e(value as nat) }),
 {
     let ghost t = tab@;
-    proof {
-        tab.wf_props(); // valid_ddg(t) + overflow bounds
-        lemma_fldr_exp_nonneg(t, e);
-    }
+    proof { lemma_fldr_exp_nonneg(t, e); }       // ⇒ eps ≥ 0, for ec_combine below
     let Tracked(slack) = thin_air();
     let ghost s0 = choose |sv: real| sv > 0real && (slack@ =~= (Value { car: sv }));
     let tracked mut credit = ec_combine(input_credit, slack, eps, s0);   // ↯(eps + s0)
@@ -617,7 +234,7 @@ pub fn sample_fldr<T: DdgTable>(
         invariant
             t == tab@,
             tab.wf(),
-            (c as nat) < t.levels,
+            (c as nat) < tab.levels as nat,
             (d as nat) + (t.h)(c as nat) < num_nodes(t, c as nat),
             forall |x: nat| (#[trigger] e(x)) >= 0real,
             credit@ =~= (Value { car: g_ce }),
@@ -625,7 +242,6 @@ pub fn sample_fldr<T: DdgTable>(
         decreases k,
     {
         proof {
-            tab.wf_props();                          // valid_ddg(t) + pow2 bounds this iteration
             if k == 0 {
                 ec_contradict(&credit);              // fail_f(c,d,0)=1 ⇒ g_ce ≥ 1, impossible
             }
@@ -664,10 +280,7 @@ pub fn sample_fldr<T: DdgTable>(
         // d < N(cn) ≤ 2^cn ≤ 2^levels ≤ 2^62.)
         proof {
             lemma_num_nodes_le_pow2(t, cn);
-            lemma_pow2_mono(cn, t.levels);
-            // levels ≤ 62 (else pow2(levels) > 2^62, contradicting wf), so c+1 fits u64.
-            lemma_pow2_62();
-            if t.levels > 62 { lemma_pow2_strictly_increases(62nat, t.levels); }
+            lemma_pow2_mono(cn, tab.levels as nat);
         }
         c = c + 1;
         d = 2 * d + b;
@@ -685,16 +298,16 @@ pub fn sample_fldr<T: DdgTable>(
                     num_nodes(t, cn + 1) == 2 * ((num_nodes(t, cn) - (t.h)(cn)) as nat),
                     d == 2 * dn + (b as nat), b <= 1;
             lemma_num_nodes_le_pow2(t, (cn + 1) as nat);
-            lemma_pow2_mono((cn + 1) as nat, t.levels);
+            lemma_pow2_mono((cn + 1) as nat, tab.levels as nat);
             lemma_pow2_gt((cn + 1) as nat);
         }
 
-        let hc: u64 = tab.get_h(c);
+        let hc: u64 = tab.h[c as usize];
 
         if d < hc {
             // leaf at (c, d):  lab[c][d] is the label reached
-            let lab = tab.get_lab(c, d);
-            if lab < tab.n() {
+            let lab = tab.lab[c as usize][d as usize];
+            if lab < tab.n {
                 proof { assert(g_ce == e(lab as nat)); }   // accept: fldr_g = ℰ(lab)
                 return (lab, Tracked(credit));
             } else {
@@ -707,9 +320,9 @@ pub fn sample_fldr<T: DdgTable>(
             // internal → renumber within the level:  d ← d − h(c)
             proof {
                 lemma_ddg_close(t);                                  // N(K) = h(K) ⇒ c < levels
-                assert((c as nat) < t.levels) by {
-                    if (c as nat) == t.levels {
-                        assert(num_nodes(t, t.levels) == (t.h)(t.levels));
+                assert((c as nat) < tab.levels as nat) by {
+                    if (c as nat) == tab.levels as nat {
+                        assert(num_nodes(t, tab.levels as nat) == (t.h)(tab.levels as nat));
                     }
                 }
                 assert(g_ce == fldr_f(t, e, cn + 1, ((d as nat) - (t.h)(cn + 1)) as nat, k)
@@ -720,135 +333,6 @@ pub fn sample_fldr<T: DdgTable>(
     }
 }
 
-// ── Binary reconstruction ──────────────
-
-/// The j-th bit of x.
-pub open spec fn bit(x: nat, j: nat) -> nat { (x / pow2(j)) % 2 }
-
-/// Σ_{j<k} bit(x,j)·2^j  — value of the low k bits.
-pub open spec fn bitval(x: nat, k: nat) -> nat
-    decreases k,
-{
-    if k == 0 { 0 } else { bitval(x, (k - 1) as nat) + bit(x, (k - 1) as nat) * pow2((k - 1) as nat) }
-}
-
-/// Σ_{c'=1}^{c} bit(x, k−c')·2^{k−c'}  — the value contributed by the top c bits.
-/// (Level c ↔ bit k−c; this is the FLDR per-label weight encoding's shape.)
-pub open spec fn topbits(x: nat, k: nat, c: nat) -> nat
-    decreases c,
-{
-    if c == 0 {
-        0
-    } else {
-        topbits(x, k, (c - 1) as nat) + bit(x, (k - c) as nat) * pow2((k - c) as nat)
-    }
-}
-
-// ── The DDG built from a weight vector ────────────────────────────────────────
-// Preprocessing context: weights a₀..a_{n−1}, reject weight `rej = 2ᴷ − m` at label n,
-// K = `levels`.  At level c the leaves are the labels whose bit (K−c) is set.
-
-pub struct PCtx {
-    pub weights: spec_fn(nat) -> nat,
-    pub n: nat,
-    pub rej: nat,
-    pub levels: nat,
-}
-
-/// Extended weight: a real outcome's weight, or the reject weight at label n.
-pub open spec fn ew(pctx: PCtx, l: nat) -> nat {
-    if l < pctx.n { (pctx.weights)(l) } else { pctx.rej }
-}
-
-/// Is label l a leaf at level c?  (its bit K−c, ∈ {0,1}).
-pub open spec fn pres(pctx: PCtx, c: nat, l: nat) -> nat {
-    bit(ew(pctx, l), (pctx.levels - c) as nat)
-}
-
-/// #{ l < upto : pres(c,l) = 1 }  — present labels below `upto` at level c.
-pub open spec fn pcnt(pctx: PCtx, c: nat, upto: nat) -> nat
-    decreases upto,
-{
-    if upto == 0 { 0 } else { pcnt(pctx, c, (upto - 1) as nat) + pres(pctx, c, (upto - 1) as nat) }
-}
-
-/// The present label at count d among {0..upto−1} (sentinel n+1 if none).
-pub open spec fn sel(pctx: PCtx, c: nat, d: nat, upto: nat) -> nat
-    decreases upto,
-{
-    if upto == 0 {
-        pctx.n + 1
-    } else if pres(pctx, c, (upto - 1) as nat) == 1 && pcnt(pctx, c, (upto - 1) as nat) == d {
-        (upto - 1) as nat
-    } else {
-        sel(pctx, c, d, (upto - 1) as nat)
-    }
-}
-
-/// The DDG built from `pctx`.  The total weight is derived intrinsically by
-/// summing the real weights: `m = Σ_{i<n} weights(i) = ewsum(pctx, pctx.n)`.
-/// h(c) = #leaves at level c, lab(c,d) = the d-th such leaf's label.
-pub open spec fn built_ddg(pctx: PCtx) -> Ddg {
-    Ddg {
-        n: pctx.n,
-        weights: pctx.weights,
-        m: ewsum(pctx, pctx.n),
-        levels: pctx.levels,
-        h: |c: nat| pcnt(pctx, c, (pctx.n + 1) as nat),
-        lab: |c: nat, d: nat| sel(pctx, c, d, (pctx.n + 1) as nat),
-    }
-}
-
-// ── Node-count: the tree closes (N(K+1)=0) and h(c) ≤ N(c) ────────────────────
-// Σ_c h(c)·2^{K−c} = Σ_ℓ ew(ℓ) = 2ᴷ.  Proved by the row-sum (over labels) of the
-// bit-histogram, accumulated level-by-level (same shape as the leaf-sum identity).
-
-/// Σ_{ℓ<n} topbits(ew(ℓ), K, c)  — cells covered by levels 1..c, summed over labels < n.
-pub open spec fn rowtop(pctx: PCtx, c: nat, n: nat) -> nat
-    decreases n,
-{
-    if n == 0 { 0 } else { rowtop(pctx, c, (n - 1) as nat) + topbits(ew(pctx, (n - 1) as nat), pctx.levels, c) }
-}
-
-/// Σ_{j=1}^{c} h(j)·2^{K−j}  — cells covered by leaves at levels 1..c.
-pub open spec fn filled(pctx: PCtx, c: nat) -> nat
-    decreases c,
-{
-    if c == 0 {
-        0
-    } else {
-        filled(pctx, (c - 1) as nat) + pcnt(pctx, c, (pctx.n + 1) as nat) * pow2((pctx.levels - c) as nat)
-    }
-}
-
-/// Σ_{ℓ<n} ew(ℓ).
-pub open spec fn ewsum(pctx: PCtx, n: nat) -> nat
-    decreases n,
-{
-    if n == 0 { 0 } else { ewsum(pctx, (n - 1) as nat) + ew(pctx, (n - 1) as nat) }
-}
-
-impl PCtx {
-    /// Well-formed preprocessing input:  reject = 2ᴷ−m, m = Σ weights ≥ 1, each weight < 2ᴷ.
-    /// The total weight `m` is the derived sum `ewsum(self, self.n)` (not a separate input).
-    pub open spec fn wf(self) -> bool {
-        &&& self.levels >= 1
-        &&& self.rej == (pow2(self.levels) - ewsum(self, self.n)) as nat
-        &&& pow2(self.levels) >= ewsum(self, self.n)
-        &&& ewsum(self, self.n) >= 1
-        &&& (forall |l: nat| l < self.n ==> #[trigger] (self.weights)(l) < pow2(self.levels))
-    }
-}
-
-// ── Executable preprocessing: build the runtime table and discharge wf() ──────
-
-/// Σ_{i<j} s[i]  (nat) — the integer total of a weight Vec, for relating the exec
-/// sum to the spec `ewsum`.
-pub open spec fn vsum(s: Seq<u64>, j: nat) -> nat
-    decreases j,
-{
-    if j == 0 { 0nat } else { vsum(s, (j - 1) as nat) + s[(j - 1) as int] as nat }
-}
 
 // ── FLDR paper, inner loop of PREPROCESS (Alg. 5, lines 7–12) ─────────────────
 // For a fixed level / binary digit `j`, scan every label and collect those present
@@ -919,7 +403,6 @@ pub fn build_level(
         decreases n + 1 - i,
     {
         let a_i: u64 = if i < n { weights[i] } else { rej_u };   // aᵢ  (reject weight at i = n)
-        proof { lemma_pow2_pos((levels - j) as nat); }            // p_j == pow2(K−j) ≥ 1
         let w: bool = (a_i / p_j) % 2 == 1;                        // bit (K−j) of aᵢ
         if w {
             labd.push(i as u64);

@@ -84,155 +84,8 @@ use crate::rand_primitives::{sum_credit, average, average_nat};
 #[cfg(verus_keep_ghost)]
 use crate::alias_helper::*;
 
-/// A preprocessed alias distribution over outcomes 0..n−1.  `m = Σ weights`.
-/// Bin i holds `prob(i)` units of label i and `m − prob(i)` units of label `alias(i)`.
-pub struct Alias {
-    pub n: nat,
-    pub m: nat,
-    pub weights: spec_fn(nat) -> nat,
-    pub prob: spec_fn(nat) -> nat,
-    pub alias: spec_fn(nat) -> nat,
-}
-
-/// Σ_{i<j} weights(i)  (nat) — pins down m = total weight.
-pub open spec fn sum_of_weights(t: Alias, j: nat) -> nat
-    decreases j,
-{
-    if j == 0 { 0nat } else { sum_of_weights(t, (j - 1) as nat) + (t.weights)((j - 1) as nat) }
-}
-
-/// Σ_{i<j} weights(i)·ℰ(i)  (real).
-pub open spec fn wsum(t: Alias, e: spec_fn(nat) -> real, j: nat) -> real
-    decreases j,
-{
-    if j == 0 {
-        0real
-    } else {
-        wsum(t, e, (j - 1) as nat) + (t.weights)((j - 1) as nat) as real * e((j - 1) as nat)
-    }
-}
-
-/// (1/m)·Σ aᵢ·ℰ(i).
-pub open spec fn alias_exp(t: Alias, e: spec_fn(nat) -> real) -> real {
-    wsum(t, e, t.n) / (t.m as real)
-}
-
-/// Bin i's total credit (ℰ summed over its m slots):  prob(i)·ℰ(i) + (m−prob(i))·ℰ(alias(i)).
-/// The inner draw averages this over the m thresholds, so inner_eps(i) = bin_credit(i)/m.
-pub open spec fn bin_credit(t: Alias, e: spec_fn(nat) -> real, i: nat) -> real {
-    (t.prob)(i) as real * e(i)
-        + ((t.m - (t.prob)(i)) as nat) as real * e((t.alias)(i))
-}
-
-/// Σ_{i<j} bin_credit(i).
-pub open spec fn bin_sum(t: Alias, e: spec_fn(nat) -> real, j: nat) -> real
-    decreases j,
-{
-    if j == 0 { 0real } else { bin_sum(t, e, (j - 1) as nat) + bin_credit(t, e, (j - 1) as nat) }
-}
-
-/// Credit the inner draw needs at bin i:  bin_credit(i)/m.  (= the outer draw's ℰ at i.)
-pub open spec fn inner_eps(t: Alias, e: spec_fn(nat) -> real, i: nat) -> real {
-    bin_credit(t, e, i) / (t.m as real)
-}
-
-/// Units of label k contributed by bin i.
-pub open spec fn bin_contrib(t: Alias, i: nat, k: nat) -> nat {
-    (if i == k { (t.prob)(i) } else { 0nat })
-        + (if (t.alias)(i) == k { (t.m - (t.prob)(i)) as nat } else { 0nat })
-}
-
-/// Σ_{i<j} bin_contrib(i, k) — units of label k across the first j bins.
-pub open spec fn label_units(t: Alias, j: nat, k: nat) -> nat
-    decreases j,
-{
-    if j == 0 { 0nat } else { label_units(t, (j - 1) as nat, k) + bin_contrib(t, (j - 1) as nat, k) }
-}
-
-/// Σ_{k<n} ℰ(k)·label_units(j,k)
-pub open spec fn label_credit_sum(t: Alias, e: spec_fn(nat) -> real, j: nat, n: nat) -> real
-    decreases n,
-{
-    if n == 0 {
-        0real
-    } else {
-        label_credit_sum(t, e, j, (n - 1) as nat) + e((n - 1) as nat) * (label_units(t, j, (n - 1) as nat) as real)
-    }
-}
-
-/// Σ_{k<n} ℰ(k)·bin_contrib(i,k) — bin i's contribution, label-grouped.
-pub open spec fn bin_contrib_sum(t: Alias, e: spec_fn(nat) -> real, i: nat, n: nat) -> real
-    decreases n,
-{
-    if n == 0 {
-        0real
-    } else {
-        bin_contrib_sum(t, e, i, (n - 1) as nat) + e((n - 1) as nat) * (bin_contrib(t, i, (n - 1) as nat) as real)
-    }
-}
-
-/// `t` is a well-formed integer alias table:
-///  - n,m ≥ 1 and m = Σ weights;
-///  - each bin's probabilities are in range (prob(i) ≤ m, alias(i) < n);
-///  - every label k's total units equal n·aₖ  (Vose's redistribution invariant).
-pub open spec fn valid_alias(t: Alias) -> bool {
-    &&& t.n >= 1
-    &&& t.m >= 1
-    &&& t.m == sum_of_weights(t, t.n)
-    &&& (forall |i: nat| i < t.n ==> #[trigger] (t.prob)(i) <= t.m)
-    &&& (forall |i: nat| i < t.n ==> #[trigger] (t.alias)(i) < t.n)
-    &&& (forall |k: nat| k < t.n ==> #[trigger] label_units(t, t.n, k) == t.n * (t.weights)(k))
-}
-
-/// Units bin i contributes to label k, from raw arrays (i finalized).
-pub open spec fn binc(prob: Seq<u64>, alias: Seq<u64>, m: nat, i: int, k: nat) -> nat {
-    (if i == k as int { prob[i] as nat } else { 0nat })
-        + (if alias[i] as nat == k { (m - prob[i] as nat) as nat } else { 0nat })
-}
-
-/// Σ_{i<j, !active[i]} binc(i,k) — units of label k from the finalized (!active) bins below j.
-pub open spec fn placed(prob: Seq<u64>, alias: Seq<u64>, active: Seq<bool>, m: nat, j: nat, k: nat) -> nat
-    decreases j,
-{
-    if j == 0 {
-        0nat
-    } else {
-        placed(prob, alias, active, m, (j - 1) as nat, k)
-            + (if !active[(j - 1) as int] { binc(prob, alias, m, (j - 1) as int, k) } else { 0nat })
-    }
-}
-
-/// Σ_{i<j, active[i]} scaled_weights[i].
-pub open spec fn sum_active(scaled_weights: Seq<u64>, active: Seq<bool>, j: nat) -> nat
-    decreases j,
-{
-    if j == 0 { 0nat }
-    else { sum_active(scaled_weights, active, (j - 1) as nat) + (if active[(j - 1) as int] { scaled_weights[(j - 1) as int] as nat } else { 0nat }) }
-}
-
-/// #{ i < j : active[i] }.
-pub open spec fn count_active(active: Seq<bool>, j: nat) -> nat
-    decreases j,
-{
-    if j == 0 { 0nat } else { count_active(active, (j - 1) as nat) + (if active[(j - 1) as int] { 1nat } else { 0nat }) }
-}
-
-/// Σ_{i<j} s[i]  — sum of the first j entries of a Seq<u64> (used for the weights total).
-pub open spec fn seq_sum(s: Seq<u64>, j: nat) -> nat
-    decreases j,
-{
-    if j == 0 { 0nat } else { seq_sum(s, (j - 1) as nat) + s[(j - 1) as int] as nat }
-}
-
-/// Outer-draw allocation:  bin x ↦ the credit the inner draw needs there.
-pub open spec fn oalloc(t: Alias, e: spec_fn(nat) -> real) -> spec_fn(nat) -> real {
-    |x: nat| inner_eps(t, e, x)
-}
-
-/// Inner-draw allocation at bin i:  threshold y ↦ ℰ(y<prob(i) ? i : alias(i)).
-pub open spec fn ialloc(t: Alias, e: spec_fn(nat) -> real, i: nat) -> spec_fn(nat) -> real {
-    |y: nat| if y < (t.prob)(i) { e(i) } else { e((t.alias)(i)) }
-}
+#[cfg(verus_keep_ghost)]
+use crate::alias::*;
 
 /// Runtime alias table.  `prob[i]`/`alias[i]` are the two-label split of  bin i
 pub struct AliasTable {
@@ -243,9 +96,8 @@ pub struct AliasTable {
     pub alias: Vec<u64>,
 }
 
-impl View for AliasTable {
-    type V = Alias;
-    open spec fn view(&self) -> Alias {
+impl AliasTable {
+    pub open spec fn view(self) -> Alias {
         Alias {
             n: self.n as nat,
             m: self.m as nat,
@@ -254,91 +106,18 @@ impl View for AliasTable {
             alias: |i: nat| if i < self.alias@.len() { self.alias@[i as int] as nat } else { 0nat },
         }
     }
-}
 
-/// A well-formed, executable alias table.
-///
-/// The correctness proof of the alias sampler is stated over the spec view 
-/// [`Alias`]  An
-/// `AliasLike` supplies the executable reads `sample_alias` performs — `n`, `m`,
-/// `prob[i]`, `alias[i]` — plus the well-formedness predicate [`AliasLike::wf`].
-pub trait AliasLike: View<V = Alias> {
-    /// Representation well-formedness.  Opaque to generic clients; the facts the
-    /// sampler relies on are surfaced by [`AliasLike::wf_props`].
-    spec fn wf(&self) -> bool;
-
-    /// Law: `wf` implies the view-level invariant and that positions fit `usize`.
-    proof fn wf_props(&self)
-        requires self.wf(),
-        ensures valid_alias(self@), self@.n <= usize::MAX as nat;
-
-    /// Outcome count n.
-    fn n(&self) -> (r: u64)
-        requires self.wf(),
-        ensures r as nat == self@.n;
-
-    /// Total weight m.
-    fn m(&self) -> (r: u64)
-        requires self.wf(),
-        ensures r as nat == self@.m;
-
-    /// prob(i): units of label i held in bin i.
-    fn get_prob(&self, i: u64) -> (r: u64)
-        requires self.wf(), (i as nat) < self@.n,
-        ensures r as nat == (self@.prob)(i as nat);
-
-    /// alias(i): the other label in bin i.
-    fn get_alias(&self, i: u64) -> (r: u64)
-        requires self.wf(), (i as nat) < self@.n,
-        ensures r as nat == (self@.alias)(i as nat);
-}
-
-impl AliasLike for AliasTable {
-    open spec fn wf(&self) -> bool {
+    pub open spec fn wf(self) -> bool {
         &&& valid_alias(self@)
         &&& self.prob@.len() == self.n
         &&& self.alias@.len() == self.n
         &&& self.n as nat <= usize::MAX as nat
     }
-
-    proof fn wf_props(&self) {
-        // Immediate from the (open) `wf` body.
-    }
-
-    fn n(&self) -> (r: u64) {
-        self.n
-    }
-
-    fn m(&self) -> (r: u64) {
-        self.m
-    }
-
-    fn get_prob(&self, i: u64) -> (r: u64) {
-        proof {
-            assert(self.prob@.len() == self.n);              // from wf
-            assert((i as nat) < self.prob@.len());           // i < n == len
-            assert((self@.prob)(i as nat) == self.prob@[i as int] as nat);   // closure eval
-        }
-        let r = self.prob[i as usize];
-        assert(r as nat == (self@.prob)(i as nat));
-        r
-    }
-
-    fn get_alias(&self, i: u64) -> (r: u64) {
-        proof {
-            assert(self.alias@.len() == self.n);             // from wf
-            assert((i as nat) < self.alias@.len());          // i < n == len
-            assert((self@.alias)(i as nat) == self.alias@[i as int] as nat); // closure eval
-        }
-        let r = self.alias[i as usize];
-        assert(r as nat == (self@.alias)(i as nat));
-        r
-    }
 }
 
 #[verifier::spinoff_prover]
-pub fn sample_alias<T: AliasLike>(
-    tab: &T,
+pub fn sample_alias(
+    tab: &AliasTable,
     Ghost(e): Ghost<spec_fn(nat) -> real>,
     Tracked(credit): Tracked<ErrorCreditResource>,
     Ghost(eps): Ghost<real>,
@@ -349,11 +128,10 @@ pub fn sample_alias<T: AliasLike>(
         eps >= alias_exp(tab@, e),
         credit@ =~= (Value { car: eps }),
     ensures
-        (value as nat) < tab@.n,
+        value < tab.n,
         out_credit@@ =~= (Value { car: e(value as nat) }),
 {
     let ghost t = tab@;
-    proof { tab.wf_props(); }                    // valid_alias(t) + n ≤ usize::MAX
     let ghost oa = oalloc(t, e);
 
     proof {
@@ -362,20 +140,16 @@ pub fn sample_alias<T: AliasLike>(
         }
         lemma_average_outer(t, e);
     }
-    let (i, Tracked(c1)) = rand_u64(tab.n(), Tracked(credit), Ghost(oa));
+    let (i, Tracked(c1)) = rand_u64(tab.n, Tracked(credit), Ghost(oa));
 
     let ghost ia = ialloc(t, e, i as nat);
     proof {
         lemma_inner_average(t, e, i as nat);
     }
-    let (r, Tracked(c2)) = rand_u64(tab.m(), Tracked(c1), Ghost(ia));
+    let (r, Tracked(c2)) = rand_u64(tab.m, Tracked(c1), Ghost(ia));
 
-    let pi: u64 = tab.get_prob(i);
-    let result: u64 = if r < pi { i } else { tab.get_alias(i) };
-    proof {
-        // value < n:  i < n by the outer draw; alias(i) < n by valid_alias.
-        assert((t.alias)(i as nat) < t.n);
-    }
+    let pi: u64 = tab.prob[i as usize];
+    let result: u64 = if r < pi { i } else { tab.alias[i as usize] };
     (result, Tracked(c2))
 }
 
