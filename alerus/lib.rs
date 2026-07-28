@@ -18,5 +18,6 @@ pub mod fldr_helper;
 pub mod alias;
 pub mod alias_helper;
 pub mod proph_paradox;
+pub mod fisher_yates;
 // pub mod proph_paradox_mutref;
 
