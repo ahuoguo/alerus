@@ -243,6 +243,7 @@ proof fn lemma_fail_limit_zero(p: nat)
         lemma_limit_le_bound(fail_prob_seq(k + 1), fail_limit(k + 1), 1real);
         assert(false);
     }
+    assert(fail_limit(p) == nat_to_real(p) * 0real);
 }
 
 /// For any starting position pos and δ > 0, ∃ s. fail_prob(s, pos) < δ.

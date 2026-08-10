@@ -155,6 +155,7 @@ pub fn sample_alias(
 
 /// build a validated alias table from integer weights
 #[verifier::spinoff_prover]
+#[verifier::rlimit(100)]
 pub fn build_alias(weights: Vec<u64>, m: u64) -> (ret: AliasTable)
     requires
         weights@.len() >= 1,
