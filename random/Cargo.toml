@@ -4,5 +4,5 @@ version = "0.1.0"
 edition = "2024"
 
 [dependencies]
-opendp = { version = "0.14.1", features = ["contrib"] }
-dashu = "0.4.0"
+opendp = { version = "0.15.1", features = ["contrib"] }
+dashu = "0.6.1"
