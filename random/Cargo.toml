@@ -5,4 +5,4 @@ edition = "2024"
 
 [dependencies]
 opendp = { version = "0.15.1", features = ["contrib"] }
-dashu = "0.6.1"
+dashu = "0.4"
