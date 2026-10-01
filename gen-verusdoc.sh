@@ -13,7 +13,7 @@
 #                  Both a local `target-verus/release` build and an unzipped
 #                  Verus release share these exact file names.
 #   VERUSDOC_BIN   path to the `verusdoc` HTML post-processor binary.
-#   RUSTDOC        rustdoc to invoke (defaults to the 1.95.0 toolchain's rustdoc).
+#   RUSTDOC        rustdoc to invoke (defaults to the 1.98.1 toolchain's rustdoc).
 #
 # Output: ./doc/alerus/index.html
 set -e
@@ -25,7 +25,7 @@ DEPS="$ALERUS/target/debug/deps"
 VERUS="${VERUS:-/Users/byc/Desktop/mpi/verus}"
 VERUS_BIN_DIR="${VERUS_BIN_DIR:-$VERUS/source/target-verus/release}"
 VERUSDOC_BIN="${VERUSDOC_BIN:-$VERUS/source/target/debug/verusdoc}"
-RUSTDOC="${RUSTDOC:-$(rustup which --toolchain 1.96.0 rustdoc)}"
+RUSTDOC="${RUSTDOC:-$(rustup which --toolchain 1.98.1 rustdoc)}"
 
 case "$(uname)" in
   Darwin) DYN=dylib ;;
@@ -38,7 +38,7 @@ cd "$ALERUS"
 # The `alerus` crate depends on `random` (which re-exports dashu's UBig/IBig/RBig).
 # Build it so rustdoc has the rlib plus its transitive deps in target/debug/deps.
 echo "Building the random dependency..."
-cargo +1.96.0 build -p random
+cargo +1.98.1 build -p random
 
 RANDOM_RLIB="$(ls -t "$DEPS"/librandom-*.rlib | head -1)"
 
