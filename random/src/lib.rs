@@ -7,6 +7,31 @@ pub fn rand_u64(bound: u64) -> u64 {
   opendp::traits::samplers::sample_uniform_uint_below(bound).unwrap()
 }
 
+// A fair random bit, served from a buffered 64-bit word of the same source
+// (opendp `fill_bytes`, OpenSSL by default). One `fill_bytes` call per 64
+// bits instead of one per bit; the bits of a uniform word are independent
+// fair coins.
+thread_local! {
+    static BIT_BUF: std::cell::Cell<(u64, u32)> = const { std::cell::Cell::new((0, 0)) };
+}
+
+#[inline(always)]
+pub fn rand_bit() -> u64 {
+    BIT_BUF.with(|cell| {
+        let (mut word, mut left) = cell.get();
+        if left == 0 {
+            let mut buf = [0u8; 8];
+            // TODO: unwrap, as in rand_u64
+            opendp::traits::samplers::fill_bytes(&mut buf).unwrap();
+            word = u64::from_le_bytes(buf);
+            left = 64;
+        }
+        left -= 1;
+        cell.set((word, left));
+        (word >> left) & 1
+    })
+}
+
 #[inline(always)]
 pub fn rand_ubig(bound: UBig) -> UBig {
     // TODO: unwarp is probably very bad

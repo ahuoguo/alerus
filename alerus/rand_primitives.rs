@@ -145,6 +145,28 @@ pub fn rand_2_u64(
     (val, output_credit)
 }
 
+/// A fair coin flip from a buffered bit source (`random::rand_bit`: one
+/// 64-bit draw from the same generator serves 64 flips). Trusted, with the
+/// spec of `rand_2_u64`: each call is an independent fair bit, which the
+/// bits of a uniform word are. Use it where flips dominate the cost.
+#[verus::trusted]
+#[verifier::external_body]
+#[inline(always)]
+pub fn rand_2_u64_fast(
+    Tracked(input_credit): Tracked<ErrorCreditResource>,
+    Ghost(credit_alloc): Ghost<spec_fn(nat) -> real>,
+) -> ((n, out_credit): (u64, Tracked<ErrorCreditResource>))
+    requires
+        forall |i: nat| (#[trigger] credit_alloc(i)) >= 0real,
+        exists |eps: real| (Value { car: eps } =~= input_credit@) &&
+            eps >= (credit_alloc(0) + credit_alloc(1)) / 2real,
+    ensures
+        n == 0 || n == 1,
+        (Value { car: credit_alloc(n as nat) }) =~= out_credit@@,
+{
+    (random::rand_bit(), Tracked::assume_new())
+}
+
 // {1/2} 
 //   flip()
 // {v. v == true }
