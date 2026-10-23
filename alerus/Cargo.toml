@@ -12,7 +12,7 @@ name = "alerus"
 path = "src/main.rs"
 
 [dependencies]
-vstd = "=0.0.0-2026-09-06-0133"
+vstd = "=0.0.0-2026-10-18-0147"
 random = { path = "../random" }
 
 [package.metadata.verus]

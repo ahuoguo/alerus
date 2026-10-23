@@ -24,8 +24,8 @@ concurrency:
 env:
   # Keep these in sync with the Verus version pinned in veris/Cargo.toml and
   # .github/workflows/main.yml.
-  VERUS_VER: 0.2026.09.13.671956e
-  VERUS_TAG: release/0.2026.09.13.671956e
+  VERUS_VER: 0.2026.10.18.7d82994
+  VERUS_TAG: release/0.2026.10.18.7d82994
 
 jobs:
   build:
@@ -33,10 +33,10 @@ jobs:
     steps:
       - uses: actions/checkout@v7
 
-      - name: Install Rust 1.98.1
+      - name: Install Rust 1.99.1
         run: |
-          rustup toolchain install 1.98.1 --profile minimal
-          rustup default 1.98.1
+          rustup toolchain install 1.99.1 --profile minimal
+          rustup default 1.99.1
 
       - name: Download Verus
         run: |
@@ -50,7 +50,7 @@ jobs:
           # `cargo install --git` builds just this crate inside the Verus
           # workspace (so `workspace = true` deps resolve) and `--locked` uses
           # Verus's own Cargo.lock.
-          cargo +1.98.1 install --locked \
+          cargo +1.99.1 install --locked \
             --git https://github.com/verus-lang/verus --tag "$VERUS_TAG" \
             --root "$RUNNER_TEMP/verusdoc" verusdoc
 
@@ -59,7 +59,7 @@ jobs:
           VERUS_BIN_DIR: ${{ github.workspace }}/verus-x86-linux
           VERUSDOC_BIN: ${{ runner.temp }}/verusdoc/bin/verusdoc
         run: |
-          export RUSTDOC="$(rustup which --toolchain 1.98.1 rustdoc)"
+          export RUSTDOC="$(rustup which --toolchain 1.99.1 rustdoc)"
           ./gen-verusdoc.sh
           # Redirect the site root to the crate landing page.
           printf '<meta http-equiv="refresh" content="0; url=alerus/index.html">\n' > doc/index.html
