@@ -1,17 +1,18 @@
 //! FLDR on the generic walk of `ddg_walk/`.
 //!
 //! - **`ByLevel<T: DdgTable>`** walks any FLDR table level by level as a
-//!   `DdgWalk`, so `sample_fldr_walk` = `sample_walk` has the spec of
-//!   `sample_fldr`. The bridge is `lemma_fldr_walk`: the generic credit
-//!   `lwalk_f` equals FLDR's value plus failure credit, fldr_f + fldr_fail_f.
-//! - **`impl Family for Ddg`** states FLDR's laws once (`lemma_fldr_fuel`),
-//!   for every layout.
+//!   `DdgWalk`; `sample_fldr` is `walk::sample` on it. The bridge is
+//!   `lemma_fldr_walk`: the generic credit `lwalk_f` equals FLDR's value
+//!   plus failure credit, fldr_f + fldr_fail_f.
+//! - **`impl DdgSpec for Ddg`** states FLDR's laws once (`lemma_fldr_fuel`);
+//!   `ByLevel` and the packed encoding both use it.
 //! - **The packed encoding.** `construct_fldr_encoding` builds `optas`'s
 //!   packed array (`tree.py` + `packing.py`, here `ddg_walk/{tree,
 //!   packing}.rs`) from any `DdgTable`. A reject label n is a leaf that
 //!   restarts the walk. `sample_fldr_encoding` samples it with the spec of
-//!   `sample_fldr`. The encoding needs levels ≤ 52 and n < 2⁶², so that the
-//!   array's offsets fit an `i64`.
+//!   `sample_fldr`. The encoding needs levels ≤ 52, so that the array's
+//!   offsets (at most 2^52 nodes per depth) fit, and n < 2⁶², so that a leaf
+//!   entry −(label + 1) fits an `i64`.
 //!
 //! `sample_748_encoding` runs the (7, 4, 8) example on the encoding of the
 //! AISTATS layout.
@@ -24,14 +25,14 @@ use crate::ec::*;
 #[cfg(verus_keep_ghost)]
 use crate::ec::ErrorCreditCarrier::Value;
 use crate::fldr::*;
+use crate::ddg_walk::walk;
 use crate::ddg_walk::walk::*;
 use crate::ddg_walk::tree::*;
-use crate::ddg_walk::packing::*;
 use crate::ddg_walk::encoding::*;
 #[cfg(verus_keep_ghost)]
 use crate::fldr_helper::*;
 #[cfg(verus_keep_ghost)]
-use vstd::arithmetic::power2::{pow2, lemma_pow2_strictly_increases};
+use vstd::arithmetic::power2::lemma_pow2_strictly_increases;
 
 /// The FLDR tree as a level-structured DDG: no wrap-around (A(K) = 0), and
 /// the reject label n restarts at the root.
@@ -136,26 +137,26 @@ pub proof fn lemma_fldr_fuel(t: Ddg, e: spec_fn(nat) -> real, s0: real) -> (f: n
 }
 
 /// FLDR's distribution: Σ (aᵢ/m)·ℰ(i), for any table with view t.
-impl Family for Ddg {
-    open spec fn fwf(&self) -> bool { valid_ddg(*self) && self.levels >= 1 }
+impl DdgSpec for Ddg {
+    open spec fn wf(&self) -> bool { valid_ddg(*self) && self.levels >= 1 }
 
-    open spec fn fldd(&self) -> LDdg { fldr_ldd(*self) }
+    open spec fn ldd(&self) -> LDdg { fldr_ldd(*self) }
 
-    open spec fn ftarget(&self, e: spec_fn(nat) -> real) -> real { fldr_exp(*self, e) }
+    open spec fn target(&self, e: spec_fn(nat) -> real) -> real { fldr_exp(*self, e) }
 
-    open spec fn fpoint(&self) -> Option<nat> { None }
+    open spec fn point(&self) -> Option<nat> { None }
 
-    open spec fn fexact(&self) -> bool { false }
+    open spec fn exact(&self) -> bool { false }
 
-    proof fn lemma_fshape(&self) {
+    proof fn lemma_shape(&self) {
         lemma_fldr_valid_ldd(*self);
         assert forall |e: spec_fn(nat) -> real| (forall |i: nat| (#[trigger] e(i)) >= 0real)
-            implies #[trigger] self.ftarget(e) >= 0real by {
+            implies #[trigger] self.target(e) >= 0real by {
             lemma_fldr_exp_nonneg(*self, e);
         }
     }
 
-    proof fn lemma_ffuel(&self, e: spec_fn(nat) -> real, s0: real) -> (f: nat) {
+    proof fn lemma_fuel(&self, e: spec_fn(nat) -> real, s0: real) -> (f: nat) {
         lemma_fldr_fuel(*self, e, s0)
     }
 }
@@ -166,37 +167,20 @@ pub struct ByLevel<'a, T: DdgTable> {
 }
 
 impl<'a, T: DdgTable> DdgWalk for ByLevel<'a, T> {
+    type Spec = Ddg;
     type Pos = (u64, u64);
 
     open spec fn wf(&self) -> bool { self.tab.wf() }
 
-    open spec fn ldd(&self) -> LDdg { fldr_ldd(self.tab@) }
+    open spec fn spec(&self) -> Ddg { self.tab@ }
 
-    open spec fn target(&self, e: spec_fn(nat) -> real) -> real { fldr_exp(self.tab@, e) }
+    proof fn lemma_wf(&self) { self.tab.wf_props(); }
 
     open spec fn pos(&self, p: (u64, u64)) -> (nat, nat) { (p.0 as nat, p.1 as nat) }
 
     open spec fn valid_pos(&self, p: (u64, u64)) -> bool { true }
 
     open spec fn swap(&self) -> bool { false }
-
-    open spec fn point(&self) -> Option<nat> { None }
-
-    open spec fn exact(&self) -> bool { false }
-
-    proof fn lemma_shape(&self) {
-        self.tab.wf_props();
-        lemma_fldr_valid_ldd(self.tab@);
-        assert forall |e: spec_fn(nat) -> real| (forall |i: nat| (#[trigger] e(i)) >= 0real)
-            implies #[trigger] self.target(e) >= 0real by {
-            lemma_fldr_exp_nonneg(self.tab@, e);
-        }
-    }
-
-    proof fn lemma_fuel(&self, e: spec_fn(nat) -> real, s0: real) -> (f: nat) {
-        self.tab.wf_props();
-        lemma_fldr_fuel(self.tab@, e, s0)
-    }
 
     fn is_exact(&self) -> (r: bool) { false }
 
@@ -267,12 +251,12 @@ impl<'a, T: DdgTable> Leaves for ByLevel<'a, T> {
 /// The packed encoding of an FLDR table.
 pub fn construct_fldr_encoding<T: DdgTable>(tab: &T) -> (r: Encoded<Ddg>)
     requires tab.wf(), tab@.n < 0x4000000000000000, tab@.levels <= 52,
-    ensures r.wf(), r.fam@ == tab@,
+    ensures r.wf(), r.spec@ == tab@,
 {
     proof { tab.wf_props(); }
     let w = ByLevel { tab };
-    let (enc, ipos) = construct_encoding(&w);
-    Encoded { enc, n: tab.n(), exact: false, fam: Ghost(tab@), ipos }
+    let (enc, node_at) = construct_encoding(&w);
+    Encoded { enc, n: tab.n(), exact: false, spec: Ghost(tab@), node_at }
 }
 
 /// FLDR on its packed encoding: the spec of `sample_fldr`.
@@ -285,33 +269,13 @@ pub fn sample_fldr_encoding(
     requires
         enc.wf(),
         forall |x: nat| (#[trigger] e(x)) >= 0real,
-        eps >= fldr_exp(enc.fam@, e),
+        eps >= fldr_exp(enc.spec@, e),
         input_credit@ =~= (Value { car: eps }),
     ensures
-        (value as nat) < enc.fam@.n,
+        (value as nat) < enc.spec@.n,
         out_credit@@ =~= (Value { car: e(value as nat) }),
 {
-    sample_walk(enc, Ghost(e), Tracked(input_credit), Ghost(eps))
-}
-
-/// `sample_fldr` through the generic walk; the same spec.
-pub fn sample_fldr_walk<T: DdgTable>(
-    tab: &T,
-    Ghost(e): Ghost<spec_fn(nat) -> real>,
-    Tracked(input_credit): Tracked<ErrorCreditResource>,
-    Ghost(eps): Ghost<real>,
-) -> ((value, out_credit): (u64, Tracked<ErrorCreditResource>))
-    requires
-        tab.wf(),
-        forall |x: nat| (#[trigger] e(x)) >= 0real,
-        eps >= fldr_exp(tab@, e),
-        input_credit@ =~= (Value { car: eps }),
-    ensures
-        (value as nat) < tab@.n,
-        out_credit@@ =~= (Value { car: e(value as nat) }),
-{
-    let w = ByLevel { tab };
-    sample_walk(&w, Ghost(e), Tracked(input_credit), Ghost(eps))
+    walk::sample(enc, Ghost(e), Tracked(input_credit), Ghost(eps))
 }
 
 /// The running example (7, 4, 8), packed from the AISTATS layout.

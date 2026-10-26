@@ -13,14 +13,15 @@
 //!
 //! | File | Contents |
 //! |---|---|
-//! | `fldr.rs` | the spec table `Ddg`, the `DdgTable` trait, `FldrTable` (per-level label lists) with `fldr_preprocess`, and the sampler `sample_fldr<T: DdgTable>` |
+//! | `fldr.rs` | the spec table `Ddg`, the `DdgTable` trait, `FldrTable` (per-level label lists) with `fldr_preprocess`, the value and failure credits, and the sampler `sample_fldr<T: DdgTable>` |
 //! | `fldr_helper.rs` | the lemmas behind the sampler and the preprocessing |
 //! | `fldr_layouts.rs` | two more `DdgTable` layouts: `FldrH` (the AISTATS paper's h/H matrix) and `FldrFlat` (ryco117's flat rows), each with its preprocessing |
-//! | `fldr_walk.rs` | FLDR on the generic walk of `ddg_walk/`: `sample_fldr_walk` for any `DdgTable`, and the packed-array encoding (`construct_fldr_encoding`, `sample_fldr_encoding`) |
+//! | `fldr_walk.rs` | FLDR on the generic walk of `ddg_walk/`: `ByLevel` (the loop below as a `DdgWalk`), FLDR's fuel law, and the packed-array encoding (`construct_fldr_encoding`, `sample_fldr_encoding`) |
 //!
 //! The sampler's proof uses only the trait: a layout supplies `levels`, `n`,
 //! `h[c]` and `lab[c][d]` and proves `valid_ddg` of its view (`wf_props`).
 //! So `sample_fldr` samples every layout above with no new sampler proof.
+//! `sample_fldr` is `walk::sample` (`ddg_walk/walk.rs`) on `ByLevel`.
 //!
 //! ## The table
 //!
@@ -76,6 +77,9 @@
 //!   root-to-leaf walk (≤ K flips) rejects with probability
 //!   ρ = (2ᴷ−m)/2ᴷ < 1, so fldr_fail_f(0,0,jK) ≤ ρʲ → 0, and a `thin_air`
 //!   credit pays for it.
+//! - **The walk.** `walk::sample` keeps one fuel-indexed credit, `lwalk_f`;
+//!   `lemma_fldr_walk` (`fldr_walk.rs`) shows it is fldr_f + fldr_fail_f, so
+//!   the two facts above give FLDR's fuel law (`lemma_fldr_fuel`).
 //! - **Preprocessing.** `built_ddg(pctx)` is the table of the construction
 //!   above, as a spec; `lemma_built_valid` proves it is a `valid_ddg`. Two
 //!   facts carry it:
@@ -95,7 +99,7 @@ verus! {
 use crate::ec::*;
 #[cfg(verus_keep_ghost)]
 use crate::ec::ErrorCreditCarrier::Value;
-use crate::rand_primitives::{thin_air, rand_2_u64};
+use crate::rand_primitives::thin_air;
 #[cfg(verus_keep_ghost)]
 use crate::math::pow::{pow, archimedean_pow};
 #[cfg(verus_keep_ghost)]
@@ -557,19 +561,18 @@ pub fn pow2_exec(k: u64) -> (r: u64)
     r
 }
 
-/// Fast Loaded Dice Roller [AISTATS 2020, Alg. 5] — samples outcome i with 
+/// Fast Loaded Dice Roller [AISTATS 2020, Alg. 5] — samples outcome i with
 /// probability aᵢ/m using fair coins; always returns.
-/// 
+///
 /// The Expectation-Preservation Rule:
 ///
 ///   ε ≥ Σ_{i<n} (aᵢ/m)·ℰ(i)
 ///   ─────────────────────────────────────────────────
 ///   [{ ↯(ε) }] sample_fldr(tab) [{ i. ↯(ℰ(i)) }]
 ///
-/// `tab` is a well-formed (preprocessed, validated) DDG table.  Correctness is funded
-/// by the value credit, almost-sure termination by the failure-probability credit.
-#[verifier::spinoff_prover]
-#[verifier::rlimit(100)]
+/// `tab` is a well-formed (preprocessed, validated) DDG table. The loop is the
+/// generic `walk::sample` on `ByLevel` (`fldr_walk.rs`), whose `step` is one
+/// iteration of the loop above.
 pub fn sample_fldr<T: DdgTable>(
     tab: &T,
     Ghost(e): Ghost<spec_fn(nat) -> real>,
@@ -585,135 +588,8 @@ pub fn sample_fldr<T: DdgTable>(
         (value as nat) < tab@.n,
         out_credit@@ =~= (Value { car: e(value as nat) }),
 {
-    let ghost t = tab@;
-    proof {
-        tab.wf_props(); // valid_ddg(t) + overflow bounds
-        lemma_fldr_exp_nonneg(t, e);
-    }
-    let Tracked(slack) = thin_air();
-    let ghost s0 = choose |sv: real| sv > 0real && (slack@ =~= (Value { car: sv }));
-    let tracked mut credit = ec_combine(input_credit, slack, eps, s0);   // ↯(eps + s0)
-    let ghost mut k: nat;
-    proof {
-        lemma_fldr_fail_witness(t, s0);
-        k = choose |k: nat| fldr_fail_f(t, 0, 0, k) < s0;
-        lemma_fldr_val_le_target(t, e, k);
-        assert(eps + s0 >= fldr_f(t, e, 0, 0, k) + fldr_fail_f(t, 0, 0, k)) by(nonlinear_arith)
-            requires
-                fldr_f(t, e, 0, 0, k) <= fldr_exp(t, e),
-                eps >= fldr_exp(t, e),
-                fldr_fail_f(t, 0, 0, k) < s0;
-    }
-    let ghost mut g_ce = eps + s0;
-
-    let mut c: u64 = 0;
-    let mut d: u64 = 0;
-
-    loop
-        invariant
-            t == tab@,
-            tab.wf(),
-            (c as nat) < t.levels,
-            (d as nat) + (t.h)(c as nat) < num_nodes(t, c as nat),
-            forall |x: nat| (#[trigger] e(x)) >= 0real,
-            credit@ =~= (Value { car: g_ce }),
-            g_ce >= fldr_f(t, e, c as nat, d as nat, k) + fldr_fail_f(t, c as nat, d as nat, k),
-        decreases k,
-    {
-        proof {
-            tab.wf_props();                          // valid_ddg(t) + pow2 bounds this iteration
-            if k == 0 {
-                ec_contradict(&credit);              // fail_f(c,d,0)=1 ⇒ g_ce ≥ 1, impossible
-            }
-        }
-        let ghost k0 = k;
-        let ghost cn = c as nat;
-        let ghost dn = d as nat;
-        // coin alloc: b ↦ fldr_g(cn+1, 2d+b, k−1) + fldr_fail_g(cn+1, 2d+b, k−1)
-        let ghost alloc = |x: nat| {
-            let d1: nat = if x == 1 { 2 * dn + 1 } else { 2 * dn };
-            fldr_g(t, e, cn + 1, d1, (k0 - 1) as nat) + fldr_fail_g(t, cn + 1, d1, (k0 - 1) as nat)
-        };
-        proof {
-            assert forall |i: nat| (#[trigger] alloc(i)) >= 0real by {
-                lemma_fldr_g_nonneg(t, e, cn + 1, 2 * dn, (k0 - 1) as nat);
-                lemma_fldr_g_nonneg(t, e, cn + 1, 2 * dn + 1, (k0 - 1) as nat);
-                lemma_fldr_fail_g_bounds(t, cn + 1, 2 * dn, (k0 - 1) as nat);
-                lemma_fldr_fail_g_bounds(t, cn + 1, 2 * dn + 1, (k0 - 1) as nat);
-            }
-            let ghost fg0 = fldr_g(t, e, cn + 1, 2 * dn, (k0 - 1) as nat);
-            let ghost fg1 = fldr_g(t, e, cn + 1, 2 * dn + 1, (k0 - 1) as nat);
-            let ghost lg0 = fldr_fail_g(t, cn + 1, 2 * dn, (k0 - 1) as nat);
-            let ghost lg1 = fldr_fail_g(t, cn + 1, 2 * dn + 1, (k0 - 1) as nat);
-            assert((alloc(0) + alloc(1)) / 2real
-                == fldr_f(t, e, cn, dn, k0) + fldr_fail_f(t, cn, dn, k0)) by(nonlinear_arith)
-                requires
-                    alloc(0) == fg0 + lg0, alloc(1) == fg1 + lg1,
-                    fldr_f(t, e, cn, dn, k0) == (fg0 + fg1) / 2real,
-                    fldr_fail_f(t, cn, dn, k0) == (lg0 + lg1) / 2real;
-        }
-
-        let (b, Tracked(out)) = rand_2_u64(Tracked(credit), Ghost(alloc));
-        proof { credit = out; g_ce = alloc(b as nat); k = (k0 - 1) as nat; }
-
-        // descend one level:  c ← c+1,  d ← 2d + b.  (2d can't overflow:
-        // d < N(cn) ≤ 2^cn ≤ 2^levels ≤ 2^62.)
-        proof {
-            lemma_num_nodes_le_pow2(t, cn);
-            lemma_pow2_mono(cn, t.levels);
-            // levels ≤ 62 (else pow2(levels) > 2^62, contradicting wf), so c+1 fits u64.
-            lemma_pow2_62();
-            if t.levels > 62 { lemma_pow2_strictly_increases(62nat, t.levels); }
-        }
-        c = c + 1;
-        d = 2 * d + b;
-
-        // g_ce now tracks the child node (c, d); d < N(c) keeps the loop invariant,
-        // and N(c) ≤ 2^c ≤ 2^levels ≤ usize::MAX makes the Vec indices below safe.
-        proof {
-            assert(alloc(b as nat)
-                == fldr_g(t, e, cn + 1, d as nat, k)
-                   + fldr_fail_g(t, cn + 1, d as nat, k));
-            assert((d as nat) < num_nodes(t, cn + 1)) by(nonlinear_arith)
-                requires
-                    (dn as int) + (t.h)(cn) < num_nodes(t, cn),
-                    (t.h)(cn) <= num_nodes(t, cn),
-                    num_nodes(t, cn + 1) == 2 * ((num_nodes(t, cn) - (t.h)(cn)) as nat),
-                    d == 2 * dn + (b as nat), b <= 1;
-            lemma_num_nodes_le_pow2(t, (cn + 1) as nat);
-            lemma_pow2_mono((cn + 1) as nat, t.levels);
-            lemma_pow2_gt((cn + 1) as nat);
-        }
-
-        let hc: u64 = tab.get_h(c);
-
-        if d < hc {
-            // leaf at (c, d):  lab[c][d] is the label reached
-            let lab = tab.get_lab(c, d);
-            if lab < tab.n() {
-                proof { assert(g_ce == e(lab as nat)); }   // accept: fldr_g = ℰ(lab)
-                return (lab, Tracked(credit));
-            } else {
-                // reject → restart at the root
-                proof { assert(g_ce == fldr_f(t, e, 0, 0, k) + fldr_fail_f(t, 0, 0, k)); }
-                c = 0;
-                d = 0;
-            }
-        } else {
-            // internal → renumber within the level:  d ← d − h(c)
-            proof {
-                lemma_ddg_close(t);                                  // N(K) = h(K) ⇒ c < levels
-                assert((c as nat) < t.levels) by {
-                    if (c as nat) == t.levels {
-                        assert(num_nodes(t, t.levels) == (t.h)(t.levels));
-                    }
-                }
-                assert(g_ce == fldr_f(t, e, cn + 1, ((d as nat) - (t.h)(cn + 1)) as nat, k)
-                            + fldr_fail_f(t, cn + 1, ((d as nat) - (t.h)(cn + 1)) as nat, k));
-            }
-            d = d - hc;
-        }
-    }
+    let w = crate::fldr_walk::ByLevel { tab };
+    crate::ddg_walk::walk::sample(&w, Ghost(e), Tracked(input_credit), Ghost(eps))
 }
 
 // ── Binary reconstruction ──────────────

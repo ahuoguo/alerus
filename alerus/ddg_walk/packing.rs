@@ -1,5 +1,5 @@
-//! `optas/packing.py` and `sample_ky_encoding`: pack the arena of
-//! `tree.rs` into one array, and walk the array.
+//! optas's `packing.py`: pack the arena of `tree.rs` into one array. The
+//! array as a sampler (`sample_ky_encoding`) is `Encoded` in `encoding.rs`.
 //!
 //! An internal node takes two slots, the offsets of its left child (flip 0)
 //! and right child (flip 1); a leaf takes one slot, −(label + 1). The
@@ -8,9 +8,15 @@
 //! packed once, and a pointer to an already packed node (a back-edge) is
 //! its offset.
 //!
-//! [`Encoded`] is the packed array as a [`DdgWalk`]. Which distribution it
-//! samples is given by a [`Family`] (FLDR's `Ddg`, or the M / Z_kl of
-//! `approx_ddg`), so the one sampler `sample_walk` covers every encoding.
+//! `pack_tree` recurses through `pack_children` and `pack_child`, as the
+//! original does. A back-edge to a depth-l node not yet packed packs it
+//! there, so the recursion depth is not bounded by K; the proof says nothing
+//! about stack depth.
+//!
+//! `Encoded` (in `encoding.rs`) is the packed array as a `DdgWalk`. Which
+//! distribution it samples is given by a `DdgSpec` (FLDR's `Ddg`, or the
+//! M / Z_kl of `optas`), so the one sampler `walk::sample` covers every
+//! encoding.
 
 use vstd::prelude::*;
 
@@ -19,67 +25,36 @@ verus! {
 #[cfg(verus_keep_ghost)]
 use crate::ddg_walk::walk::*;
 use crate::ddg_walk::tree::*;
-#[cfg(verus_keep_ghost)]
-use vstd::arithmetic::power2::{pow2, lemma2_to64_rest};
-
-/// A distribution with a level-structured DDG: the laws `DdgWalk` needs,
-/// for every layout of the same DDG.
-pub trait Family {
-    spec fn fwf(&self) -> bool;
-
-    spec fn fldd(&self) -> LDdg;
-
-    spec fn ftarget(&self, e: spec_fn(nat) -> real) -> real;
-
-    spec fn fpoint(&self) -> Option<nat>;
-
-    spec fn fexact(&self) -> bool;
-
-    proof fn lemma_fshape(&self)
-        requires self.fwf(),
-        ensures
-            valid_ldd(self.fldd()),
-            forall |e: spec_fn(nat) -> real| (forall |i: nat| (#[trigger] e(i)) >= 0real) ==> #[trigger] self.ftarget(e) >= 0real,
-            self.fpoint() matches Some(r) ==> (r < self.fldd().n
-                && forall |e: spec_fn(nat) -> real| (forall |i: nat| (#[trigger] e(i)) >= 0real) ==> #[trigger] self.ftarget(e) >= e(r));
-
-    proof fn lemma_ffuel(&self, e: spec_fn(nat) -> real, s0: real) -> (f: nat)
-        requires
-            self.fwf(), self.fpoint() is None,
-            forall |i: nat| (#[trigger] e(i)) >= 0real,
-            s0 > 0real || (self.fexact() && s0 == 0real),
-        ensures lwalk_f(self.fldd(), e, 0, 0, f) <= self.ftarget(e) + s0;
-}
 
 // ── The packed array ──────────────────────────────────────────────────────────
 
 /// The child pointer q of an internal node leads to node x of depth j1.
-pub open spec fn enc_child_ok(t: LDdg, enc: Seq<i64>, ipos: Seq<Option<(nat, nat)>>, q: i64, j1: nat, x: nat) -> bool {
+pub open spec fn enc_child_ok(t: LDdg, enc: Seq<i64>, node_at: Seq<Option<(nat, nat)>>, q: i64, j1: nat, x: nat) -> bool {
     &&& 0 <= q < enc.len()
     &&& if x < (t.h)(j1) {
         enc[q as int] == -((t.lab)(j1, x) as int) - 1
     } else {
-        enc[q as int] >= 0 && ipos[q as int] == Some((next_depth(t, j1), (x - (t.h)(j1)) as nat))
+        enc[q as int] >= 0 && node_at[q as int] == Some((next_depth(t, j1), (x - (t.h)(j1)) as nat))
     }
 }
 
 /// The internal node at offset o.
-pub open spec fn enc_node_ok(t: LDdg, enc: Seq<i64>, ipos: Seq<Option<(nat, nat)>>, o: int) -> bool {
-    let (j, d) = ipos[o]->Some_0;
+pub open spec fn enc_node_ok(t: LDdg, enc: Seq<i64>, node_at: Seq<Option<(nat, nat)>>, o: int) -> bool {
+    let (j, d) = node_at[o]->Some_0;
     &&& is_internal(t, j, d)
     &&& o + 1 < enc.len()
-    &&& enc_child_ok(t, enc, ipos, enc[o], j + 1, 2 * d + 1)
-    &&& enc_child_ok(t, enc, ipos, enc[o + 1], j + 1, 2 * d)
+    &&& enc_child_ok(t, enc, node_at, enc[o], j + 1, 2 * d + 1)
+    &&& enc_child_ok(t, enc, node_at, enc[o + 1], j + 1, 2 * d)
 }
 
-/// `enc` encodes the DDG t: `ipos[o]` is the internal node at offset o (if
+/// `enc` encodes the DDG t: `node_at[o]` is the internal node at offset o (if
 /// one starts there), and the root is at offset 0.
-pub open spec fn enc_wf(t: LDdg, enc: Seq<i64>, ipos: Seq<Option<(nat, nat)>>) -> bool {
-    &&& ipos.len() == enc.len()
+pub open spec fn enc_wf(t: LDdg, enc: Seq<i64>, node_at: Seq<Option<(nat, nat)>>) -> bool {
+    &&& node_at.len() == enc.len()
     &&& enc.len() >= 2
     &&& enc.len() < 0x4000000000000000
-    &&& ipos[0] == Some((0nat, 0nat))
-    &&& forall |o: int| 0 <= o < enc.len() && (#[trigger] ipos[o]) is Some ==> enc_node_ok(t, enc, ipos, o)
+    &&& node_at[0] == Some((0nat, 0nat))
+    &&& forall |o: int| 0 <= o < enc.len() && (#[trigger] node_at[o]) is Some ==> enc_node_ok(t, enc, node_at, o)
 }
 
 /// The packing state: the array, the offset of each packed arena node, and
@@ -88,7 +63,7 @@ pub open spec fn enc_wf(t: LDdg, enc: Seq<i64>, ipos: Seq<Option<(nat, nat)>>) -
 pub struct Packer {
     pub enc: Vec<i64>,
     pub loc: Vec<Option<usize>>,
-    pub ipos: Ghost<Seq<Option<(nat, nat)>>>,
+    pub node_at: Ghost<Seq<Option<(nat, nat)>>>,
     pub owner: Ghost<Seq<int>>,
 }
 
@@ -119,14 +94,6 @@ proof fn lemma_cnt_some_prefix(loc: Seq<Option<usize>>, i: int, x: Option<usize>
     if m > 0 { lemma_cnt_some_prefix(loc, i, x, (m - 1) as nat); }
 }
 
-proof fn lemma_cnt_some_mono(a: Seq<Option<usize>>, b: Seq<Option<usize>>, m: nat)
-    requires m <= a.len(), m <= b.len(), forall |i: int| 0 <= i < m && (#[trigger] a[i]) is Some ==> b[i] is Some,
-    ensures cnt_some(a, m) <= cnt_some(b, m),
-    decreases m,
-{
-    if m > 0 { lemma_cnt_some_mono(a, b, (m - 1) as nat); }
-}
-
 proof fn lemma_cnt_some_le(loc: Seq<Option<usize>>, m: nat)
     ensures cnt_some(loc, m) <= m,
     decreases m,
@@ -149,21 +116,21 @@ pub open spec fn pinv(nodes: Seq<Node>, pos: Seq<(nat, nat)>, pk: Packer) -> boo
     let enc = pk.enc@;
     let loc = pk.loc@;
     &&& loc.len() == nodes.len()
-    &&& pk.ipos@.len() == enc.len()
+    &&& pk.node_at@.len() == enc.len()
     &&& pk.owner@.len() == enc.len()
     &&& enc.len() <= 2 * cnt_some(loc, loc.len())
     &&& forall |i: int| 0 <= i < nodes.len() && (#[trigger] loc[i]) is Some ==> {
         let o = loc[i]->Some_0 as int;
         &&& o < enc.len()
         &&& (nodes[i].label matches Some(r) ==> enc[o] == -(r as int) - 1)
-        &&& (nodes[i].label is None ==> pk.ipos@[o] == Some(pos[i]))
+        &&& (nodes[i].label is None ==> pk.node_at@[o] == Some(pos[i]))
     }
-    &&& forall |o: int| 0 <= o < enc.len() && (#[trigger] pk.ipos@[o]) is Some ==> {
+    &&& forall |o: int| 0 <= o < enc.len() && (#[trigger] pk.node_at@[o]) is Some ==> {
         let i = pk.owner@[o];
         &&& 0 <= i < nodes.len()
         &&& loc[i] == Some(o as usize)
         &&& nodes[i].label is None
-        &&& pos[i] == pk.ipos@[o]->Some_0
+        &&& pos[i] == pk.node_at@[o]->Some_0
         &&& o + 1 < enc.len()
         &&& enc[o] >= 0 && enc[o + 1] >= 0
     }
@@ -187,7 +154,7 @@ pub proof fn lemma_pinv_facts(nodes: Seq<Node>, pos: Seq<(nat, nat)>, pk: Packer
     requires pinv(nodes, pos, pk), arena_ok(nodes, pos),
     ensures
         pk.loc@.len() == nodes.len(),
-        pk.ipos@.len() == pk.enc@.len(),
+        pk.node_at@.len() == pk.enc@.len(),
         pk.owner@.len() == pk.enc@.len(),
         pk.enc@.len() <= 2 * nodes.len(),
         pk.enc@.len() < 0x4000000000000000,
@@ -195,14 +162,14 @@ pub proof fn lemma_pinv_facts(nodes: Seq<Node>, pos: Seq<(nat, nat)>, pk: Packer
             let o = pk.loc@[i]->Some_0 as int;
             &&& o < pk.enc@.len()
             &&& (nodes[i].label matches Some(r) ==> pk.enc@[o] == -(r as int) - 1)
-            &&& (nodes[i].label is None ==> pk.ipos@[o] == Some(pos[i]))
+            &&& (nodes[i].label is None ==> pk.node_at@[o] == Some(pos[i]))
         },
-        forall |o: int| 0 <= o < pk.enc@.len() && (#[trigger] pk.ipos@[o]) is Some ==> {
+        forall |o: int| 0 <= o < pk.enc@.len() && (#[trigger] pk.node_at@[o]) is Some ==> {
             let i = pk.owner@[o];
             &&& 0 <= i < nodes.len()
             &&& pk.loc@[i] == Some(o as usize)
             &&& nodes[i].label is None
-            &&& pos[i] == pk.ipos@[o]->Some_0
+            &&& pos[i] == pk.node_at@[o]->Some_0
             &&& o + 1 < pk.enc@.len()
             &&& pk.enc@[o] >= 0 && pk.enc@[o + 1] >= 0
         },
@@ -219,7 +186,7 @@ proof fn lemma_pinv_leaf(nodes: Seq<Node>, pos: Seq<(nat, nat)>, pk0: Packer, pk
         pk1.loc@ == pk0.loc@.update(id, Some(pk0.enc@.len() as usize)),
         pk0.enc@.len() as usize as int == pk0.enc@.len(),
         pk1.enc@ == pk0.enc@.push((-(r as int) - 1) as i64),
-        pk1.ipos@ == pk0.ipos@.push(None),
+        pk1.node_at@ == pk0.node_at@.push(None),
         pk1.owner@ == pk0.owner@.push(0),
     ensures pinv(nodes, pos, pk1),
 {
@@ -229,21 +196,21 @@ proof fn lemma_pinv_leaf(nodes: Seq<Node>, pos: Seq<(nat, nat)>, pk0: Packer, pk
         let o = pk1.loc@[i]->Some_0 as int;
         &&& o < pk1.enc@.len()
         &&& (nodes[i].label matches Some(r) ==> pk1.enc@[o] == -(r as int) - 1)
-        &&& (nodes[i].label is None ==> pk1.ipos@[o] == Some(pos[i]))
+        &&& (nodes[i].label is None ==> pk1.node_at@[o] == Some(pos[i]))
     } by {
         if i != id { assert(pk0.loc@[i] is Some); }
     }
-    assert forall |o: int| 0 <= o < pk1.enc@.len() && (#[trigger] pk1.ipos@[o]) is Some implies {
+    assert forall |o: int| 0 <= o < pk1.enc@.len() && (#[trigger] pk1.node_at@[o]) is Some implies {
         let i = pk1.owner@[o];
         &&& 0 <= i < nodes.len()
         &&& pk1.loc@[i] == Some(o as usize)
         &&& nodes[i].label is None
-        &&& pos[i] == pk1.ipos@[o]->Some_0
+        &&& pos[i] == pk1.node_at@[o]->Some_0
         &&& o + 1 < pk1.enc@.len()
         &&& pk1.enc@[o] >= 0 && pk1.enc@[o + 1] >= 0
     } by {
         assert(o < pk0.enc@.len());
-        assert(pk0.ipos@[o] is Some);
+        assert(pk0.node_at@[o] is Some);
         assert(pk0.owner@[o] != id);
     }
 }
@@ -256,7 +223,7 @@ proof fn lemma_pinv_internal(nodes: Seq<Node>, pos: Seq<(nat, nat)>, pk0: Packer
         pk1.loc@ == pk0.loc@.update(id, Some(pk0.enc@.len() as usize)),
         pk0.enc@.len() as usize as int == pk0.enc@.len(),
         pk1.enc@ == pk0.enc@.push(0).push(0),
-        pk1.ipos@ == pk0.ipos@.push(Some(pos[id])).push(None),
+        pk1.node_at@ == pk0.node_at@.push(Some(pos[id])).push(None),
         pk1.owner@ == pk0.owner@.push(id).push(0),
     ensures pinv(nodes, pos, pk1),
 {
@@ -267,21 +234,21 @@ proof fn lemma_pinv_internal(nodes: Seq<Node>, pos: Seq<(nat, nat)>, pk0: Packer
         let o = pk1.loc@[i]->Some_0 as int;
         &&& o < pk1.enc@.len()
         &&& (nodes[i].label matches Some(r) ==> pk1.enc@[o] == -(r as int) - 1)
-        &&& (nodes[i].label is None ==> pk1.ipos@[o] == Some(pos[i]))
+        &&& (nodes[i].label is None ==> pk1.node_at@[o] == Some(pos[i]))
     } by {
         if i != id { assert(pk0.loc@[i] is Some); }
     }
-    assert forall |o: int| 0 <= o < pk1.enc@.len() && (#[trigger] pk1.ipos@[o]) is Some implies {
+    assert forall |o: int| 0 <= o < pk1.enc@.len() && (#[trigger] pk1.node_at@[o]) is Some implies {
         let i = pk1.owner@[o];
         &&& 0 <= i < nodes.len()
         &&& pk1.loc@[i] == Some(o as usize)
         &&& nodes[i].label is None
-        &&& pos[i] == pk1.ipos@[o]->Some_0
+        &&& pos[i] == pk1.node_at@[o]->Some_0
         &&& o + 1 < pk1.enc@.len()
         &&& pk1.enc@[o] >= 0 && pk1.enc@[o + 1] >= 0
     } by {
         if o < off {
-            assert(pk0.ipos@[o] is Some);
+            assert(pk0.node_at@[o] is Some);
             assert(pk0.owner@[o] != id);
         } else {
             assert(o == off);
@@ -294,7 +261,7 @@ proof fn lemma_pinv_internal(nodes: Seq<Node>, pos: Seq<(nat, nat)>, pk0: Packer
 proof fn lemma_pinv_set(nodes: Seq<Node>, pos: Seq<(nat, nat)>, pk0: Packer, pk1: Packer, o: int, val: i64)
     requires
         pinv(nodes, pos, pk0), 0 <= o < pk0.enc@.len(), pk0.enc@[o] >= 0, val >= 0,
-        pk1.enc@ == pk0.enc@.update(o, val), pk1.loc@ == pk0.loc@, pk1.ipos@ == pk0.ipos@, pk1.owner@ == pk0.owner@,
+        pk1.enc@ == pk0.enc@.update(o, val), pk1.loc@ == pk0.loc@, pk1.node_at@ == pk0.node_at@, pk1.owner@ == pk0.owner@,
     ensures pinv(nodes, pos, pk1),
 {
     reveal(pinv);
@@ -302,20 +269,20 @@ proof fn lemma_pinv_set(nodes: Seq<Node>, pos: Seq<(nat, nat)>, pk0: Packer, pk1
         let o2 = pk1.loc@[i]->Some_0 as int;
         &&& o2 < pk1.enc@.len()
         &&& (nodes[i].label matches Some(r) ==> pk1.enc@[o2] == -(r as int) - 1)
-        &&& (nodes[i].label is None ==> pk1.ipos@[o2] == Some(pos[i]))
+        &&& (nodes[i].label is None ==> pk1.node_at@[o2] == Some(pos[i]))
     } by {
         assert(pk0.loc@[i] is Some);
     }
-    assert forall |o2: int| 0 <= o2 < pk1.enc@.len() && (#[trigger] pk1.ipos@[o2]) is Some implies {
+    assert forall |o2: int| 0 <= o2 < pk1.enc@.len() && (#[trigger] pk1.node_at@[o2]) is Some implies {
         let i = pk1.owner@[o2];
         &&& 0 <= i < nodes.len()
         &&& pk1.loc@[i] == Some(o2 as usize)
         &&& nodes[i].label is None
-        &&& pos[i] == pk1.ipos@[o2]->Some_0
+        &&& pos[i] == pk1.node_at@[o2]->Some_0
         &&& o2 + 1 < pk1.enc@.len()
         &&& pk1.enc@[o2] >= 0 && pk1.enc@[o2 + 1] >= 0
     } by {
-        assert(pk0.ipos@[o2] is Some);
+        assert(pk0.node_at@[o2] is Some);
     }
 }
 
@@ -345,7 +312,7 @@ pub proof fn lemma_packed_unfold(nodes: Seq<Node>, pk: Packer, i: int)
 pub open spec fn pk_frame(nodes: Seq<Node>, a: Packer, b: Packer, keep: int) -> bool {
     &&& forall |i: int| 0 <= i < nodes.len() && (#[trigger] a.loc@[i]) is Some ==> b.loc@[i] == a.loc@[i]
     &&& forall |o: int| 0 <= o < a.enc@.len() && o != keep ==> #[trigger] b.enc@[o] == a.enc@[o]
-    &&& forall |o: int| 0 <= o < a.enc@.len() ==> #[trigger] b.ipos@[o] == a.ipos@[o] && b.owner@[o] == a.owner@[o]
+    &&& forall |o: int| 0 <= o < a.enc@.len() ==> #[trigger] b.node_at@[o] == a.node_at@[o] && b.owner@[o] == a.owner@[o]
     &&& b.enc@.len() >= a.enc@.len()
     &&& unpacked(nodes, b) <= unpacked(nodes, a)
 }
@@ -368,8 +335,8 @@ proof fn lemma_frame_trans(nodes: Seq<Node>, a: Packer, b: Packer, c: Packer, k1
     assert forall |o: int| 0 <= o < a.enc@.len() && o != k implies #[trigger] c.enc@[o] == a.enc@[o] by {
         assert(c.enc@[o] == b.enc@[o]);
     }
-    assert forall |o: int| 0 <= o < a.enc@.len() implies #[trigger] c.ipos@[o] == a.ipos@[o] && c.owner@[o] == a.owner@[o] by {
-        assert(c.ipos@[o] == b.ipos@[o]);
+    assert forall |o: int| 0 <= o < a.enc@.len() implies #[trigger] c.node_at@[o] == a.node_at@[o] && c.owner@[o] == a.owner@[o] by {
+        assert(c.node_at@[o] == b.node_at@[o]);
     }
     assert forall |i: int| 0 <= i < nodes.len() && (#[trigger] a.loc@[i]) is Some implies c.loc@[i] == a.loc@[i] by {
         assert(b.loc@[i] == a.loc@[i]);
@@ -413,7 +380,7 @@ proof fn lemma_internal_done(nodes: Seq<Node>, pos: Seq<(nat, nat)>, pk0: Packer
             let oi = pk2.loc@[i]->Some_0 as int;
             assert(pk3.loc@[i] == pk2.loc@[i]);
             if nodes[i].label is None {
-                assert(pk2.ipos@[oi] == Some(pos[i]));
+                assert(pk2.node_at@[oi] == Some(pos[i]));
                 assert(oi + 1 < pk2.enc@.len());
                 assert(pk3.enc@[oi] == pk2.enc@[oi]);
                 assert(pk3.enc@[oi + 1] == pk2.enc@[oi + 1]);
@@ -461,7 +428,7 @@ pub fn pack_tree(nodes: &Vec<Node>, Ghost(pos): Ghost<Seq<(nat, nat)>>, id: usiz
         Some(r) => {
             // Encode a leaf.
             pk.enc.push(-(r as i64) - 1);
-            pk.ipos = Ghost(pk.ipos@.push(None));
+            pk.node_at = Ghost(pk.node_at@.push(None));
             pk.owner = Ghost(pk.owner@.push(0));
             proof {
                 lemma_pinv_leaf(nodes@, pos, pk0, *pk, id as int, r);
@@ -478,7 +445,7 @@ pub fn pack_tree(nodes: &Vec<Node>, Ghost(pos): Ghost<Seq<(nat, nat)>>, id: usiz
             // Encode an internal node: two slots, filled below.
             pk.enc.push(0);
             pk.enc.push(0);
-            pk.ipos = Ghost(pk.ipos@.push(Some(pos[id as int])).push(None));
+            pk.node_at = Ghost(pk.node_at@.push(Some(pos[id as int])).push(None));
             pk.owner = Ghost(pk.owner@.push(id as int).push(0));
             proof {
                 lemma_pinv_internal(nodes@, pos, pk0, *pk, id as int);

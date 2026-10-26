@@ -10,14 +10,15 @@
 //!     index at depth `wrap` (the back-edges of OPTAS, l < k).
 //!
 //! FLDR (`fldr.rs`) uses only the first kind and the Z_kl-type samplers
-//! (`approx_ddg`) only the second. A layout says how to take one step
-//! ([`DdgWalk::step`]) and proves a fuel law for its own distribution
-//! ([`DdgWalk::lemma_fuel`]); [`sample_walk`] then has the spec
+//! (`optas`) only the second. A [`DdgSpec`] gives the DDG and the
+//! distribution and proves their laws ([`DdgSpec::lemma_fuel`]); a
+//! [`DdgWalk`] is a table layout of a spec that says how to take one step
+//! ([`DdgWalk::step`]). [`sample`] then has the spec
 //!
 //! ```text
 //!   ε ≥ E_p[ℰ]        ℰ ≥ 0
 //!   ---------------------------------------------
-//!   [{ ↯(ε) }] sample_walk(w) [{ r. ↯(ℰ(r)) }]
+//!   [{ ↯(ε) }] sample(w) [{ r. ↯(ℰ(r)) }]
 //! ```
 //!
 //! The credit is fuel-indexed as in `fldr.rs`: `lwalk_f(j, d, f)` is the
@@ -87,7 +88,7 @@ pub open spec fn lwalk_g(t: LDdg, e: spec_fn(nat) -> real, j: nat, x: nat, f: na
 }
 
 /// The child reached by flip b: 2d + b, or 2d + (1 − b) for layouts that
-/// send flip 0 to the odd child (optas, the AISTATS FLDR code).
+/// send flip 0 to the odd child (the packed encoding of `encoding.rs`).
 pub open spec fn child(d: nat, b: nat, swap: bool) -> nat {
     if swap { 2 * d + (1 - b) as nat } else { 2 * d + b }
 }
@@ -162,28 +163,17 @@ pub enum Step<P> {
     Next(P),
 }
 
-/// A table layout that can be walked. The sampler only uses `root` and `step`;
-/// every fact about the distribution comes from the two laws.
-pub trait DdgWalk {
-    /// A position in the table (an internal node).
-    type Pos;
-
+/// The spec side of a DDG sampler: the tree it walks (`ldd`), the
+/// distribution it samples (`target`), and the laws `DdgWalk` needs about
+/// them, proved once and shared by every layout of the same DDG.
+pub trait DdgSpec {
     spec fn wf(&self) -> bool;
 
-    /// The DDG the table encodes.
+    /// The DDG.
     spec fn ldd(&self) -> LDdg;
 
     /// E_p[ℰ] for the distribution p the DDG samples.
     spec fn target(&self, e: spec_fn(nat) -> real) -> real;
-
-    /// The node a position stands for: (depth, index among the internal nodes).
-    spec fn pos(&self, p: Self::Pos) -> (nat, nat);
-
-    /// p is a position of the table (an internal node).
-    spec fn valid_pos(&self, p: Self::Pos) -> bool;
-
-    /// Flip b leads to child 2d + (1 − b) instead of 2d + b.
-    spec fn swap(&self) -> bool;
 
     /// Some(r) if p is the point mass at r; then the root is a leaf.
     spec fn point(&self) -> Option<nat>;
@@ -206,26 +196,55 @@ pub trait DdgWalk {
             forall |i: nat| (#[trigger] e(i)) >= 0real,
             s0 > 0real || (self.exact() && s0 == 0real),
         ensures lwalk_f(self.ldd(), e, 0, 0, f) <= self.target(e) + s0;
+}
+
+
+/// A table layout that can be walked: a way to take one step through the
+/// DDG of its spec. The sampler only uses `is_exact`, `root` and `step`;
+/// every fact about the distribution comes from the laws of [`DdgSpec`].
+pub trait DdgWalk {
+    /// The distribution and its DDG.
+    type Spec: DdgSpec;
+
+    /// A position in the table (an internal node).
+    type Pos;
+
+    spec fn wf(&self) -> bool;
+
+    spec fn spec(&self) -> Self::Spec;
+
+    proof fn lemma_wf(&self)
+        requires self.wf(),
+        ensures self.spec().wf();
+
+    /// The node a position stands for: (depth, index among the internal nodes).
+    spec fn pos(&self, p: Self::Pos) -> (nat, nat);
+
+    /// p is a position of the table (an internal node).
+    spec fn valid_pos(&self, p: Self::Pos) -> bool;
+
+    /// Flip b leads to child 2d + (1 − b) instead of 2d + b.
+    spec fn swap(&self) -> bool;
 
     fn is_exact(&self) -> (r: bool)
         requires self.wf(),
-        ensures r == self.exact();
+        ensures r == self.spec().exact();
 
     fn root(&self) -> (r: Step<Self::Pos>)
         requires self.wf(),
         ensures
-            self.point() matches Some(v) ==> (r matches Step::Done(x) && x as nat == v),
-            self.point() is None ==> (r matches Step::Next(p) && self.valid_pos(p) && self.pos(p) == (0nat, 0nat));
+            self.spec().point() matches Some(v) ==> (r matches Step::Done(x) && x as nat == v),
+            self.spec().point() is None ==> (r matches Step::Next(p) && self.valid_pos(p) && self.pos(p) == (0nat, 0nat));
 
     /// One flip b from the internal node at p.
     fn step(&self, p: Self::Pos, b: u64) -> (r: Step<Self::Pos>)
         requires
-            self.wf(), self.point() is None, b <= 1, self.valid_pos(p),
-            is_internal(self.ldd(), self.pos(p).0, self.pos(p).1),
+            self.wf(), self.spec().point() is None, b <= 1, self.valid_pos(p),
+            is_internal(self.spec().ldd(), self.pos(p).0, self.pos(p).1),
         ensures
             r matches Step::Next(q) ==> self.valid_pos(q),
             ({
-            let t = self.ldd();
+            let t = self.spec().ldd();
             let j1 = self.pos(p).0 + 1;
             let x = child(self.pos(p).1, b as nat, self.swap());
             &&& x < (t.h)(j1) && (t.lab)(j1, x) < t.n ==> (r matches Step::Done(v) && v as nat == (t.lab)(j1, x))
@@ -241,9 +260,9 @@ pub trait DdgWalk {
 /// ```text
 ///   ε ≥ E_p[ℰ]        ℰ ≥ 0
 ///   ---------------------------------------------
-///   [{ ↯(ε) }] sample_walk(w) [{ r. ↯(ℰ(r)) }]
+///   [{ ↯(ε) }] sample(w) [{ r. ↯(ℰ(r)) }]
 /// ```
-pub fn sample_walk<W: DdgWalk>(
+pub fn sample<W: DdgWalk>(
     w: &W,
     Ghost(e): Ghost<spec_fn(nat) -> real>,
     Tracked(input_credit): Tracked<ErrorCreditResource>,
@@ -252,14 +271,15 @@ pub fn sample_walk<W: DdgWalk>(
     requires
         w.wf(),
         forall |i: nat| (#[trigger] e(i)) >= 0real,
-        eps >= w.target(e),
+        eps >= w.spec().target(e),
         input_credit@ =~= (Value { car: eps }),
     ensures
-        (value as nat) < w.ldd().n,
+        (value as nat) < w.spec().ldd().n,
         out_credit@@ =~= (Value { car: e(value as nat) }),
 {
-    let ghost t = w.ldd();
-    proof { w.lemma_shape(); }
+    let ghost s = w.spec();
+    let ghost t = s.ldd();
+    proof { w.lemma_wf(); s.lemma_shape(); }
     let r0 = w.root();
     let mut p = match r0 {
         Step::Done(v) => {
@@ -287,7 +307,7 @@ pub fn sample_walk<W: DdgWalk>(
             work = w2;
         }
     }
-    let ghost mut f: nat = w.lemma_fuel(e, s0);
+    let ghost mut f: nat = s.lemma_fuel(e, s0);
     let tracked mut credit;
     proof {
         lemma_lwalk_nonneg(t, e, f);
@@ -298,7 +318,7 @@ pub fn sample_walk<W: DdgWalk>(
     }
     loop
         invariant
-            t == w.ldd(), w.wf(), w.point() is None, valid_ldd(t),
+            s == w.spec(), t == s.ldd(), w.wf(), s.point() is None, valid_ldd(t),
             forall |i: nat| (#[trigger] e(i)) >= 0real,
             w.valid_pos(p),
             is_internal(t, w.pos(p).0, w.pos(p).1),
@@ -328,7 +348,6 @@ pub fn sample_walk<W: DdgWalk>(
             lemma_child_internal(t, j, d, b as nat, sw);
             lemma_lnum_nonneg(t, 0);
         }
-        let ghost x = child(d, b as nat, sw);
         match w.step(p, b) {
             Step::Done(v) => {
                 return (v, Tracked(credit));

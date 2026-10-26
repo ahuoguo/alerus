@@ -9,8 +9,6 @@ verus! {
 use crate::ddg_walk::walk::*;
 use crate::ddg_walk::tree::*;
 use crate::ddg_walk::packing::*;
-#[cfg(verus_keep_ghost)]
-use vstd::arithmetic::power2::pow2;
 
 /// Build the DDG tree of a leaf table and pack it.
 pub fn construct_encoding<L: Leaves>(tab: &L) -> (r: (Vec<i64>, Ghost<Seq<Option<(nat, nat)>>>))
@@ -37,7 +35,7 @@ pub fn construct_encoding<L: Leaves>(tab: &L) -> (r: (Vec<i64>, Ghost<Seq<Option
     {
         loc.push(None);
     }
-    let mut pk = Packer { enc: Vec::new(), loc, ipos: Ghost(Seq::empty()), owner: Ghost(Seq::empty()) };
+    let mut pk = Packer { enc: Vec::new(), loc, node_at: Ghost(Seq::empty()), owner: Ghost(Seq::empty()) };
     proof {
         reveal(pinv);
         assert forall |m: nat| m <= n implies cnt_some(pk.loc@, m) == 0 by {
@@ -57,7 +55,7 @@ pub fn construct_encoding<L: Leaves>(tab: &L) -> (r: (Vec<i64>, Ghost<Seq<Option
         }
         lemma_enc_wf(t, nodes@, pos, pk);
     }
-    (pk.enc, pk.ipos)
+    (pk.enc, pk.node_at)
 }
 
 /// The packed arena encodes the DDG.
@@ -70,60 +68,60 @@ proof fn lemma_enc_wf(t: LDdg, nodes: Seq<Node>, pos: Seq<(nat, nat)>, pk: Packe
         forall |i: int| 0 <= i < nodes.len() ==> #[trigger] complete(t, nodes, pos, i),
         forall |i: int| 0 <= i < nodes.len() && (#[trigger] nodes[i]).label is None ==> is_internal(t, pos[i].0, pos[i].1),
         forall |i: int| 0 <= i < nodes.len() && (#[trigger] pk.loc@[i]) is Some ==> packed(nodes, pk, i),
-    ensures enc_wf(t, pk.enc@, pk.ipos@),
+    ensures enc_wf(t, pk.enc@, pk.node_at@),
 {
     lemma_pinv_facts(nodes, pos, pk);
     let enc = pk.enc@;
-    let ipos = pk.ipos@;
-    assert forall |o: int| 0 <= o < enc.len() && (#[trigger] ipos[o]) is Some implies enc_node_ok(t, enc, ipos, o) by {
+    let node_at = pk.node_at@;
+    assert forall |o: int| 0 <= o < enc.len() && (#[trigger] node_at[o]) is Some implies enc_node_ok(t, enc, node_at, o) by {
         lemma_enc_node(t, nodes, pos, pk, o);
     }
     assert(nodes[0].label is None);
     assert(next_depth(t, 0) == 0);
-    assert(ipos[0] == Some(pos[0]));
+    assert(node_at[0] == Some(pos[0]));
 }
 
 /// One internal node of the packed array.
 proof fn lemma_enc_node(t: LDdg, nodes: Seq<Node>, pos: Seq<(nat, nat)>, pk: Packer, o: int)
     requires
         arena_ok(nodes, pos), pinv(nodes, pos, pk),
-        0 <= o < pk.enc@.len(), pk.ipos@[o] is Some, pk.enc@.len() <= usize::MAX,
+        0 <= o < pk.enc@.len(), pk.node_at@[o] is Some, pk.enc@.len() <= usize::MAX,
         forall |i: int| 0 <= i < nodes.len() ==> #[trigger] complete(t, nodes, pos, i),
         forall |i: int| 0 <= i < nodes.len() && (#[trigger] nodes[i]).label is None ==> is_internal(t, pos[i].0, pos[i].1),
         forall |i: int| 0 <= i < nodes.len() && (#[trigger] pk.loc@[i]) is Some ==> packed(nodes, pk, i),
-    ensures enc_node_ok(t, pk.enc@, pk.ipos@, o),
+    ensures enc_node_ok(t, pk.enc@, pk.node_at@, o),
 {
     lemma_pinv_facts(nodes, pos, pk);
     let enc = pk.enc@;
-    let ipos = pk.ipos@;
-        let i = pk.owner@[o];
-        let (j, d) = ipos[o]->Some_0;
-        assert(pk.loc@[i] is Some);
-        assert(packed(nodes, pk, i));
-        lemma_packed_unfold(nodes, pk, i);
-        assert(pk.loc@[i] == Some(o as usize));
-        assert((o as usize) as int == o);
-        assert(complete(t, nodes, pos, i));
-        assert(pos[i] == (j, d));
-        let l = nodes[i].left as int;
-        let r = nodes[i].right as int;
-        assert(nodes[i].label is None);
-        assert(is_internal(t, j, d));
-        assert(node_is(t, nodes, pos, l, j + 1, 2 * d + 1));
-        assert(node_is(t, nodes, pos, r, j + 1, 2 * d));
-        assert(pk.loc@[l] is Some && pk.loc@[r] is Some);
-        assert(enc[o] == pk.loc@[l]->Some_0 as int);
-        assert(enc[o + 1] == pk.loc@[r]->Some_0 as int);
-        lemma_child_slot(t, nodes, pos, pk, l, j + 1, 2 * d + 1);
-        lemma_child_slot(t, nodes, pos, pk, r, j + 1, 2 * d);
-    }
+    let node_at = pk.node_at@;
+    let i = pk.owner@[o];
+    let (j, d) = node_at[o]->Some_0;
+    assert(pk.loc@[i] is Some);
+    assert(packed(nodes, pk, i));
+    lemma_packed_unfold(nodes, pk, i);
+    assert(pk.loc@[i] == Some(o as usize));
+    assert((o as usize) as int == o);
+    assert(complete(t, nodes, pos, i));
+    assert(pos[i] == (j, d));
+    let l = nodes[i].left as int;
+    let r = nodes[i].right as int;
+    assert(nodes[i].label is None);
+    assert(is_internal(t, j, d));
+    assert(node_is(t, nodes, pos, l, j + 1, 2 * d + 1));
+    assert(node_is(t, nodes, pos, r, j + 1, 2 * d));
+    assert(pk.loc@[l] is Some && pk.loc@[r] is Some);
+    assert(enc[o] == pk.loc@[l]->Some_0 as int);
+    assert(enc[o + 1] == pk.loc@[r]->Some_0 as int);
+    lemma_child_slot(t, nodes, pos, pk, l, j + 1, 2 * d + 1);
+    lemma_child_slot(t, nodes, pos, pk, r, j + 1, 2 * d);
+}
 
 /// The offset of a packed child holds the right thing.
 proof fn lemma_child_slot(t: LDdg, nodes: Seq<Node>, pos: Seq<(nat, nat)>, pk: Packer, c: int, j1: nat, x: nat)
     requires
         arena_ok(nodes, pos), pinv(nodes, pos, pk),
         node_is(t, nodes, pos, c, j1, x), pk.loc@[c] is Some,
-    ensures enc_child_ok(t, pk.enc@, pk.ipos@, pk.loc@[c]->Some_0 as i64, j1, x),
+    ensures enc_child_ok(t, pk.enc@, pk.node_at@, pk.loc@[c]->Some_0 as i64, j1, x),
 {
     lemma_pinv_facts(nodes, pos, pk);
     let q = pk.loc@[c]->Some_0 as int;
@@ -133,8 +131,8 @@ proof fn lemma_child_slot(t: LDdg, nodes: Seq<Node>, pos: Seq<(nat, nat)>, pk: P
         assert(nodes[c].label is Some);
     } else {
         assert(nodes[c].label is None);
-        assert(pk.ipos@[q] == Some(pos[c]));
-        assert(pk.ipos@[q] is Some);
+        assert(pk.node_at@[q] == Some(pos[c]));
+        assert(pk.node_at@[q] is Some);
     }
 }
 
@@ -146,46 +144,44 @@ proof fn lemma_cnt_none(loc: Seq<Option<usize>>, m: nat)
     if m > 0 { lemma_cnt_none(loc, (m - 1) as nat); }
 }
 
-/// A packed DDG of the family F. `enc` is `[−(r+1)]` when F is the point
-/// mass at r (the original's `len(enc) == 1` case).
-pub struct Encoded<F: Family> {
+/// A packed DDG for the spec S. `enc` is `[−(r+1)]` when the spec's
+/// `point()` is `Some(r)` (the original's `len(enc) == 1` case).
+pub struct Encoded<S: DdgSpec> {
+    /// The packed array.
     pub enc: Vec<i64>,
+    /// The number of outcomes; a leaf label ≥ n restarts the walk.
     pub n: u64,
+    /// `spec.exact()`, for `is_exact`.
     pub exact: bool,
-    pub fam: Ghost<F>,
-    pub ipos: Ghost<Seq<Option<(nat, nat)>>>,
+    /// The distribution and its DDG.
+    pub spec: Ghost<S>,
+    /// The internal node (depth, index) starting at each offset, if any.
+    pub node_at: Ghost<Seq<Option<(nat, nat)>>>,
 }
 
-impl<F: Family> DdgWalk for Encoded<F> {
+impl<S: DdgSpec> DdgWalk for Encoded<S> {
+    type Spec = S;
     type Pos = usize;
 
     open spec fn wf(&self) -> bool {
-        &&& self.fam@.fwf()
-        &&& self.n as nat == self.fam@.fldd().n
-        &&& self.exact == self.fam@.fexact()
-        &&& match self.fam@.fpoint() {
+        &&& self.spec@.wf()
+        &&& self.n as nat == self.spec@.ldd().n
+        &&& self.exact == self.spec@.exact()
+        &&& match self.spec@.point() {
             Some(r) => self.enc@ == seq![(-(r as int) - 1) as i64] && r < 0x4000000000000000,
-            None => enc_wf(self.fam@.fldd(), self.enc@, self.ipos@),
+            None => enc_wf(self.spec@.ldd(), self.enc@, self.node_at@),
         }
     }
 
-    open spec fn ldd(&self) -> LDdg { self.fam@.fldd() }
+    open spec fn spec(&self) -> S { self.spec@ }
 
-    open spec fn target(&self, e: spec_fn(nat) -> real) -> real { self.fam@.ftarget(e) }
+    proof fn lemma_wf(&self) {}
 
-    open spec fn pos(&self, p: usize) -> (nat, nat) { self.ipos@[p as int]->Some_0 }
+    open spec fn pos(&self, p: usize) -> (nat, nat) { self.node_at@[p as int]->Some_0 }
 
-    open spec fn valid_pos(&self, p: usize) -> bool { p < self.ipos@.len() && self.ipos@[p as int] is Some }
+    open spec fn valid_pos(&self, p: usize) -> bool { p < self.node_at@.len() && self.node_at@[p as int] is Some }
 
     open spec fn swap(&self) -> bool { true }
-
-    open spec fn point(&self) -> Option<nat> { self.fam@.fpoint() }
-
-    open spec fn exact(&self) -> bool { self.fam@.fexact() }
-
-    proof fn lemma_shape(&self) { self.fam@.lemma_fshape(); }
-
-    proof fn lemma_fuel(&self, e: spec_fn(nat) -> real, s0: real) -> (f: nat) { self.fam@.lemma_ffuel(e, s0) }
 
     fn is_exact(&self) -> (r: bool) { self.exact }
 
@@ -201,18 +197,18 @@ impl<F: Family> DdgWalk for Encoded<F> {
 
     /// `c = enc[c + b]; if enc[c] < 0: return -enc[c]`.
     fn step(&self, p: usize, b: u64) -> (r: Step<usize>) {
-        let ghost t = self.fam@.fldd();
+        let ghost t = self.spec@.ldd();
         let _len = self.enc.len();
         proof {
-            assert(enc_node_ok(t, self.enc@, self.ipos@, p as int));
+            assert(enc_node_ok(t, self.enc@, self.node_at@, p as int));
         }
         let q = self.enc[p + b as usize];
         proof {
-            let (j, d) = self.ipos@[p as int]->Some_0;
+            let (j, d) = self.node_at@[p as int]->Some_0;
             if b == 0 {
-                assert(enc_child_ok(t, self.enc@, self.ipos@, q, j + 1, child(d, b as nat, true)));
+                assert(enc_child_ok(t, self.enc@, self.node_at@, q, j + 1, child(d, b as nat, true)));
             } else {
-                assert(enc_child_ok(t, self.enc@, self.ipos@, q, j + 1, child(d, b as nat, true)));
+                assert(enc_child_ok(t, self.enc@, self.node_at@, q, j + 1, child(d, b as nat, true)));
             }
         }
         let c = q as usize;

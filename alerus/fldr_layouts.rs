@@ -1,5 +1,5 @@
 //! Two more layouts of the FLDR table, each a [`DdgTable`], so `sample_fldr`
-//! (and `sample_fldr_walk`) sample them with no new sampler proof:
+//! sample them with no new sampler proof:
 //!
 //! - [`FldrH`]: the layout of the AISTATS'20 paper and its C code
 //!   (`fldr_preprocess_int`): h[j] for j = 0..k−1 and a flat (n+1)×k matrix

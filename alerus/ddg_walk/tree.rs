@@ -1,11 +1,13 @@
-//! `optas/tree.py`: build the DDG tree as a pointer structure, for any table
+//! optas's `tree.py`: build the DDG tree as a pointer structure, for any table
 //! of leaves ([`Leaves`]). The nodes live in an arena (`Vec<Node>`) and a
 //! pointer is an index into it.
 //!
 //! `make_tree` is a right-first depth-first traversal, as in the original. A
-//! node is named by its depth j and its position o counted from the right
-//! (the original uses the level-order index; the leaves of a level are its
-//! rightmost nodes, so `index in L` is o < h(j)). The internal nodes at the
+//! node is named by its depth j and its position o among the nodes of that
+//! depth, counted from the right; the nodes of depth j+1 are the children
+//! 2d, 2d+1 of the internal nodes d of depth j (the original uses the
+//! level-order index; the leaves of a level are its rightmost nodes, so
+//! `index in L` is o < h(j)). The internal nodes at the
 //! wrap depth l are queued as they are visited, and a missing child at
 //! depth K takes the next queued node (the back-edge).
 //!
@@ -151,19 +153,6 @@ pub proof fn lemma_cover_leaf(t: LDdg, j: nat, o: nat, j2: nat)
     }
 }
 
-/// Below all of depth j, all of depth j2.
-pub proof fn lemma_cover_full(t: LDdg, j: nat, j2: nat)
-    requires valid_ldd(t), (t.h)(0) == 0, j <= j2 <= t.levels,
-    ensures cover(t, j, npos(t, j), j2) == npos(t, j2),
-    decreases j2,
-{
-    if j2 > j {
-        lemma_cover_full(t, j, (j2 - 1) as nat);
-        lemma_npos(t, (j2 - 1) as nat);
-        lemma_lnum_nonneg(t, (j2 - 1) as nat);
-    }
-}
-
 /// Past the leaves, cover counts internal nodes as icnt does.
 pub proof fn lemma_cover_icnt(t: LDdg, i: nat, a: nat, j2: nat)
     requires i <= j2,
@@ -259,10 +248,10 @@ pub struct Builder {
 }
 
 /// Σ_{j<m} v[j].
-pub open spec fn vsum(v: Seq<nat>, m: nat) -> nat
+pub open spec fn visited_sum(v: Seq<nat>, m: nat) -> nat
     decreases m,
 {
-    if m == 0 { 0 } else { vsum(v, (m - 1) as nat) + v[(m - 1) as int] }
+    if m == 0 { 0 } else { visited_sum(v, (m - 1) as nat) + v[(m - 1) as int] }
 }
 
 /// The arena entry `id` is the node of depth j at position x.
@@ -292,7 +281,7 @@ pub open spec fn binv(t: LDdg, lw: nat, b: Builder) -> bool {
     &&& b.pos@.len() == b.nodes@.len()
     &&& v.len() == k + 1
     &&& forall |j: int| 0 <= j <= k ==> #[trigger] v[j] <= npos(t, j as nat)
-    &&& b.nodes@.len() + b.head == vsum(v, k + 1)
+    &&& b.nodes@.len() + b.head == visited_sum(v, k + 1)
     &&& b.head == max0(v[k as int] as int - (t.h)(k) as int)
     &&& b.ancestors@.len() == (if lw < k { max0(v[lw as int] as int - (t.h)(lw) as int) } else { 0 })
     &&& forall |s: int| 0 <= s < b.ancestors@.len() ==> {
@@ -320,7 +309,7 @@ pub open spec fn tree_input(t: LDdg, lw: nat) -> bool {
 
 proof fn lemma_vsum_update(v: Seq<nat>, m: nat, j: int, x: nat)
     requires 0 <= j < m <= v.len(),
-    ensures vsum(v.update(j, x), m) + v[j] == vsum(v, m) + x,
+    ensures visited_sum(v.update(j, x), m) + v[j] == visited_sum(v, m) + x,
     decreases m,
 {
     if m - 1 > j {
@@ -332,7 +321,7 @@ proof fn lemma_vsum_update(v: Seq<nat>, m: nat, j: int, x: nat)
 
 proof fn lemma_vsum_prefix(v: Seq<nat>, j: int, x: nat, m: nat)
     requires 0 <= j < v.len(), m <= j,
-    ensures vsum(v.update(j, x), m) == vsum(v, m),
+    ensures visited_sum(v.update(j, x), m) == visited_sum(v, m),
     decreases m,
 {
     if m > 0 { lemma_vsum_prefix(v, j, x, (m - 1) as nat); }
@@ -343,7 +332,7 @@ pub proof fn lemma_vsum_bound(t: LDdg, v: Seq<nat>, m: nat)
     requires m <= t.levels + 1, v.len() >= m,
         forall |j: int| 0 <= j < m ==> #[trigger] v[j] <= npos(t, j as nat),
         forall |j: nat| j <= t.levels ==> #[trigger] npos(t, j) <= 0x10000000000000,
-    ensures vsum(v, m) <= m * 0x10000000000000,
+    ensures visited_sum(v, m) <= m * 0x10000000000000,
     decreases m,
 {
     if m > 0 {
@@ -362,7 +351,7 @@ pub proof fn lemma_binv_facts(t: LDdg, lw: nat, b: Builder)
         b.pos@.len() == b.nodes@.len(),
         b.v@.len() == t.levels + 1,
         forall |j: int| 0 <= j <= t.levels ==> #[trigger] b.v@[j] <= npos(t, j as nat),
-        b.nodes@.len() + b.head == vsum(b.v@, t.levels + 1),
+        b.nodes@.len() + b.head == visited_sum(b.v@, t.levels + 1),
         forall |id: int| 0 <= id < b.nodes@.len() && (#[trigger] b.nodes@[id]).label is None ==>
             is_internal(t, b.pos@[id].0, b.pos@[id].1),
         forall |id: int| 0 <= id < b.nodes@.len() ==>
@@ -579,7 +568,7 @@ proof fn lemma_leaf_finish(t: LDdg, j: nat, o: nat, v: Seq<nat>)
 }
 
 /// node_is and complete only read labels and positions.
-proof fn lemma_labels_keep(t: LDdg, n0: Seq<Node>, n1: Seq<Node>, pos: Seq<(nat, nat)>, lo: int)
+proof fn lemma_labels_keep(t: LDdg, n0: Seq<Node>, n1: Seq<Node>, pos: Seq<(nat, nat)>)
     requires
         n1.len() >= n0.len(),
         forall |i: int| 0 <= i < n0.len() ==> #[trigger] n1[i].label == n0[i].label,
@@ -659,7 +648,6 @@ pub fn make_tree<L: Leaves>(tab: &L, j: u64, o: u64, lw: u64, b: &mut Builder) -
     decreases tab.lldd().levels - j, 1nat,
 {
     let ghost t = tab.lldd();
-    let ghost k = t.levels;
     proof { lemma_tree_node(t, lw as nat, j as nat, o as nat); lemma_binv_facts(t, lw as nat, *b); }
     let hj: u64 = if j == 0 { 0 } else { tab.get_h(j) };
     let id = b.nodes.len();
@@ -704,8 +692,8 @@ pub fn make_tree<L: Leaves>(tab: &L, j: u64, o: u64, lw: u64, b: &mut Builder) -
     b.nodes.set(id, Node { label: None, left, right });
     proof {
         lemma_binv_set(t, lw as nat, b3, *b, id as int);
-        lemma_labels_keep(t, b3.nodes@, b.nodes@, b.pos@, 0);
-        lemma_labels_keep(t, b2.nodes@, b3.nodes@, b.pos@, 0);
+        lemma_labels_keep(t, b3.nodes@, b.nodes@, b.pos@);
+        lemma_labels_keep(t, b2.nodes@, b3.nodes@, b.pos@);
         assert forall |i: int| 0 <= i < b2.nodes@.len() implies #[trigger] b3.nodes@[i].label == b2.nodes@[i].label by {
             assert(b3.nodes@[i] == b2.nodes@[i]);
         }
@@ -790,7 +778,7 @@ fn make_child<L: Leaves>(tab: &L, j: u64, x: u64, lw: u64, b: &mut Builder, Ghos
     let k_e = tab.levels();
     let h1 = tab.get_h(j + 1);
     if j + 1 == k_e && x >= h1 {
-        // `node.right = ancestors.pop(0)`: the back-edge.
+        // `node.right = ancestors.pop(0)` (or `node.left`): the back-edge.
         proof {
             lemma_pop_ok(t, lw as nat, *b, j as nat, x as nat);
             assert(b.head < b.ancestors@.len());
@@ -862,7 +850,7 @@ pub fn make_ddg_tree<L: Leaves>(tab: &L) -> (b: Builder)
 
 proof fn lemma_vsum_zero(v: Seq<nat>, m: nat)
     requires m <= v.len(), forall |j: int| 0 <= j < v.len() ==> v[j] == 0,
-    ensures vsum(v, m) == 0,
+    ensures visited_sum(v, m) == 0,
     decreases m,
 {
     if m > 0 { lemma_vsum_zero(v, (m - 1) as nat); }
