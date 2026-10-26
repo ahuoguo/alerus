@@ -13,9 +13,9 @@ use crate::ddg_walk::packing::*;
 /// Build the DDG tree of a leaf table and pack it.
 pub fn construct_encoding<L: Leaves>(tab: &L) -> (r: (Vec<i64>, Ghost<Seq<Option<(nat, nat)>>>))
     requires tab.lwf(),
-    ensures enc_wf(tab.lldd(), r.0@, r.1@),
+    ensures enc_wf(tab.ddg(), r.0@, r.1@),
 {
-    let ghost t = tab.lldd();
+    let ghost t = tab.ddg();
     proof { tab.lemma_leaves(); }
     let b = make_ddg_tree(tab);
     let ghost pos = b.pos@;
@@ -165,11 +165,11 @@ impl<S: DdgSpec> DdgWalk for Encoded<S> {
 
     open spec fn wf(&self) -> bool {
         &&& self.spec@.wf()
-        &&& self.n as nat == self.spec@.ldd().n
+        &&& self.n as nat == self.spec@.ddg().n
         &&& self.exact == self.spec@.exact()
         &&& match self.spec@.point() {
             Some(r) => self.enc@ == seq![(-(r as int) - 1) as i64] && r < 0x4000000000000000,
-            None => enc_wf(self.spec@.ldd(), self.enc@, self.node_at@),
+            None => enc_wf(self.spec@.ddg(), self.enc@, self.node_at@),
         }
     }
 
@@ -197,7 +197,7 @@ impl<S: DdgSpec> DdgWalk for Encoded<S> {
 
     /// `c = enc[c + b]; if enc[c] < 0: return -enc[c]`.
     fn step(&self, p: usize, b: u64) -> (r: Step<usize>) {
-        let ghost t = self.spec@.ldd();
+        let ghost t = self.spec@.ddg();
         let _len = self.enc.len();
         proof {
             assert(enc_node_ok(t, self.enc@, self.node_at@, p as int));

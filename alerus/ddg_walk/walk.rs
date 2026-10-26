@@ -163,14 +163,14 @@ pub enum Step<P> {
     Next(P),
 }
 
-/// The spec side of a DDG sampler: the tree it walks (`ldd`), the
+/// The spec side of a DDG sampler: the tree it walks (`ddg`), the
 /// distribution it samples (`target`), and the laws `DdgWalk` needs about
 /// them, proved once and shared by every layout of the same DDG.
 pub trait DdgSpec {
     spec fn wf(&self) -> bool;
 
     /// The DDG.
-    spec fn ldd(&self) -> LDdg;
+    spec fn ddg(&self) -> LDdg;
 
     /// E_p[ℰ] for the distribution p the DDG samples.
     spec fn target(&self, e: spec_fn(nat) -> real) -> real;
@@ -184,9 +184,9 @@ pub trait DdgSpec {
     proof fn lemma_shape(&self)
         requires self.wf(),
         ensures
-            valid_ldd(self.ldd()),
+            valid_ldd(self.ddg()),
             forall |e: spec_fn(nat) -> real| (forall |i: nat| (#[trigger] e(i)) >= 0real) ==> #[trigger] self.target(e) >= 0real,
-            self.point() matches Some(r) ==> (r < self.ldd().n
+            self.point() matches Some(r) ==> (r < self.ddg().n
                 && forall |e: spec_fn(nat) -> real| (forall |i: nat| (#[trigger] e(i)) >= 0real) ==> #[trigger] self.target(e) >= e(r));
 
     /// With enough fuel the root is worth at most E_p[ℰ] + s₀.
@@ -195,7 +195,7 @@ pub trait DdgSpec {
             self.wf(), self.point() is None,
             forall |i: nat| (#[trigger] e(i)) >= 0real,
             s0 > 0real || (self.exact() && s0 == 0real),
-        ensures lwalk_f(self.ldd(), e, 0, 0, f) <= self.target(e) + s0;
+        ensures lwalk_f(self.ddg(), e, 0, 0, f) <= self.target(e) + s0;
 }
 
 
@@ -240,11 +240,11 @@ pub trait DdgWalk {
     fn step(&self, p: Self::Pos, b: u64) -> (r: Step<Self::Pos>)
         requires
             self.wf(), self.spec().point() is None, b <= 1, self.valid_pos(p),
-            is_internal(self.spec().ldd(), self.pos(p).0, self.pos(p).1),
+            is_internal(self.spec().ddg(), self.pos(p).0, self.pos(p).1),
         ensures
             r matches Step::Next(q) ==> self.valid_pos(q),
             ({
-            let t = self.spec().ldd();
+            let t = self.spec().ddg();
             let j1 = self.pos(p).0 + 1;
             let x = child(self.pos(p).1, b as nat, self.swap());
             &&& x < (t.h)(j1) && (t.lab)(j1, x) < t.n ==> (r matches Step::Done(v) && v as nat == (t.lab)(j1, x))
@@ -274,11 +274,11 @@ pub fn sample<W: DdgWalk>(
         eps >= w.spec().target(e),
         input_credit@ =~= (Value { car: eps }),
     ensures
-        (value as nat) < w.spec().ldd().n,
+        (value as nat) < w.spec().ddg().n,
         out_credit@@ =~= (Value { car: e(value as nat) }),
 {
     let ghost s = w.spec();
-    let ghost t = s.ldd();
+    let ghost t = s.ddg();
     proof { w.lemma_wf(); s.lemma_shape(); }
     let r0 = w.root();
     let mut p = match r0 {
@@ -318,7 +318,7 @@ pub fn sample<W: DdgWalk>(
     }
     loop
         invariant
-            s == w.spec(), t == s.ldd(), w.wf(), s.point() is None, valid_ldd(t),
+            s == w.spec(), t == s.ddg(), w.wf(), s.point() is None, valid_ldd(t),
             forall |i: nat| (#[trigger] e(i)) >= 0real,
             w.valid_pos(p),
             is_internal(t, w.pos(p).0, w.pos(p).1),

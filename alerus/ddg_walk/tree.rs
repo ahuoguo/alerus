@@ -39,36 +39,36 @@ pub struct Node {
 pub trait Leaves {
     spec fn lwf(&self) -> bool;
 
-    spec fn lldd(&self) -> LDdg;
+    spec fn ddg(&self) -> LDdg;
 
     proof fn lemma_leaves(&self)
         requires self.lwf(),
         ensures
-            valid_ldd(self.lldd()),
-            (self.lldd().h)(0) == 0,
-            self.lldd().levels <= 124,
-            forall |j: nat| j <= self.lldd().levels ==> #[trigger] npos(self.lldd(), j) <= 0x10000000000000,
-            forall |j: nat, x: nat| x < (self.lldd().h)(j) ==> #[trigger] (self.lldd().lab)(j, x) < 0x4000000000000000;
+            valid_ldd(self.ddg()),
+            (self.ddg().h)(0) == 0,
+            self.ddg().levels <= 124,
+            forall |j: nat| j <= self.ddg().levels ==> #[trigger] npos(self.ddg(), j) <= 0x10000000000000,
+            forall |j: nat, x: nat| x < (self.ddg().h)(j) ==> #[trigger] (self.ddg().lab)(j, x) < 0x4000000000000000;
 
     fn levels(&self) -> (r: u64)
         requires self.lwf(),
-        ensures r as nat == self.lldd().levels;
+        ensures r as nat == self.ddg().levels;
 
     /// The `l` of the original: the wrap depth, or any depth ≥ K when no
     /// internal node reaches depth K.
     fn wrap_level(&self) -> (r: u64)
         requires self.lwf(),
         ensures
-            r as nat == self.lldd().wrap
-                || (r as nat >= self.lldd().levels && lnum(self.lldd(), self.lldd().levels) == 0);
+            r as nat == self.ddg().wrap
+                || (r as nat >= self.ddg().levels && lnum(self.ddg(), self.ddg().levels) == 0);
 
     fn get_h(&self, j: u64) -> (r: u64)
-        requires self.lwf(), 1 <= j as nat <= self.lldd().levels,
-        ensures r as nat == (self.lldd().h)(j as nat);
+        requires self.lwf(), 1 <= j as nat <= self.ddg().levels,
+        ensures r as nat == (self.ddg().h)(j as nat);
 
     fn get_lab(&self, j: u64, x: u64) -> (r: u64)
-        requires self.lwf(), 1 <= j as nat <= self.lldd().levels, (x as nat) < (self.lldd().h)(j as nat),
-        ensures r as nat == (self.lldd().lab)(j as nat, x as nat);
+        requires self.lwf(), 1 <= j as nat <= self.ddg().levels, (x as nat) < (self.ddg().h)(j as nat),
+        ensures r as nat == (self.ddg().lab)(j as nat, x as nat);
 }
 
 // ── Counting positions ────────────────────────────────────────────────────────
@@ -625,29 +625,29 @@ proof fn lemma_tree_input(t: LDdg, lw: nat)
 pub fn make_tree<L: Leaves>(tab: &L, j: u64, o: u64, lw: u64, b: &mut Builder) -> (id: usize)
     requires
         tab.lwf(),
-        tree_input(tab.lldd(), lw as nat),
-        binv(tab.lldd(), lw as nat, *old(b)),
-        j as nat <= tab.lldd().levels,
-        (o as nat) < npos(tab.lldd(), j as nat),
+        tree_input(tab.ddg(), lw as nat),
+        binv(tab.ddg(), lw as nat, *old(b)),
+        j as nat <= tab.ddg().levels,
+        (o as nat) < npos(tab.ddg(), j as nat),
         j == 0 ==> o == 0,
-        j as nat == tab.lldd().levels ==> (o as nat) < (tab.lldd().h)(j as nat),
+        j as nat == tab.ddg().levels ==> (o as nat) < (tab.ddg().h)(j as nat),
         old(b).v@[j as int] == o as nat,
-        forall |j2: nat| j < j2 <= tab.lldd().levels ==> #[trigger] old(b).v@[j2 as int] == cover(tab.lldd(), j as nat, o as nat, j2),
-        forall |j2: nat| j2 < j ==> (o as nat) < cover(tab.lldd(), j2, #[trigger] old(b).v@[j2 as int], j as nat),
+        forall |j2: nat| j < j2 <= tab.ddg().levels ==> #[trigger] old(b).v@[j2 as int] == cover(tab.ddg(), j as nat, o as nat, j2),
+        forall |j2: nat| j2 < j ==> (o as nat) < cover(tab.ddg(), j2, #[trigger] old(b).v@[j2 as int], j as nat),
     ensures
-        binv(tab.lldd(), lw as nat, *final(b)),
+        binv(tab.ddg(), lw as nat, *final(b)),
         old(b).nodes@.len() <= final(b).nodes@.len(),
         forall |i: int| 0 <= i < old(b).nodes@.len() ==>
             #[trigger] final(b).nodes@[i] == old(b).nodes@[i] && final(b).pos@[i] == old(b).pos@[i],
-        forall |i: int| old(b).nodes@.len() <= i < final(b).nodes@.len() ==> #[trigger] complete(tab.lldd(), final(b).nodes@, final(b).pos@, i),
-        node_is(tab.lldd(), final(b).nodes@, final(b).pos@, id as int, j as nat, o as nat),
+        forall |i: int| old(b).nodes@.len() <= i < final(b).nodes@.len() ==> #[trigger] complete(tab.ddg(), final(b).nodes@, final(b).pos@, i),
+        node_is(tab.ddg(), final(b).nodes@, final(b).pos@, id as int, j as nat, o as nat),
         id == old(b).nodes@.len(),
         final(b).v@[j as int] == o as nat + 1,
         forall |j2: nat| j2 < j ==> #[trigger] final(b).v@[j2 as int] == old(b).v@[j2 as int],
-        forall |j2: nat| j < j2 <= tab.lldd().levels ==> #[trigger] final(b).v@[j2 as int] == cover(tab.lldd(), j as nat, (o + 1) as nat, j2),
-    decreases tab.lldd().levels - j, 1nat,
+        forall |j2: nat| j < j2 <= tab.ddg().levels ==> #[trigger] final(b).v@[j2 as int] == cover(tab.ddg(), j as nat, (o + 1) as nat, j2),
+    decreases tab.ddg().levels - j, 1nat,
 {
-    let ghost t = tab.lldd();
+    let ghost t = tab.ddg();
     proof { lemma_tree_node(t, lw as nat, j as nat, o as nat); lemma_binv_facts(t, lw as nat, *b); }
     let hj: u64 = if j == 0 { 0 } else { tab.get_h(j) };
     let id = b.nodes.len();
@@ -751,28 +751,28 @@ pub fn make_tree<L: Leaves>(tab: &L, j: u64, o: u64, lw: u64, b: &mut Builder) -
 fn make_child<L: Leaves>(tab: &L, j: u64, x: u64, lw: u64, b: &mut Builder, Ghost(o): Ghost<nat>) -> (id: usize)
     requires
         tab.lwf(),
-        tree_input(tab.lldd(), lw as nat),
-        binv(tab.lldd(), lw as nat, *old(b)),
-        (j as nat) < tab.lldd().levels,
-        is_internal(tab.lldd(), j as nat, (o - (tab.lldd().h)(j as nat)) as nat),
-        o >= (tab.lldd().h)(j as nat),
-        x == 2 * (o - (tab.lldd().h)(j as nat)) || x == 2 * (o - (tab.lldd().h)(j as nat)) + 1,
+        tree_input(tab.ddg(), lw as nat),
+        binv(tab.ddg(), lw as nat, *old(b)),
+        (j as nat) < tab.ddg().levels,
+        is_internal(tab.ddg(), j as nat, (o - (tab.ddg().h)(j as nat)) as nat),
+        o >= (tab.ddg().h)(j as nat),
+        x == 2 * (o - (tab.ddg().h)(j as nat)) || x == 2 * (o - (tab.ddg().h)(j as nat)) + 1,
         old(b).v@[j + 1] == x as nat,
-        forall |j2: nat| j + 1 < j2 <= tab.lldd().levels ==> #[trigger] old(b).v@[j2 as int] == cover(tab.lldd(), j as nat + 1, x as nat, j2),
-        forall |j2: nat| j2 <= j ==> (x as nat) < cover(tab.lldd(), j2, #[trigger] old(b).v@[j2 as int], j as nat + 1),
+        forall |j2: nat| j + 1 < j2 <= tab.ddg().levels ==> #[trigger] old(b).v@[j2 as int] == cover(tab.ddg(), j as nat + 1, x as nat, j2),
+        forall |j2: nat| j2 <= j ==> (x as nat) < cover(tab.ddg(), j2, #[trigger] old(b).v@[j2 as int], j as nat + 1),
     ensures
-        binv(tab.lldd(), lw as nat, *final(b)),
+        binv(tab.ddg(), lw as nat, *final(b)),
         old(b).nodes@.len() <= final(b).nodes@.len(),
         forall |i: int| 0 <= i < old(b).nodes@.len() ==>
             #[trigger] final(b).nodes@[i] == old(b).nodes@[i] && final(b).pos@[i] == old(b).pos@[i],
-        forall |i: int| old(b).nodes@.len() <= i < final(b).nodes@.len() ==> #[trigger] complete(tab.lldd(), final(b).nodes@, final(b).pos@, i),
-        node_is(tab.lldd(), final(b).nodes@, final(b).pos@, id as int, j as nat + 1, x as nat),
+        forall |i: int| old(b).nodes@.len() <= i < final(b).nodes@.len() ==> #[trigger] complete(tab.ddg(), final(b).nodes@, final(b).pos@, i),
+        node_is(tab.ddg(), final(b).nodes@, final(b).pos@, id as int, j as nat + 1, x as nat),
         final(b).v@[j + 1] == x as nat + 1,
         forall |j2: nat| j2 <= j ==> #[trigger] final(b).v@[j2 as int] == old(b).v@[j2 as int],
-        forall |j2: nat| j + 1 < j2 <= tab.lldd().levels ==> #[trigger] final(b).v@[j2 as int] == cover(tab.lldd(), j as nat + 1, (x + 1) as nat, j2),
-    decreases tab.lldd().levels - j, 0nat,
+        forall |j2: nat| j + 1 < j2 <= tab.ddg().levels ==> #[trigger] final(b).v@[j2 as int] == cover(tab.ddg(), j as nat + 1, (x + 1) as nat, j2),
+    decreases tab.ddg().levels - j, 0nat,
 {
-    let ghost t = tab.lldd();
+    let ghost t = tab.ddg();
     let ghost k = t.levels;
     proof { lemma_child_pos(t, lw as nat, j as nat, o, x as nat); }
     let k_e = tab.levels();
@@ -808,14 +808,14 @@ pub fn make_ddg_tree<L: Leaves>(tab: &L) -> (b: Builder)
         b.nodes@.len() >= 1,
         b.nodes@.len() < 0x800000000000000,
         b.pos@.len() == b.nodes@.len(),
-        node_is(tab.lldd(), b.nodes@, b.pos@, 0, 0, 0),
-        forall |i: int| 0 <= i < b.nodes@.len() ==> #[trigger] complete(tab.lldd(), b.nodes@, b.pos@, i),
+        node_is(tab.ddg(), b.nodes@, b.pos@, 0, 0, 0),
+        forall |i: int| 0 <= i < b.nodes@.len() ==> #[trigger] complete(tab.ddg(), b.nodes@, b.pos@, i),
         forall |i: int| 0 <= i < b.nodes@.len() && (#[trigger] b.nodes@[i]).label is None ==>
-            is_internal(tab.lldd(), b.pos@[i].0, b.pos@[i].1),
+            is_internal(tab.ddg(), b.pos@[i].0, b.pos@[i].1),
         forall |i: int| 0 <= i < b.nodes@.len() ==>
             ((#[trigger] b.nodes@[i]).label matches Some(r) ==> r < 0x4000000000000000),
 {
-    let ghost t = tab.lldd();
+    let ghost t = tab.ddg();
     proof { tab.lemma_leaves(); }
     let lw = tab.wrap_level();
     proof { lemma_tree_input(t, lw as nat); }

@@ -36,14 +36,14 @@ use vstd::arithmetic::power2::lemma_pow2_strictly_increases;
 
 /// The FLDR tree as a level-structured DDG: no wrap-around (A(K) = 0), and
 /// the reject label n restarts at the root.
-pub open spec fn fldr_ldd(t: Ddg) -> LDdg {
+pub open spec fn fldr_ddg(t: Ddg) -> LDdg {
     LDdg { n: t.n, levels: t.levels, wrap: 0, h: t.h, lab: t.lab }
 }
 
 /// A(j) = N(j) − h(j): the internal nodes are the nodes that are not leaves.
 pub proof fn lemma_fldr_lnum(t: Ddg, j: nat)
     requires valid_ddg(t), j <= t.levels,
-    ensures lnum(fldr_ldd(t), j) == num_nodes(t, j) as int - (t.h)(j) as int,
+    ensures lnum(fldr_ddg(t), j) == num_nodes(t, j) as int - (t.h)(j) as int,
     decreases j,
 {
     if j > 0 {
@@ -59,11 +59,11 @@ pub proof fn lemma_fldr_lnum(t: Ddg, j: nat)
 pub proof fn lemma_fldr_valid_ldd(t: Ddg)
     requires valid_ddg(t), t.levels >= 1,
     ensures
-        valid_ldd(fldr_ldd(t)),
-        lnum(fldr_ldd(t), t.levels) == 0,
-        forall |j: nat| j <= t.levels ==> #[trigger] lnum(fldr_ldd(t), j) == num_nodes(t, j) as int - (t.h)(j) as int,
+        valid_ldd(fldr_ddg(t)),
+        lnum(fldr_ddg(t), t.levels) == 0,
+        forall |j: nat| j <= t.levels ==> #[trigger] lnum(fldr_ddg(t), j) == num_nodes(t, j) as int - (t.h)(j) as int,
 {
-    let l = fldr_ldd(t);
+    let l = fldr_ddg(t);
     assert forall |j: nat| j <= t.levels implies #[trigger] lnum(l, j) == num_nodes(t, j) as int - (t.h)(j) as int by {
         lemma_fldr_lnum(t, j);
     }
@@ -83,11 +83,11 @@ pub proof fn lemma_fldr_valid_ldd(t: Ddg)
 pub proof fn lemma_fldr_walk(t: Ddg, e: spec_fn(nat) -> real, f: nat)
     requires valid_ddg(t), t.levels >= 1,
     ensures
-        forall |j: nat, d: nat| is_internal(fldr_ldd(t), j, d) ==>
-            #[trigger] lwalk_f(fldr_ldd(t), e, j, d, f) == fldr_f(t, e, j, d, f) + fldr_fail_f(t, j, d, f),
+        forall |j: nat, d: nat| is_internal(fldr_ddg(t), j, d) ==>
+            #[trigger] lwalk_f(fldr_ddg(t), e, j, d, f) == fldr_f(t, e, j, d, f) + fldr_fail_f(t, j, d, f),
     decreases f,
 {
-    let l = fldr_ldd(t);
+    let l = fldr_ddg(t);
     lemma_fldr_valid_ldd(t);
     if f > 0 {
         let f1 = (f - 1) as nat;
@@ -125,14 +125,14 @@ pub proof fn lemma_fldr_walk(t: Ddg, e: spec_fn(nat) -> real, f: nat)
 /// The fuel law of FLDR, shared by every layout.
 pub proof fn lemma_fldr_fuel(t: Ddg, e: spec_fn(nat) -> real, s0: real) -> (f: nat)
     requires valid_ddg(t), t.levels >= 1, forall |i: nat| (#[trigger] e(i)) >= 0real, s0 > 0real,
-    ensures lwalk_f(fldr_ldd(t), e, 0, 0, f) <= fldr_exp(t, e) + s0,
+    ensures lwalk_f(fldr_ddg(t), e, 0, 0, f) <= fldr_exp(t, e) + s0,
 {
     lemma_fldr_valid_ldd(t);
     lemma_fldr_fail_witness(t, s0);
     let f = choose |k: nat| fldr_fail_f(t, 0, 0, k) < s0;
     lemma_fldr_val_le_target(t, e, f);
     lemma_fldr_walk(t, e, f);
-    assert(is_internal(fldr_ldd(t), 0, 0));
+    assert(is_internal(fldr_ddg(t), 0, 0));
     f
 }
 
@@ -140,7 +140,7 @@ pub proof fn lemma_fldr_fuel(t: Ddg, e: spec_fn(nat) -> real, s0: real) -> (f: n
 impl DdgSpec for Ddg {
     open spec fn wf(&self) -> bool { valid_ddg(*self) && self.levels >= 1 }
 
-    open spec fn ldd(&self) -> LDdg { fldr_ldd(*self) }
+    open spec fn ddg(&self) -> LDdg { fldr_ddg(*self) }
 
     open spec fn target(&self, e: spec_fn(nat) -> real) -> real { fldr_exp(*self, e) }
 
@@ -206,7 +206,7 @@ impl<'a, T: DdgTable> DdgWalk for ByLevel<'a, T> {
             if lab < self.tab.n() { Step::Done(lab) } else { Step::Restart }
         } else {
             proof {
-                let l = fldr_ldd(t);
+                let l = fldr_ddg(t);
                 assert(lnum(l, c1 as nat) == 2 * lnum(l, c as nat) - (t.h)(c1 as nat) as int);
                 assert(c1 < t.levels);
             }
@@ -222,12 +222,12 @@ impl<'a, T: DdgTable> Leaves for ByLevel<'a, T> {
         self.tab.wf() && self.tab@.n < 0x4000000000000000 && self.tab@.levels <= 52
     }
 
-    open spec fn lldd(&self) -> LDdg { fldr_ldd(self.tab@) }
+    open spec fn ddg(&self) -> LDdg { fldr_ddg(self.tab@) }
 
     proof fn lemma_leaves(&self) {
         self.tab.wf_props();
         lemma_fldr_valid_ldd(self.tab@);
-        let t = fldr_ldd(self.tab@);
+        let t = fldr_ddg(self.tab@);
         assert forall |j: nat| j <= t.levels implies #[trigger] npos(t, j) <= 0x10000000000000 by {
             lemma_npos(t, j);
             lemma_pow2_mono(j, 52);
