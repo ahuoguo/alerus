@@ -1,100 +1,97 @@
-//! FLDR — the Fast Loaded Dice Roller: sample outcome i ∈ {0,…,n−1} with probability
-//! aᵢ/m  (m = Σ aᵢ),  using only fair coin flips.
+//! FLDR, the Fast Loaded Dice Roller: sample outcome i ∈ {0, …, n−1} with
+//! probability aᵢ/m (m = Σ aᵢ) using only fair coin flips.
 //!
 //! References:
-//!   - [AISTATS 20](https://arxiv.org/abs/2003.03830)
+//!   - [AISTATS 20](https://arxiv.org/abs/2003.03830) (the algorithm)
 //!   - [FM 26](https://arxiv.org/abs/2509.06410)
-//! 
-//! Rust implementations: 
+//!
+//! Rust implementations:
 //!   - https://github.com/ryco117/fast_loaded_dice_roller
 //!   - https://github.com/vks/rand/blob/fldr/rand_distr/src/weighted_fldr.rs
 //!
-//! Algoirthm:
-//! Preprocess the integer weights a₀,…,a_{n−1} (total m, K = ⌈log₂ m⌉) into the
-//! Knuth–Yao DDG (discrete-distribution-generating tree): a binary tree whose leaves
-//! are labelled by outcomes, plus a reject label `n` carrying weight 2ᴷ − m so the
-//! total leaf mass is 2ᴷ.  A leaf at depth c has probability 2⁻ᶜ, and the leaves of
-//! outcome i carry total mass aᵢ/2ᴷ.  The extra `reject` label is the value `n` itself
-//! (the real outcomes are 0..n−1, so `n` is "none of them"); its leaves hold the slack
-//! mass 2ᴷ − m that pads the total up to a power of two.
+//! ## Files
 //!
-//! Sampling walks down the tree one coin flip at a time, tracking the current depth `c`
-//! and the position `d` of the current node.
-//! At each level the `h[c]` leaves come first (positions 0..h[c]−1) and the internal nodes
-//! follow (positions ≥ h[c]).  On a real leaf it outputs that leaf's label; on a reject
-//! leaf (label = `n`) it discards the walk and starts over at the root:
+//! | File | Contents |
+//! |---|---|
+//! | `fldr.rs` | the spec table `Ddg`, the `DdgTable` trait, `FldrTable` (per-level label lists) with `fldr_preprocess`, the value and failure credits, and the sampler `sample_fldr<T: DdgTable>` |
+//! | `fldr_helper.rs` | the lemmas behind the sampler and the preprocessing |
+//! | `fldr_layouts.rs` | two more `DdgTable` layouts: `FldrH` (the AISTATS paper's h/H matrix) and `FldrFlat` (ryco117's flat rows), each with its preprocessing |
+//! | `fldr_walk.rs` | FLDR on the generic walk of `ddg_walk/`: `ByLevel` (the loop below as a `DdgWalk`), FLDR's fuel law, and the packed-array encoding (`construct_fldr_encoding`, `sample_fldr_encoding`) |
+//!
+//! The sampler's proof uses only the trait: a layout supplies `levels`, `n`,
+//! `h[c]` and `lab[c][d]` and proves `valid_ddg` of its view (`wf_props`).
+//! So `sample_fldr` samples every layout above with no new sampler proof.
+//! `sample_fldr` is `walk::sample` (`ddg_walk/walk.rs`) on `ByLevel`.
+//!
+//! ## The table
+//!
+//! Pad the weights to a power of two with a reject label n of weight
+//! aₙ = 2ᴷ − m (K = ⌈log₂ m⌉), so a₀, …, aₙ sum to 2ᴷ. Label ℓ gets a leaf at
+//! level c (1 ≤ c ≤ K) exactly when bit K−c of aℓ is 1. A leaf at level c is
+//! reached with probability 2⁻ᶜ, so label ℓ's leaves carry aℓ/2ᴷ. h[c] is the
+//! number of leaves at level c, and lab[c] lists their labels in increasing
+//! order. At each level the leaves come first (positions 0..h[c]−1), then the
+//! internal nodes.
+//!
+//! ## Sampling
 //!
 //! ```text
-//!   c ← 0; d ← 0                                    // start at the root (level 0, position 0)
+//!   c ← 0; d ← 0                                    // the root
 //!   loop {
-//!       b ← flip();  c ← c+1;  d ← 2d + b           // descend one level (left/right child)
-//!       if d < h[c] {                               // d is one of the h[c] leaves here
-//!           if lab[c][d] ≠ n { return lab[c][d] }   // real outcome → accept and return it
-//!           else { d ← 0; c ← 0 }                   // reject (label n) → restart at the root
-//!       } else { d ← d − h[c] }                     // internal node → renumber and keep going
+//!       b ← flip();  c ← c+1;  d ← 2d + b           // a child
+//!       if d < h[c] {                               // a leaf
+//!           if lab[c][d] ≠ n { return lab[c][d] }   //   an outcome
+//!           else { d ← 0; c ← 0 }                   //   reject: restart at the root
+//!       } else { d ← d − h[c] }                     // an internal node
 //!   }
 //! ```
-//! `h[c]` = number of leaves at level c;  `lab[c][d]` = label (an outcome in 0..n−1, or the
-//! reject label n) of the d-th leaf at level c.
 //!
-//! We prove the Expectation-Preservation Rule for the loaded distribution:
+//! The spec (the Expectation-Preservation Rule for aᵢ/m):
 //!
 //! ```text
 //!            ε ≥ Σ_{i<n} (aᵢ/m)·ℰ(i)
 //!   ───────────────────────────────────────────────
-//!   [{ ↯(ε) }] sample_fldr(weights) [{ i. ↯(ℰ(i)) }]
+//!   [{ ↯(ε) }] sample_fldr(tab) [{ i. ↯(ℰ(i)) }]
 //! ```
 //!
-//!  The credit distributions are similar to `fdr.rs`
+//! ## Proof outline
 //!
-//!  (1) VALUE — the conditional expectation  fldr_f(c,d,k) = E[ℰ(out) | (c,d)] using
-//!      ≤ k flips (0 if the coins runs out before accepting):
-//! ```text
-//!        fldr_f(c,d,0) = 0
-//!        fldr_f(c,d,k) = ½·( fldr_g(c+1,2d,k−1) + fldr_g(c+1,2d+1,k−1) )
-//!        fldr_g(c,d,k) = ℰ(lab[c][d])      if d < h[c], lab[c][d] < n   (accept)
-//!                      = fldr_f(0,0,k)     if d < h[c], lab[c][d] = n   (reject, restart)
-//!                      = fldr_f(c,d−h[c],k) if d ≥ h[c]                 (internal, descend)
-//! ```
-//!      Correctness: fldr_f(0,0,k) ≤ Σ(aᵢ/m)ℰ(i).  Because a reject restarts at the
-//!      root with *strictly smaller* fuel (every leaf is at depth ≥ 1), this follows
-//!      by induction on k — no limits — from the DDG leaf-sum identity
-//!      Σ_{accept leaves} 2⁻ᶜ·ℰ(lab) = Σ(aᵢ/2ᴷ)ℰ(i) and Σ_{reject leaves} 2⁻ᶜ = 1−m/2ᴷ.
+//! As in `fdr.rs`, the credit has two fuel-indexed parts.
 //!
-//!  (2) TERMINATION — the failure probability  fldr_fail_f(c,d,k) = 1 − P(accept within
-//!      k flips)  (independent of ℰ): same shape, accept ↦ 0, k = 0 ↦ 1.  One full
-//!      root-to-leaf traversal (≤ K flips) rejects with probability ρ = (2ᴷ−m)/2ᴷ < 1,
-//!      so fldr_fail_f(0,0,jK) ≤ ρʲ → 0.
+//! - **Value.** fldr_f(c, d, k) is the expected ℰ(output) from internal node
+//!   (c, d) within k flips (0 when the fuel runs out):
 //!
-//! ── Preprocessing: weights → DDG table ────────────────────────────────────────
-//! The sampler above is funded by a *validated* table; building and validating that
-//! table is the second half of the development.
+//!   ```text
+//!     fldr_f(c,d,0) = 0
+//!     fldr_f(c,d,k) = ½·( fldr_g(c+1,2d,k−1) + fldr_g(c+1,2d+1,k−1) )
+//!     fldr_g(c,d,k) = ℰ(lab[c][d])          if d < h[c], lab[c][d] < n   (accept)
+//!                   = fldr_f(0,0,k)         if d < h[c], lab[c][d] = n   (reject)
+//!                   = fldr_f(c,d−h[c],k)    if d ≥ h[c]                  (internal)
+//!   ```
 //!
-//! Algorithm.  Pad the weights to a power of two with a reject label n of weight
-//! aₙ = 2ᴷ − m (K = ⌈log₂ m⌉), so the extended weights a₀,…,aₙ sum to 2ᴷ.  Now read
-//! the binary expansion of each aℓ:  aℓ/2ᴷ = 0.b₁b₂…bₖ, and label ℓ gets a leaf at
-//! level c (1 ≤ c ≤ K) exactly when bit (K−c) of aℓ is 1, i.e. b_c = 1.  A leaf at
-//! level c carries mass 2⁻ᶜ, so label ℓ's leaves sum to Σ_c b_c·2⁻ᶜ = aℓ/2ᴷ — its
-//! target share.  h[c] is the number of labels present at level c, and lab[c] lists
-//! them (ascending label order). 
+//!   fldr_f(0,0,k) ≤ Σ(aᵢ/m)ℰ(i) by induction on k: a reject restarts with
+//!   strictly less fuel, and the leaves satisfy
+//!   Σ_{accept} 2⁻ᶜ·ℰ(lab) = Σ(aᵢ/2ᴷ)ℰ(i) and Σ_{reject} 2⁻ᶜ = 1 − m/2ᴷ.
+//! - **Termination.** fldr_fail_f(c, d, k) is the probability of not
+//!   accepting within k flips (same recursion, accept ↦ 0, no fuel ↦ 1). One
+//!   root-to-leaf walk (≤ K flips) rejects with probability
+//!   ρ = (2ᴷ−m)/2ᴷ < 1, so fldr_fail_f(0,0,jK) ≤ ρʲ → 0, and a `thin_air`
+//!   credit pays for it.
+//! - **The walk.** `walk::sample` keeps one fuel-indexed credit, `lwalk_f`;
+//!   `lemma_fldr_walk` (`fldr_walk.rs`) shows it is fldr_f + fldr_fail_f, so
+//!   the two facts above give FLDR's fuel law (`lemma_fldr_fuel`).
+//! - **Preprocessing.** `built_ddg(pctx)` is the table of the construction
+//!   above, as a spec; `lemma_built_valid` proves it is a `valid_ddg`. Two
+//!   facts carry it:
+//!   - each label's leaves encode its weight,
+//!     Σ_c count(c, ℓ)·2^{K−c} = aℓ (the binary expansion; `lemma_built_wenc`);
+//!   - the tree closes: Σ_c h(c)·2^{K−c} = 2ᴷ forces the node count
+//!     N(c) = 2·(N(c−1) − h(c−1)) to stay ≥ h(c) and to reach 0 at level K+1
+//!     (`lemma_n_filled`, `lemma_h_le_n`, `lemma_built_close`).
 //!
-//! Verification.  At the spec level `built_ddg(pctx)` models the construction from an
-//! abstract weight context `pctx`:
-//!  h(c) = pcnt = #labels, lab(c,·) = sel = the present labels in order.  
-//! `lemma_built_valid` proves that, under `pctx.wf()` (aₙ = 2ᴷ − m, m = Σ aᵢ ≥ 1, every aᵢ < 2ᴷ), 
-//! `built_ddg(pctx)` satisfies `valid_ddg`.
-//! Two facts carry it:
-//!  · Per-label encoding:  w_of_lbl_to_l(ℓ,K) = Σ_c count(c,ℓ)·2^{K−c} = aℓ — exactly the
-//!    binary reconstruction Σ_c b_c·2^{K−c} = aℓ (lemma_built_wenc / topbits).
-//!  · The tree is well-formed:  the "filled-cells" identity Σ_c h(c)·2^{K−c} = Σ_ℓ aℓ
-//!    = 2ᴷ (every base cell covered once) forces the running node count
-//!    N(c) = 2·(N(c−1) − h(c−1)) to stay ≥ h(c) and hit 0 at level K+1 — so each level
-//!    has enough nodes for its leaves and the tree closes exactly (lemma_n_filled,
-//!    lemma_h_le_n, lemma_built_close).
-//! The executable `fldr_preprocess(weights, m, K)` fills the Vec-backed `h`/`lab`
-//! level by level — each (label, level) membership test is a `bit` = `pow2_exec`
-//! division — and `lemma_preprocess_valid` transfers `valid_ddg(built_ddg)` to the table's 
-//! `view()` through the agreement lemmas, discharging `wf()`.
+//!   `fldr_preprocess` fills `h` and `lab` level by level and
+//!   `lemma_preprocess_valid` transfers `valid_ddg` to the table's view. The
+//!   layouts in `fldr_layouts.rs` reuse the same two lemmas.
 
 use vstd::prelude::*;
 
@@ -102,7 +99,7 @@ verus! {
 use crate::ec::*;
 #[cfg(verus_keep_ghost)]
 use crate::ec::ErrorCreditCarrier::Value;
-use crate::rand_primitives::{thin_air, rand_2_u64};
+use crate::rand_primitives::thin_air;
 #[cfg(verus_keep_ghost)]
 use crate::math::pow::{pow, archimedean_pow};
 #[cfg(verus_keep_ghost)]
@@ -450,6 +447,9 @@ impl View for FldrTable {
 /// supplies the four executable reads the sampling loop performs — `levels`, `n`,
 /// `h[c]`, `lab[c][d]` — plus the well-formedness predicate [`DdgTable::wf`].  Any
 /// type implementing this trait can be fed to [`sample_fldr`].
+///
+/// Implementations: [`FldrTable`] (below), and `FldrH` and `FldrFlat` in
+/// `fldr_layouts.rs`.
 pub trait DdgTable: View<V = Ddg> {
     /// Representation well-formedness.  Opaque to generic clients; the facts the
     /// sampler relies on are surfaced by [`DdgTable::wf_props`].
@@ -561,19 +561,18 @@ pub fn pow2_exec(k: u64) -> (r: u64)
     r
 }
 
-/// Fast Loaded Dice Roller [AISTATS 2020, Alg. 5] — samples outcome i with 
+/// Fast Loaded Dice Roller [AISTATS 2020, Alg. 5] — samples outcome i with
 /// probability aᵢ/m using fair coins; always returns.
-/// 
+///
 /// The Expectation-Preservation Rule:
 ///
 ///   ε ≥ Σ_{i<n} (aᵢ/m)·ℰ(i)
 ///   ─────────────────────────────────────────────────
 ///   [{ ↯(ε) }] sample_fldr(tab) [{ i. ↯(ℰ(i)) }]
 ///
-/// `tab` is a well-formed (preprocessed, validated) DDG table.  Correctness is funded
-/// by the value credit, almost-sure termination by the failure-probability credit.
-#[verifier::spinoff_prover]
-#[verifier::rlimit(100)]
+/// `tab` is a well-formed (preprocessed, validated) DDG table. The loop is the
+/// generic `walk::sample` on `ByLevel` (`fldr_walk.rs`), whose `step` is one
+/// iteration of the loop above.
 pub fn sample_fldr<T: DdgTable>(
     tab: &T,
     Ghost(e): Ghost<spec_fn(nat) -> real>,
@@ -589,135 +588,8 @@ pub fn sample_fldr<T: DdgTable>(
         (value as nat) < tab@.n,
         out_credit@@ =~= (Value { car: e(value as nat) }),
 {
-    let ghost t = tab@;
-    proof {
-        tab.wf_props(); // valid_ddg(t) + overflow bounds
-        lemma_fldr_exp_nonneg(t, e);
-    }
-    let Tracked(slack) = thin_air();
-    let ghost s0 = choose |sv: real| sv > 0real && (slack@ =~= (Value { car: sv }));
-    let tracked mut credit = ec_combine(input_credit, slack, eps, s0);   // ↯(eps + s0)
-    let ghost mut k: nat;
-    proof {
-        lemma_fldr_fail_witness(t, s0);
-        k = choose |k: nat| fldr_fail_f(t, 0, 0, k) < s0;
-        lemma_fldr_val_le_target(t, e, k);
-        assert(eps + s0 >= fldr_f(t, e, 0, 0, k) + fldr_fail_f(t, 0, 0, k)) by(nonlinear_arith)
-            requires
-                fldr_f(t, e, 0, 0, k) <= fldr_exp(t, e),
-                eps >= fldr_exp(t, e),
-                fldr_fail_f(t, 0, 0, k) < s0;
-    }
-    let ghost mut g_ce = eps + s0;
-
-    let mut c: u64 = 0;
-    let mut d: u64 = 0;
-
-    loop
-        invariant
-            t == tab@,
-            tab.wf(),
-            (c as nat) < t.levels,
-            (d as nat) + (t.h)(c as nat) < num_nodes(t, c as nat),
-            forall |x: nat| (#[trigger] e(x)) >= 0real,
-            credit@ =~= (Value { car: g_ce }),
-            g_ce >= fldr_f(t, e, c as nat, d as nat, k) + fldr_fail_f(t, c as nat, d as nat, k),
-        decreases k,
-    {
-        proof {
-            tab.wf_props();                          // valid_ddg(t) + pow2 bounds this iteration
-            if k == 0 {
-                ec_contradict(&credit);              // fail_f(c,d,0)=1 ⇒ g_ce ≥ 1, impossible
-            }
-        }
-        let ghost k0 = k;
-        let ghost cn = c as nat;
-        let ghost dn = d as nat;
-        // coin alloc: b ↦ fldr_g(cn+1, 2d+b, k−1) + fldr_fail_g(cn+1, 2d+b, k−1)
-        let ghost alloc = |x: nat| {
-            let d1: nat = if x == 1 { 2 * dn + 1 } else { 2 * dn };
-            fldr_g(t, e, cn + 1, d1, (k0 - 1) as nat) + fldr_fail_g(t, cn + 1, d1, (k0 - 1) as nat)
-        };
-        proof {
-            assert forall |i: nat| (#[trigger] alloc(i)) >= 0real by {
-                lemma_fldr_g_nonneg(t, e, cn + 1, 2 * dn, (k0 - 1) as nat);
-                lemma_fldr_g_nonneg(t, e, cn + 1, 2 * dn + 1, (k0 - 1) as nat);
-                lemma_fldr_fail_g_bounds(t, cn + 1, 2 * dn, (k0 - 1) as nat);
-                lemma_fldr_fail_g_bounds(t, cn + 1, 2 * dn + 1, (k0 - 1) as nat);
-            }
-            let ghost fg0 = fldr_g(t, e, cn + 1, 2 * dn, (k0 - 1) as nat);
-            let ghost fg1 = fldr_g(t, e, cn + 1, 2 * dn + 1, (k0 - 1) as nat);
-            let ghost lg0 = fldr_fail_g(t, cn + 1, 2 * dn, (k0 - 1) as nat);
-            let ghost lg1 = fldr_fail_g(t, cn + 1, 2 * dn + 1, (k0 - 1) as nat);
-            assert((alloc(0) + alloc(1)) / 2real
-                == fldr_f(t, e, cn, dn, k0) + fldr_fail_f(t, cn, dn, k0)) by(nonlinear_arith)
-                requires
-                    alloc(0) == fg0 + lg0, alloc(1) == fg1 + lg1,
-                    fldr_f(t, e, cn, dn, k0) == (fg0 + fg1) / 2real,
-                    fldr_fail_f(t, cn, dn, k0) == (lg0 + lg1) / 2real;
-        }
-
-        let (b, Tracked(out)) = rand_2_u64(Tracked(credit), Ghost(alloc));
-        proof { credit = out; g_ce = alloc(b as nat); k = (k0 - 1) as nat; }
-
-        // descend one level:  c ← c+1,  d ← 2d + b.  (2d can't overflow:
-        // d < N(cn) ≤ 2^cn ≤ 2^levels ≤ 2^62.)
-        proof {
-            lemma_num_nodes_le_pow2(t, cn);
-            lemma_pow2_mono(cn, t.levels);
-            // levels ≤ 62 (else pow2(levels) > 2^62, contradicting wf), so c+1 fits u64.
-            lemma_pow2_62();
-            if t.levels > 62 { lemma_pow2_strictly_increases(62nat, t.levels); }
-        }
-        c = c + 1;
-        d = 2 * d + b;
-
-        // g_ce now tracks the child node (c, d); d < N(c) keeps the loop invariant,
-        // and N(c) ≤ 2^c ≤ 2^levels ≤ usize::MAX makes the Vec indices below safe.
-        proof {
-            assert(alloc(b as nat)
-                == fldr_g(t, e, cn + 1, d as nat, k)
-                   + fldr_fail_g(t, cn + 1, d as nat, k));
-            assert((d as nat) < num_nodes(t, cn + 1)) by(nonlinear_arith)
-                requires
-                    (dn as int) + (t.h)(cn) < num_nodes(t, cn),
-                    (t.h)(cn) <= num_nodes(t, cn),
-                    num_nodes(t, cn + 1) == 2 * ((num_nodes(t, cn) - (t.h)(cn)) as nat),
-                    d == 2 * dn + (b as nat), b <= 1;
-            lemma_num_nodes_le_pow2(t, (cn + 1) as nat);
-            lemma_pow2_mono((cn + 1) as nat, t.levels);
-            lemma_pow2_gt((cn + 1) as nat);
-        }
-
-        let hc: u64 = tab.get_h(c);
-
-        if d < hc {
-            // leaf at (c, d):  lab[c][d] is the label reached
-            let lab = tab.get_lab(c, d);
-            if lab < tab.n() {
-                proof { assert(g_ce == e(lab as nat)); }   // accept: fldr_g = ℰ(lab)
-                return (lab, Tracked(credit));
-            } else {
-                // reject → restart at the root
-                proof { assert(g_ce == fldr_f(t, e, 0, 0, k) + fldr_fail_f(t, 0, 0, k)); }
-                c = 0;
-                d = 0;
-            }
-        } else {
-            // internal → renumber within the level:  d ← d − h(c)
-            proof {
-                lemma_ddg_close(t);                                  // N(K) = h(K) ⇒ c < levels
-                assert((c as nat) < t.levels) by {
-                    if (c as nat) == t.levels {
-                        assert(num_nodes(t, t.levels) == (t.h)(t.levels));
-                    }
-                }
-                assert(g_ce == fldr_f(t, e, cn + 1, ((d as nat) - (t.h)(cn + 1)) as nat, k)
-                            + fldr_fail_f(t, cn + 1, ((d as nat) - (t.h)(cn + 1)) as nat, k));
-            }
-            d = d - hc;
-        }
-    }
+    let w = crate::fldr_walk::ByLevel { tab };
+    crate::ddg_walk::walk::sample(&w, Ghost(e), Tracked(input_credit), Ghost(eps))
 }
 
 // ── Binary reconstruction ──────────────
@@ -869,7 +741,7 @@ pub open spec fn vsum(s: Seq<u64>, j: nat) -> nat
 //   - Level `c` here ↔ bit (K−c): c = 1..K ↔ paper digits j = 0..K−1, and c = 0 is an
 //     extra (always empty) root row so the array index equals the tree level.
 //   - The bit test is a division/modulo  (aₗ / 2^{K−c}) % 2  rather than a shift-and-mask,
-//     intentially avoid bit-vector reasoning.
+//     intentionally avoid bit-vector reasoning.
 //   - Returns the level's label list as a fresh Vec (the paper writes column `j` of its
 //     [n+1]×k matrix `H[d][j]` in place); h[c] is recovered as `labd.len()`.
 //   - `Ghost(pctx)`, the loop invariant, and the proof blocks are verification-only.
