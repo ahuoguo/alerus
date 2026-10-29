@@ -1,4 +1,4 @@
-//! optas's `packing.py`: pack the arena of `tree.rs` into one array. The
+//! Pack the arena of `tree.rs` into one array. The
 //! array as a sampler (`sample_ky_encoding`) is `Encoded` in `encoding.rs`.
 //!
 //! An internal node takes two slots, the offsets of its left child (flip 0)

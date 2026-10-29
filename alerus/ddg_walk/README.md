@@ -30,10 +30,10 @@ This directory proves the walk once for every storage layout.
     [{ ↯(ε) }] sample(w) [{ r. ↯(ℰ(r)) }]
   ```
 
-- **`make_ddg_tree`** (`tree.rs`, optas's `tree.py`) and **`pack_tree`**
-  (`packing.rs`, optas's `packing.py`) build the packed array from any
-  `Leaves` table (`h(j)`, `lab(j, x)`). **`Encoded<S>`** (`encoding.rs`)
-  is that array as a `DdgWalk` for the spec S.
+- **`make_ddg_tree`** (`tree.rs`) and **`pack_tree`** (`packing.rs`)
+  build the packed array from any `Leaves` table (`h(j)`, `lab(j, x)`).
+  **`Encoded<S>`** (`encoding.rs`) is that array as a `DdgWalk` for the
+  spec S.
 
 ## Instances
 
@@ -44,7 +44,7 @@ This directory proves the walk once for every storage layout.
 | `FldrFlat` (one row of n+2 entries per level, ryco117's `level_label_matrix`, issue #18) | FLDR | `fldr_layouts.rs` | `sample_fldr` (a `DdgTable`) |
 | packed array built from any `DdgTable` (levels ≤ 52, n < 2⁶²) | FLDR | `fldr_walk.rs` | `sample_fldr_encoding` |
 | matrix P, cached (h, T) | OPTAS | `optas/sample.rs` | `sample_ky_matrix[_cached]` |
-| packed array (`tree.py` + `packing.py`; n < 2⁵⁰, k ≤ 124) | OPTAS | built in `optas/construct.rs` | `sample_ky_encoding` (`optas/sample.rs`) |
+| packed array (n < 2⁵⁰, k ≤ 124) | OPTAS | built in `optas/construct.rs` | `sample_ky_encoding` (`optas/sample.rs`) |
 
 The two FLDR tables are `DdgTable` impls, so the existing `sample_fldr`
 samples them unchanged; only their preprocessing (`fldr_preprocess_h`,
@@ -78,17 +78,3 @@ The matrix samplers of `optas` are layouts too (`MatrixWalk`,
   and the contents of its slots (`pinv`, `packed`). With `complete` from
   the tree this gives `enc_wf`: the two slots of every internal node point
   at its children (`construct_encoding`).
-
-## Checked by running
-
-These were one-off runs during development; the harnesses are not in the
-repository.
-
-- **FLDR tables.** For (7,4,8), (1,1,1), (5,0,3) and (2,9,1,13), `FldrH`
-  and `FldrFlat` match the C code's `fldr_preprocess_int` and ryco117's
-  `Generator::new` entry for entry.
-- **Encodings.** `construct_sample_ky_encoding` matches `optas` on 8
-  distributions.
-- **Sampling.** Over 3·10^5 samples, `sample_fldr` on all three tables,
-  `sample_fldr_encoding` and `sample_ky_encoding` all
-  have frequencies within 0.003 of p.

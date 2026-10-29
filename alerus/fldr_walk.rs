@@ -6,9 +6,8 @@
 //!   plus failure credit, fldr_f + fldr_fail_f.
 //! - **`impl DdgSpec for Ddg`** states FLDR's laws once (`lemma_fldr_fuel`);
 //!   `ByLevel` and the packed encoding both use it.
-//! - **The packed encoding.** `construct_fldr_encoding` builds `optas`'s
-//!   packed array (`tree.py` + `packing.py`, here `ddg_walk/{tree,
-//!   packing}.rs`) from any `DdgTable`. A reject label n is a leaf that
+//! - **The packed encoding.** `construct_fldr_encoding` builds the
+//!   packed array of `ddg_walk/{tree, packing}.rs` from any `DdgTable`. A reject label n is a leaf that
 //!   restarts the walk. `sample_fldr_encoding` samples it with the spec of
 //!   `sample_fldr`. The encoding needs levels ≤ 52, so that the array's
 //!   offsets (at most 2^52 nodes per depth) fit, and n < 2⁶², so that a leaf

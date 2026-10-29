@@ -9,6 +9,7 @@ pub mod geo_dist;
 pub mod geo_u64;
 pub mod ho_rej_samp;
 pub mod cks;
+pub mod optas;
 pub mod random_walk;
 pub mod fdr;
 pub mod spline;

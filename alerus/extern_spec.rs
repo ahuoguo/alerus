@@ -53,6 +53,13 @@ pub assume_specification[ random::ubig_to_u64 ](n: &UBig) -> (ret: u64)
     requires ubig_view(n) <= u64::MAX,
     ensures ret as nat == ubig_view(n);
 
+pub assume_specification[ random::ubig_from_u128 ](n: u128) -> (ret: UBig)
+    ensures ubig_view(&ret) == n as nat;
+
+pub assume_specification[ random::ubig_to_u128 ](n: &UBig) -> (ret: u128)
+    requires ubig_view(n) <= u128::MAX,
+    ensures ret as nat == ubig_view(n);
+
 pub assume_specification[ random::ubig_is_odd ](n: &UBig) -> (ret: bool)
     ensures ret == (ubig_view(n) % 2 == 1);
 
