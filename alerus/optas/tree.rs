@@ -249,6 +249,27 @@ pub proof fn lemma_optas_walk(ms: Seq<u128>, k: nat, l: nat, e: spec_fn(nat) -> 
     }
 }
 
+/// A child of the bridge that is a leaf.
+#[verifier::spinoff_prover]
+proof fn lemma_optas_child_leaf(ms: Seq<u128>, k: nat, l: nat, e: spec_fn(nat) -> real, c: nat, j: nat, x: nat, f1: nat)
+    requires
+        wf_kl(ms, k, l), proper_kl(ms, k, l), !(k == 1 && l == 0),
+        rho_eq(ms, zkl(k, l), j, c),
+        x < (optas_ddg(ms, k, l).h)(c + 1),
+    ensures lwalk_g(optas_ddg(ms, k, l), e, c + 1, x, f1) == ddg_g(ms, zkl(k, l), e, j + 1, x, 0, f1),
+{
+    lemma_zkl(k, l);
+    let z = zkl(k, l);
+    lemma_optas_valid(ms, k, l);
+    lemma_level_eq(ms, z, j, c, 0);
+    let r = optas_lab(ms, z, c + 1, x);
+    lemma_optas_lab(ms, z, c + 1, x);
+    lemma_level_eq(ms, z, j, c, r);
+    assert(ddg_bit(ms, z, j + 1, r) == 1);
+    assert(ddg_pre(ms, z, j + 1, 0) == 0);
+    lemma_ddg_g_pre(ms, z, e, j + 1, r, 0, f1);
+}
+
 /// One child of the bridge.
 #[verifier::spinoff_prover]
 #[verifier::rlimit(30)]
@@ -269,12 +290,7 @@ proof fn lemma_optas_child(ms: Seq<u128>, k: nat, l: nat, e: spec_fn(nat) -> rea
     let h = ddg_h(ms, z, c + 1, 0);
     assert((t.h)(c + 1) == h);
     if x < h {
-        let r = optas_lab(ms, z, c + 1, x);
-        lemma_optas_lab(ms, z, c + 1, x);
-        lemma_level_eq(ms, z, j, c, r);
-        assert(ddg_bit(ms, z, j + 1, r) == 1);
-        assert(ddg_pre(ms, z, j + 1, 0) == 0);
-        lemma_ddg_g_pre(ms, z, e, j + 1, r, 0, f1);
+        lemma_optas_child_leaf(ms, k, l, e, c, j, x, f1);
     } else {
         lemma_ddg_g_internal(ms, z, e, j + 1, x, 0, f1);
         let y = (x - h) as nat;
