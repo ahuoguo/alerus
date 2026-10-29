@@ -1,7 +1,8 @@
 //! The discrete Gaussian N_ℤ(0, σ²), x = 1/(2σ²), by optimal approximate
 //! sampling (Saad et al., Table 2), every step exact:
 //!
-//! 1. `taylor`: an exact L with L ≤ e^{−x} ≤ L + τ, τ = x^nt / nt!.
+//! 1. `taylor`: an exact L with L ≤ e^{−x} ≤ L + τ: the Taylor partial sum
+//!    of e^{−x/m}, raised to m = ⌊x⌋ + 1, so τ = m·(x/m)^nt / nt! (`exp_tau`).
 //! 2. `gauss_weights`: integer weights w_z = ⌊2^mb · L^{z²}⌋, z ∈ [−B, B].
 //! 3. Algorithm 3 rounds w / Σw to M / 2^k (`gauss_matrix`,
 //!    `construct_gauss_encoding`).
@@ -100,10 +101,26 @@ pub open spec fn shift(e: spec_fn(int) -> real, b: nat) -> spec_fn(nat) -> real 
     |r: nat| e(r as int - b as int)
 }
 
-/// The loss from using the Taylor bound L ≤ e^{−x} ≤ L + τ (τ = x^nt / nt!)
+/// m = ⌊x⌋ + 1, so that x/m < 1 and the Taylor bound applies to e^{−x/m}.
+pub open spec fn exp_split(x: real) -> nat {
+    (x.floor() + 1) as nat
+}
+
+/// The error τ of `taylor`'s bound L ≤ e^{−x} ≤ L + τ. For x < 128 it is
+/// the Taylor bound for e^{−x} = (e^{−x/m})^m: m·(x/m)^nt / nt!. Above, L = 0
+/// and τ = 2^{−128} ≥ e^{−x}.
+pub open spec fn exp_tau(x: real, nt: nat) -> real {
+    if x < 128real {
+        (exp_split(x) as real) * exp_taylor_term(x / (exp_split(x) as real), nt)
+    } else {
+        1real / (pow2(128) as real)
+    }
+}
+
+/// The loss from using the Taylor bound L ≤ e^{−x} ≤ L + τ (τ = `exp_tau`)
 /// in place of e^{−x}: (2B+1)·B²·τ.
 pub open spec fn taylor_delta(x: real, b: nat, nt: nat) -> real {
-    ((2 * b + 1) as real) * (((b * b) as real) * exp_taylor_term(x, nt))
+    ((2 * b + 1) as real) * (((b * b) as real) * exp_tau(x, nt))
 }
 
 /// The loss from flooring the weights to mb fractional bits: (2B+1)·2^{−mb}.
@@ -154,6 +171,65 @@ proof fn lemma_bracket(x: real, nt: nat)
         == partial_sum(exp_taylor_seq(x), nt) + exp_taylor_seq(x)(nt));
 }
 
+/// (1/2)^n = 1 / 2^n.
+proof fn lemma_half_pow(n: nat)
+    ensures pow(1real / 2real, n) * (pow2(n) as real) == 1real,
+    decreases n,
+{
+    if n == 0 {
+        assert(pow(1real / 2real, 0) == 1real);
+        vstd::arithmetic::power2::lemma2_to64();
+    } else {
+        let n1 = (n - 1) as nat;
+        lemma_half_pow(n1);
+        vstd::arithmetic::power2::lemma_pow2_unfold(n);
+        lemma_nat_mul_real_cast(2, pow2(n1));
+        let h = pow(1real / 2real, n1);
+        let p = pow2(n1) as real;
+        assert(pow(1real / 2real, n) == (1real / 2real) * h);
+        assert(((1real / 2real) * h) * (2real * p) == 1real) by(nonlinear_arith) requires h * p == 1real;
+    }
+}
+
+/// e^{−x} ≤ 2^{−128} for x ≥ 128: e^{−1} ≤ 1 − 1 + 1/2 (the Taylor bound).
+proof fn lemma_exp_tiny(x: real)
+    requires x >= 128real,
+    ensures 0real < exp(-x) <= 1real / (pow2(128) as real),
+{
+    let e1 = exp(-1real);
+    axiom_exp_taylor_bounds(1real, 3);
+    assert(factorial(0) == 1real);
+    assert(factorial(1) == (1nat as real) * factorial(0));
+    assert(factorial(2) == (2nat as real) * factorial(1));
+    assert(pow(-1real, 0) == 1real);
+    assert(pow(-1real, 1) == -1real * pow(-1real, 0));
+    assert(pow(-1real, 2) == -1real * pow(-1real, 1));
+    let sq1 = exp_taylor_seq(1real);
+    assert(sq1(0) == exp_taylor_term(1real, 0) && sq1(1) == exp_taylor_term(1real, 1) && sq1(2) == exp_taylor_term(1real, 2));
+    assert(partial_sum(sq1, 1) == partial_sum(sq1, 0) + sq1(0));
+    assert(partial_sum(sq1, 2) == partial_sum(sq1, 1) + sq1(1));
+    assert(partial_sum(sq1, 3) == partial_sum(sq1, 2) + sq1(2));
+    assert(e1 <= 1real / 2real);
+    axiom_exp_neg_range(1real);
+    lemma_pow_gap(e1, 1real / 2real, 128);
+    lemma_exp_pow(1real, 128);
+    assert(-((128nat as real) * 1real) == -128real);
+    lemma_half_pow(128);
+    lemma_pow2_pos(128);
+    axiom_exp_add(128real, x - 128real);
+    axiom_exp_neg_range(x - 128real);
+    axiom_exp_neg_range(x);
+    assert(-(128real + (x - 128real)) == -x);
+    assert(exp(-x) == exp(-(128real + (x - 128real))));
+    axiom_exp_neg_range(128real);
+    let t = exp(-128real);
+    let p = pow2(128) as real;
+    assert(t * p <= 1real) by(nonlinear_arith)
+        requires t <= pow(1real / 2real, 128), pow(1real / 2real, 128) * p == 1real, p > 0real;
+    assert(exp(-x) <= 1real / p) by(nonlinear_arith)
+        requires exp(-x) == t * exp(-(x - 128real)), exp(-(x - 128real)) <= 1real, t * p <= 1real, p > 0real, t > 0real;
+}
+
 /// 0 ≤ L ≤ c ≤ 1 ⟹ 0 ≤ L^N ≤ c^N ≤ 1 and c^N − L^N ≤ N(c − L).
 proof fn lemma_pow_gap(lo: real, c: real, n: nat)
     requires 0real <= lo <= c <= 1real,
@@ -180,21 +256,20 @@ proof fn lemma_pow_gap(lo: real, c: real, n: nat)
     }
 }
 
-/// One weight: if w ≤ 2^mb·L^N < w + 1 then w/2^mb ≤ exp(−Nx) ≤ w/2^mb + B²τ + 2^{−mb}.
-proof fn lemma_weight(x: real, nt: nat, b: nat, nn: nat, mb: nat, w: nat)
+/// One weight: if 0 ≤ L ≤ exp(−x) ≤ L + τ and w ≤ 2^mb·L^N < w + 1, then
+/// w/2^mb ≤ exp(−Nx) ≤ w/2^mb + B²τ + 2^{−mb}.
+proof fn lemma_weight(x: real, lo: real, tau: real, b: nat, nn: nat, mb: nat, w: nat)
     requires
-        0real < x <= 1real, nt >= 2, nt % 2 == 0, nn <= b * b,
-        (w as real) <= (pow2(mb) as real) * pow(partial_sum(exp_taylor_seq(x), nt), nn),
-        (pow2(mb) as real) * pow(partial_sum(exp_taylor_seq(x), nt), nn) < (w + 1) as real,
+        x > 0real, 0real <= lo <= exp(-x) <= lo + tau, nn <= b * b,
+        (w as real) <= (pow2(mb) as real) * pow(lo, nn),
+        (pow2(mb) as real) * pow(lo, nn) < (w + 1) as real,
     ensures
         (w as real) / (pow2(mb) as real) <= exp(-((nn as real) * x)),
         exp(-((nn as real) * x)) - (w as real) / (pow2(mb) as real)
-            <= ((b * b) as real) * exp_taylor_term(x, nt) + 1real / (pow2(mb) as real),
+            <= ((b * b) as real) * tau + 1real / (pow2(mb) as real),
 {
-    let lo = partial_sum(exp_taylor_seq(x), nt);
     let c = exp(-x);
-    let tau = exp_taylor_term(x, nt);
-    lemma_bracket(x, nt);
+    axiom_exp_neg_range(x);
     lemma_pow_gap(lo, c, nn);
     lemma_exp_pow(x, nn);
     lemma_pow2_pos(mb);
@@ -344,17 +419,17 @@ proof fn lemma_term_step(x: real, i: nat)
         requires f > 0real;
 }
 
-/// The even Taylor partial sum T_nt(x) of exp(−x), x = xn/xd, as an exact
-/// fraction num/den.
-pub fn taylor(xn: u64, xd: u64, nt: u64) -> (r: (UBig, UBig))
-    requires 0 < xn <= xd, 2 <= nt <= 64, nt % 2 == 0,
+/// The even Taylor partial sum T_nt(x) of exp(−x), x = xn/xd ≤ 1, as an
+/// exact fraction num/den.
+fn taylor_partial(xn: u64, xd: &UBig, nt: u64) -> (r: (UBig, UBig))
+    requires 0 < xn <= ubig_view(xd), 2 <= nt <= 64, nt % 2 == 0,
     ensures
         ubig_view(&r.1) > 0,
         ubig_view(&r.0) <= ubig_view(&r.1),
         (ubig_view(&r.0) as real) / (ubig_view(&r.1) as real)
-            == partial_sum(exp_taylor_seq(xn as real / xd as real), nt as nat),
+            == partial_sum(exp_taylor_seq(xn as real / ubig_view(xd) as real), nt as nat),
 {
-    let ghost x = xn as real / xd as real;
+    let ghost x = xn as real / ubig_view(xd) as real;
     let mut snum: IBig = ibig_from_i64(0);
     let mut tnum: IBig = ibig_from_i64(1);
     let mut den: UBig = ubig_from_u64(1);
@@ -366,7 +441,7 @@ pub fn taylor(xn: u64, xd: u64, nt: u64) -> (r: (UBig, UBig))
     }
     while i < nt
         invariant
-            i <= nt <= 64, 0 < xn <= xd, x == xn as real / xd as real,
+            i <= nt <= 64, 0 < xn <= ubig_view(xd), x == xn as real / ubig_view(xd) as real,
             ubig_view(&den) > 0,
             (ibig_view(&snum) as real) / (ubig_view(&den) as real) == partial_sum(exp_taylor_seq(x), i as nat),
             (ibig_view(&tnum) as real) / (ubig_view(&den) as real) == exp_taylor_term(x, i as nat),
@@ -375,7 +450,7 @@ pub fn taylor(xn: u64, xd: u64, nt: u64) -> (r: (UBig, UBig))
         let ghost s0 = ibig_view(&snum) as real;
         let ghost t0 = ibig_view(&tnum) as real;
         let ghost d0 = ubig_view(&den) as real;
-        let g: UBig = ubig_mul_u64(&ubig_from_u64(xd), i + 1);
+        let g: UBig = ubig_mul_u64(xd, i + 1);
         let gi: IBig = ibig_from_ubig(&g);
         let st: IBig = ibig_add(&snum, &tnum);
         let new_snum = ibig_mul(&st, &gi);
@@ -384,15 +459,15 @@ pub fn taylor(xn: u64, xd: u64, nt: u64) -> (r: (UBig, UBig))
         let new_den = ubig_mul(&den, &g);
         proof {
             let gr = ubig_view(&g) as real;
-            assert(ubig_view(&g) == (xd as nat) * ((i + 1) as nat));
-            lemma_nat_mul_real_cast(xd as nat, (i + 1) as nat);
+            assert(ubig_view(&g) == ubig_view(xd) * ((i + 1) as nat));
+            lemma_nat_mul_real_cast(ubig_view(xd), (i + 1) as nat);
             lemma_nat_mul_real_cast(ubig_view(&den), ubig_view(&g));
             lemma_int_mul_real_cast(ibig_view(&snum) + ibig_view(&tnum), ubig_view(&g) as int);
             lemma_int_mul_real_cast(ibig_view(&tnum), xn as int);
-            assert(ubig_view(&g) > 0) by(nonlinear_arith) requires ubig_view(&g) == (xd as nat) * ((i + 1) as nat), xd > 0;
+            assert(ubig_view(&g) > 0) by(nonlinear_arith) requires ubig_view(&g) == ubig_view(xd) * ((i + 1) as nat), ubig_view(xd) > 0;
             let dn = ubig_view(&new_den) as real;
             assert(dn == d0 * gr);
-            assert(gr == (xd as real) * ((i + 1) as real));
+            assert(gr == (ubig_view(xd) as real) * ((i + 1) as real));
             assert(ubig_view(&new_den) > 0) by(nonlinear_arith)
                 requires ubig_view(&new_den) == ubig_view(&den) * ubig_view(&g), ubig_view(&den) > 0, ubig_view(&g) > 0;
             // partial sums
@@ -404,9 +479,9 @@ pub fn taylor(xn: u64, xd: u64, nt: u64) -> (r: (UBig, UBig))
             // terms
             lemma_term_step(x, i as nat);
             assert((ibig_view(&new_tnum) as real) == -(t0 * (xn as real)));
-            assert((-(t0 * (xn as real))) / (d0 * ((xd as real) * ((i + 1) as real)))
-                == (t0 / d0) * (-((xn as real) / (xd as real))) / ((i + 1) as real)) by(nonlinear_arith)
-                requires d0 > 0real, xd > 0, i + 1 > 0;
+            assert((-(t0 * (xn as real))) / (d0 * ((ubig_view(xd) as real) * ((i + 1) as real)))
+                == (t0 / d0) * (-((xn as real) / (ubig_view(xd) as real))) / ((i + 1) as real)) by(nonlinear_arith)
+                requires d0 > 0real, ubig_view(xd) > 0, i + 1 > 0;
         }
         snum = new_snum;
         tnum = new_tnum;
@@ -414,7 +489,7 @@ pub fn taylor(xn: u64, xd: u64, nt: u64) -> (r: (UBig, UBig))
         i = i + 1;
     }
     proof {
-        assert(0real < x <= 1real) by(nonlinear_arith) requires x == xn as real / xd as real, 0 < xn <= xd;
+        assert(0real < x <= 1real) by(nonlinear_arith) requires x == xn as real / ubig_view(xd) as real, 0 < xn <= ubig_view(xd);
         lemma_bracket(x, nt as nat);
         let d0 = ubig_view(&den) as real;
         let s0 = ibig_view(&snum) as real;
@@ -422,6 +497,115 @@ pub fn taylor(xn: u64, xd: u64, nt: u64) -> (r: (UBig, UBig))
         assert(s0 <= d0) by(nonlinear_arith) requires s0 / d0 <= 1real, d0 > 0real;
     }
     let num = ibig_abs(&snum);
+    (num, den)
+}
+
+/// (num/den)^n as an exact fraction.
+fn frac_pow(num: &UBig, den: &UBig, n: u64) -> (r: (UBig, UBig))
+    requires ubig_view(den) > 0, ubig_view(num) <= ubig_view(den),
+    ensures
+        ubig_view(&r.1) > 0, ubig_view(&r.0) <= ubig_view(&r.1),
+        (ubig_view(&r.0) as real) / (ubig_view(&r.1) as real)
+            == pow((ubig_view(num) as real) / (ubig_view(den) as real), n as nat),
+{
+    let ghost lo = (ubig_view(num) as real) / (ubig_view(den) as real);
+    let mut acc_n: UBig = ubig_from_u64(1);
+    let mut acc_d: UBig = ubig_from_u64(1);
+    let mut i: u64 = 0;
+    proof { assert(pow(lo, 0) == 1real); }
+    while i < n
+        invariant
+            i <= n,
+            ubig_view(den) > 0, ubig_view(num) <= ubig_view(den),
+            lo == (ubig_view(num) as real) / (ubig_view(den) as real),
+            ubig_view(&acc_d) > 0,
+            ubig_view(&acc_n) <= ubig_view(&acc_d),
+            (ubig_view(&acc_n) as real) / (ubig_view(&acc_d) as real) == pow(lo, i as nat),
+        decreases n - i,
+    {
+        let ghost an = ubig_view(&acc_n);
+        let ghost ad = ubig_view(&acc_d);
+        acc_n = ubig_mul(&acc_n, num);
+        acc_d = ubig_mul(&acc_d, den);
+        proof {
+            let nu = ubig_view(num);
+            let de = ubig_view(den);
+            lemma_nat_mul_real_cast(an, nu);
+            lemma_nat_mul_real_cast(ad, de);
+            assert(ad * de > 0) by(nonlinear_arith) requires ad > 0, de > 0;
+            assert(an * nu <= ad * de) by(nonlinear_arith) requires an <= ad, nu <= de;
+            assert(pow(lo, (i + 1) as nat) == lo * pow(lo, i as nat));
+            assert(((an as real) * (nu as real)) / ((ad as real) * (de as real))
+                == ((nu as real) / (de as real)) * ((an as real) / (ad as real))) by(nonlinear_arith)
+                requires ad > 0, de > 0;
+        }
+        i = i + 1;
+    }
+    (acc_n, acc_d)
+}
+
+/// An exact L = num/den with 0 ≤ L ≤ e^{−x} ≤ L + `exp_tau`(x, nt),
+/// x = xn/xd: the even Taylor partial sum T_nt(x/m), raised to the power
+/// m = ⌊x⌋ + 1 (`exp_split`), since e^{−x} = (e^{−x/m})^m and x/m < 1.
+/// For x ≥ 128, L = 0.
+pub fn taylor(xn: u64, xd: u64, nt: u64) -> (r: (UBig, UBig))
+    requires 0 < xn < 0x8000000000000000, 0 < xd, 2 <= nt <= 64, nt % 2 == 0,
+    ensures
+        ubig_view(&r.1) > 0,
+        ubig_view(&r.0) <= ubig_view(&r.1),
+        ({ let x = xn as real / xd as real;
+           let lo = (ubig_view(&r.0) as real) / (ubig_view(&r.1) as real);
+           0real <= lo && lo <= exp(-x) && exp(-x) <= lo + exp_tau(x, nt as nat) }),
+{
+    let ghost x = xn as real / xd as real;
+    let q = xn / xd;
+    let m = q + 1;
+    let xdm = ubig_mul_u64(&ubig_from_u64(xd), m);
+    let ghost xm = xn as real / ubig_view(&xdm) as real;
+    proof {
+        // m = ⌊x⌋ + 1 and x/m = xn/(m·xd) ∈ (0, 1)
+        vstd::arithmetic::div_mod::lemma_fundamental_div_mod(xn as int, xd as int);
+        let r = xn % xd;
+        lemma_nat_mul_real_cast(q as nat, xd as nat);
+        assert((q as real) <= x && x < (q as real) + 1real) by(nonlinear_arith)
+            requires x == xn as real / xd as real, (xn as real) == (q as real) * (xd as real) + (r as real),
+                0 <= r < xd, xd > 0;
+        assert(x.floor() == q as int);
+    }
+    if q >= 128 {
+        // e^{−x} ≤ 2^{−128}: L = 0
+        proof {
+            lemma_exp_tiny(x);
+            assert(0real / 1real == 0real);
+        }
+        return (ubig_from_u64(0), ubig_from_u64(1));
+    }
+    proof {
+        vstd::arithmetic::div_mod::lemma_fundamental_div_mod(xn as int, xd as int);
+        assert(x < 128real);
+        assert(exp_split(x) == m as nat);
+        assert(ubig_view(&xdm) == (xd as nat) * (m as nat));
+        lemma_nat_mul_real_cast(xd as nat, m as nat);
+        assert(xm == x / (m as real)) by(nonlinear_arith)
+            requires xm == xn as real / ubig_view(&xdm) as real, x == xn as real / xd as real,
+                (ubig_view(&xdm) as real) == (xd as real) * (m as real), xd > 0, m > 0;
+        assert((xn as nat) <= ubig_view(&xdm)) by(nonlinear_arith)
+            requires xn == xd * q + xn % xd, xn % xd < xd, m == q + 1, ubig_view(&xdm) == (xd as nat) * (m as nat);
+    }
+    let (pn, pd) = taylor_partial(xn, &xdm, nt);
+    let (num, den) = frac_pow(&pn, &pd, m);
+    proof {
+        let lp = (ubig_view(&pn) as real) / (ubig_view(&pd) as real);
+        let c = exp(-xm);
+        assert(0real < xm <= 1real) by(nonlinear_arith)
+            requires xm == xn as real / ubig_view(&xdm) as real, 0 < xn, (xn as nat) <= ubig_view(&xdm);
+        lemma_bracket(xm, nt as nat);
+        lemma_pow_gap(lp, c, m as nat);
+        lemma_exp_pow(xm, m as nat);
+        assert((m as real) * xm == x) by(nonlinear_arith) requires xm == x / (m as real), m > 0;
+        assert((m as real) * (c - lp) <= (m as real) * exp_taylor_term(xm, nt as nat)) by(nonlinear_arith)
+            requires c - lp <= exp_taylor_term(xm, nt as nat), m > 0;
+    }
     (num, den)
 }
 
@@ -474,38 +658,7 @@ pub fn gauss_weights(num: &UBig, den: &UBig, b: u64, mb: u64) -> (w: Vec<u128>)
                 requires d == (if r >= b { r - b } else { b - r }), nn == d * d;
         }
         // L^nn = acc_n / acc_d
-        let mut acc_n: UBig = ubig_from_u64(1);
-        let mut acc_d: UBig = ubig_from_u64(1);
-        let mut i: u64 = 0;
-        proof { assert(pow(lo, 0) == 1real); }
-        while i < nn
-            invariant
-                i <= nn,
-                ubig_view(den) > 0, ubig_view(num) <= ubig_view(den),
-                lo == (ubig_view(num) as real) / (ubig_view(den) as real),
-                ubig_view(&acc_d) > 0,
-                ubig_view(&acc_n) <= ubig_view(&acc_d),
-                (ubig_view(&acc_n) as real) / (ubig_view(&acc_d) as real) == pow(lo, i as nat),
-            decreases nn - i,
-        {
-            let ghost an = ubig_view(&acc_n);
-            let ghost ad = ubig_view(&acc_d);
-            acc_n = ubig_mul(&acc_n, num);
-            acc_d = ubig_mul(&acc_d, den);
-            proof {
-                let nu = ubig_view(num);
-                let de = ubig_view(den);
-                lemma_nat_mul_real_cast(an, nu);
-                lemma_nat_mul_real_cast(ad, de);
-                assert(ad * de > 0) by(nonlinear_arith) requires ad > 0, de > 0;
-                assert(an * nu <= ad * de) by(nonlinear_arith) requires an <= ad, nu <= de;
-                assert(pow(lo, (i + 1) as nat) == lo * pow(lo, i as nat));
-                assert(((an as real) * (nu as real)) / ((ad as real) * (de as real))
-                    == ((nu as real) / (de as real)) * ((an as real) / (ad as real))) by(nonlinear_arith)
-                    requires ad > 0, de > 0;
-            }
-            i = i + 1;
-        }
+        let (acc_n, acc_d) = frac_pow(num, den, nn);
         let scaled = ubig_mul(&acc_n, &pu);
         let wq = ubig_div(&scaled, &acc_d);
         let ghost an = ubig_view(&acc_n);
@@ -538,7 +691,7 @@ pub fn gauss_weights(num: &UBig, den: &UBig, b: u64, mb: u64) -> (w: Vec<u128>)
 /// E_{w/Σw}[ℰ] ≤ E_p[ℰ] + (2B+1)·(B²·τ + 2^{−mb}) for every ℰ ∈ [0, 1].
 pub fn gauss_input(xn: u64, xd: u64, b: u64, nt: u64, mb: u64) -> (w: Vec<u128>)
     requires
-        0 < xn <= xd,
+        0 < xn < 0x8000000000000000, 0 < xd,
         2 <= nt <= 64, nt % 2 == 0,
         b <= 1000, mb <= 112,
     ensures
@@ -553,15 +706,17 @@ pub fn gauss_input(xn: u64, xd: u64, b: u64, nt: u64, mb: u64) -> (w: Vec<u128>)
     let (num, den) = taylor(xn, xd, nt);
     let w = gauss_weights(&num, &den, b, mb);
     let ghost pm = pow2(mb as nat) as real;
-    let ghost eta = ((bn * bn) as real) * exp_taylor_term(x, nt as nat) + 1real / pm;
+    let ghost lo = (ubig_view(&num) as real) / (ubig_view(&den) as real);
+    let ghost tau = exp_tau(x, nt as nat);
+    let ghost eta = ((bn * bn) as real) * tau + 1real / pm;
     proof {
-        assert(0real < x <= 1real) by(nonlinear_arith) requires x == xn as real / xd as real, 0 < xn <= xd;
+        assert(0real < x) by(nonlinear_arith) requires x == xn as real / xd as real, 0 < xn, 0 < xd;
         lemma_pow2_pos(mb as nat);
         assert forall |i: nat| i < w.len() implies
             (#[trigger] w@[i as int] as real) / pm <= gw(x, bn, i)
             && gw(x, bn, i) - (w@[i as int] as real) / pm <= eta by {
             assert(sq(bn, i) <= bn * bn) by(nonlinear_arith) requires i < 2 * bn + 1, sq(bn, i) == ((i as int - bn as int) * (i as int - bn as int)) as nat;
-            lemma_weight(x, nt as nat, bn, sq(bn, i), mb as nat, w@[i as int] as nat);
+            lemma_weight(x, lo, tau, bn, sq(bn, i), mb as nat, w@[i as int] as nat);
         }
         assert forall |i: nat| i < w.len() implies 0real <= gw(x, bn, i) by {
             assert((sq(bn, i) as real) * x >= 0real) by(nonlinear_arith) requires x > 0real;
@@ -572,8 +727,8 @@ pub fn gauss_input(xn: u64, xd: u64, b: u64, nt: u64, mb: u64) -> (w: Vec<u128>)
         assert(-((0 as real) * x) == 0real);
         assert(gw(x, bn, bn) == 1real);
         // w_B = 2^mb > 0, and all weights fit
-        lemma_weight(x, nt as nat, bn, 0, mb as nat, w@[bn as int] as nat);
-        assert(pow(partial_sum(exp_taylor_seq(x), nt as nat), 0) == 1real);
+        lemma_weight(x, lo, tau, bn, 0, mb as nat, w@[bn as int] as nat);
+        assert(pow(lo, 0) == 1real);
         assert(w@[bn as int] as real > pm - 1real);
         crate::fldr_helper::lemma_pow2_mono(mb as nat, 112);
         lemma_w_le_sum(w@, 0, bn);
@@ -588,9 +743,9 @@ pub fn gauss_input(xn: u64, xd: u64, b: u64, nt: u64, mb: u64) -> (w: Vec<u128>)
             requires wsum_nat(w@, 0) <= w@.len() * pow2(mb as nat), w@.len() <= 2001, pow2(mb as nat) <= 0x10000000000000000000000000000;
         lemma_weights_tv(x, bn, w@, pm, eta);
         assert(taylor_delta(x, bn, nt as nat) + floor_delta(bn, mb as nat) == ((2 * bn + 1) as real) * eta)
-            by(nonlinear_arith) requires eta == ((bn * bn) as real) * exp_taylor_term(x, nt as nat) + 1real / pm,
+            by(nonlinear_arith) requires eta == ((bn * bn) as real) * tau + 1real / pm,
                 pm == pow2(mb as nat) as real,
-                taylor_delta(x, bn, nt as nat) == ((2 * bn + 1) as real) * (((bn * bn) as real) * exp_taylor_term(x, nt as nat)),
+                taylor_delta(x, bn, nt as nat) == ((2 * bn + 1) as real) * (((bn * bn) as real) * tau),
                 floor_delta(bn, mb as nat) == ((2 * bn + 1) as real) * (1real / (pow2(mb as nat) as real));
         // E_{w/Σw}[ℰ] ≤ E_p[ℰ] + TV(w/Σw, p) ≤ E_p[ℰ] + taylor_delta + floor_delta
         assert forall |ee: spec_fn(nat) -> real| credit_alloc_bound(ee) implies #[trigger] pexp(ratio(w@, wsum_nat(w@, 0)), ee, (2 * bn + 1) as nat, 0)
@@ -610,7 +765,7 @@ pub open spec fn gauss_delta(x: real, b: nat, nt: nat, mb: nat, k: nat) -> real 
 
 /// The input of the Gaussian samplers.
 pub open spec fn gauss_params(xn: u64, xd: u64, b: u64, nt: u64, mb: u64, k: u64) -> bool {
-    &&& 0 < xn <= xd
+    &&& 0 < xn < 0x8000000000000000 && 0 < xd
     &&& 2 <= nt <= 64 && nt % 2 == 0
     &&& b <= 1000 && mb <= 112 && 1 <= k <= 124
 }
@@ -730,20 +885,19 @@ pub fn sample_gauss_table<W: DdgWalk<Spec = OptasSpec>>(
     (ret as i64 - b as i64, Tracked(out))
 }
 
-/// σ = sn / sd ≥ 1/√2, so that x = 1/(2σ²) = sd² / (2·sn²) ≤ 1 and both
-/// fit in a u64.
+/// σ = sn / sd > 0, small enough that x = 1/(2σ²) = sd² / (2·sn²) fits in
+/// u64s.
 pub open spec fn wf_scale(sn: u64, sd: u64) -> bool {
-    &&& 0 < sn < 0x80000000 && 0 < sd < 0x80000000
-    &&& sd * sd <= 2 * sn * sn
+    0 < sn < 0x80000000 && 0 < sd < 0x80000000
 }
 
 /// The approximate discrete Gaussian N_ℤ(0, σ²), σ = sn / sd
 pub fn sample_gauss(
     sn: u64, sd: u64,                       // σ = sn / sd
     b: u64,                                 // B: the support is [−B, B]
-    nt: u64,                                // Taylor terms for exp(−x): 
-                                            // L = Σ_{i=0}^{nt−1} (−x)^i / i! = 1 − x + x²/2! − x³/3! + … − x^{nt−1}/(nt−1)!
-                                            // L ≤ e^{−x} ≤ L + τ,  τ = x^nt / nt!
+    nt: u64,                                // Taylor terms for exp(−x/m), m = ⌊x⌋ + 1:
+                                            // L' = Σ_{i=0}^{nt−1} (−x/m)^i / i!, L = L'^m,
+                                            // L ≤ e^{−x} ≤ L + τ,  τ = m·(x/m)^nt / nt!
     mb: u64,                                // bits of the integer weights
     k: u64,                                 // bits of the sampler
     Ghost(e): Ghost<spec_fn(int) -> real>,  // credit allocation ℰ
@@ -770,7 +924,7 @@ pub fn sample_gauss(
     // x = 1/(2σ²) = sd² / (2·sn²)
     proof {
         assert(0 < sd * sd < 0x4000000000000000) by(nonlinear_arith) requires 0 < sd < 0x80000000u64;
-        assert(2 * sn * sn < 0x8000000000000000) by(nonlinear_arith) requires sn < 0x80000000u64;
+        assert(0 < 2 * sn * sn < 0x8000000000000000) by(nonlinear_arith) requires 0 < sn < 0x80000000u64;
     }
     let xn = sd * sd;
     let xd = 2 * sn * sn;
