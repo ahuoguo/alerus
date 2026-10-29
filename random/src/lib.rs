@@ -77,6 +77,16 @@ pub fn ubig_to_u64(n: &UBig) -> u64 {
 }
 
 #[inline(always)]
+pub fn ubig_from_u128(n: u128) -> UBig {
+    UBig::from(n)
+}
+
+#[inline(always)]
+pub fn ubig_to_u128(n: &UBig) -> u128 {
+    u128::try_from(n.clone()).unwrap()
+}
+
+#[inline(always)]
 pub fn ubig_mul_u64(a: &UBig, b: u64) -> UBig {
     a * UBig::from(b)
 }

@@ -254,10 +254,29 @@ pub open spec fn gauss_pmf_partial(
     }
 }
 
-/// The genuine expectation-preservation precondition (the public spec of the
-/// sampler):  ε ≥ Σ_{x∈ℤ} gauss_pmf(x)·ℰ(x), stated as the bound on every
-/// (nondecreasing, for ℰ ≥ 0) pmf partial sum — so ε bounds their supremum,
-/// i.e. the series sum.
+/// Z_σ = Σ_{z∈ℤ} e^{−z²/(2σ²)}, the normalizer of N_ℤ(0, σ²): the limit of
+/// the symmetric kernel partial sums.
+pub open spec fn gauss_norm(sigma2: real) -> real {
+    choose |l: real| converges_to(kernel_mass_seq(sigma2), l)
+}
+
+/// m ↦ Σ_{|z|<m} e^{−z²/(2σ²)}.
+pub open spec fn kernel_mass_seq(sigma2: real) -> spec_fn(nat) -> real {
+    |m: nat| gauss_kernel_partial(sigma2, dg_ones(), m)
+}
+
+/// The expectation-preservation precondition (the public spec of the sampler):
+/// ε ≥ E_{N_ℤ(0,σ²)}[ℰ] = Σ_z e^{−z²/(2σ²)}·ℰ(z) / Z_σ, stated as a bound on
+/// every symmetric partial sum (for ℰ ≥ 0 they increase to the full sum).
+/// It mentions only σ²; `lemma_gauss_expectation_iff` shows it is
+/// `gauss_expectation_bounded_by` for any of the loop's parameters (p, t).
+pub open spec fn gauss_expectation_le(sigma2: real, e: spec_fn(int) -> real, eps: real) -> bool {
+    forall |n: nat| #[trigger] gauss_kernel_partial(sigma2, e, n) / gauss_norm(sigma2) <= eps
+}
+
+/// ε ≥ Σ_{x∈ℤ} gauss_pmf(x)·ℰ(x) with the pmf in terms of the loop's (p, t),
+/// stated as the bound on every (nondecreasing, for ℰ ≥ 0) pmf partial sum.
+/// Used inside the proof; equivalent to `gauss_expectation_le`.
 pub open spec fn gauss_expectation_bounded_by(
     p: real, sigma2: real, t: real, e: spec_fn(int) -> real, eps: real,
 ) -> bool {
@@ -268,7 +287,7 @@ pub open spec fn gauss_expectation_bounded_by(
 /// rational `RBig`, matching opendp's `sample_discrete_gaussian(scale: RBig)`).
 ///
 /// Expectation Preservation Rule:
-///   ε ≥ Σ_{x∈ℤ} gauss_pmf(x)·ℰ(x)        (as gauss_expectation_bounded_by)
+///   ε ≥ E_{N_ℤ(0,σ²)}[ℰ]                 (gauss_expectation_le)
 ///   ─────────────────────────────────────────────────────
 ///   [{ ↯(ε) }] sample_discrete_gaussian(σ) [{ v. ↯(ℰ(v)) }]
 #[verifier::spinoff_prover]
@@ -283,10 +302,7 @@ pub fn sample_discrete_gaussian(
         forall |x: int| (#[trigger] e(x)) >= 0real,
         eps > 0real,
         input_credit@ =~= (Value { car: eps }),
-        gauss_expectation_bounded_by(
-            exp(-(1real / ((rbig_view(scale).floor() + 1) as real))),
-            rbig_view(scale) * rbig_view(scale),
-            (rbig_view(scale).floor() + 1) as real, e, eps),
+        gauss_expectation_le(rbig_view(scale) * rbig_view(scale), e, eps),
     ensures
         out_credit@@ =~= (Value { car: e(ibig_view(&value)) }),
 {
@@ -336,6 +352,9 @@ pub fn sample_discrete_gaussian(
         assert(ubig_view(&t_ubig) as int == ibig_view(&t_i));   // ibig_abs, t_i ≥ 1
         assert(tr == (rbig_view(scale).floor() + 1) as real);
         assert(tr >= 1real);
+        assert(ibig_view(&t_numer) as real == tr);
+        assert(ubig_view(&one) as real == 1real);
+        assert(tr / 1real == tr);
         assert(rbig_view(&t_rbig) == tr);   // t_rbig = t_ubig / 1
         // p, cst, amp.
         assert(1real / tr > 0real) by(nonlinear_arith) requires tr >= 1real;
@@ -344,8 +363,9 @@ pub fn sample_discrete_gaussian(
         lemma_gauss_const_pos(p, sigma2, tr);
         lemma_gauss_const_lt_one(p, sigma2, tr);
         assert(amp > 1real) by(nonlinear_arith) requires amp == 1real / (1real - cst), 0real < cst < 1real;
-        // The public precondition is the genuine expectation bound under gauss_pmf
-        // (with this exact p, σ², t);  convert it to the internal kernel-partial form.
+        // The public precondition is the expectation bound in σ² alone; restate it
+        // with this loop's (p, t), then in the internal kernel-partial form.
+        lemma_gauss_expectation_iff(p, sigma2, tr, e, eps);
         lemma_dg_series_iff(p, sigma2, tr, e, eps);
         assert(dg_series_bounded_by(p, sigma2, tr, e, eps));
     }
@@ -581,6 +601,7 @@ pub fn sample_discrete_gaussian_entry(
         assert(dg_series_bounded_by(p, sigma2, tr, e, eps));
         lemma_dg_series_iff(p, sigma2, tr, e, eps);
         assert(gauss_expectation_bounded_by(p, sigma2, tr, e, eps));
+        lemma_gauss_expectation_iff(p, sigma2, tr, e, eps);
     }
     let (v, _out) = sample_discrete_gaussian(&scale, Ghost(e), Tracked(cred), Ghost(eps));
     v

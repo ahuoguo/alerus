@@ -21,7 +21,7 @@ use crate::cks::discrete_gaussian::*;
 #[cfg(verus_keep_ghost)]
 use crate::ec::*;
 #[cfg(verus_keep_ghost)]
-use crate::math::exp::{exp, axiom_exp_add, axiom_exp_neg_range, axiom_exp_zero};
+use crate::math::exp::{exp, axiom_exp_add, axiom_exp_neg_range, axiom_exp_neg_strict, axiom_exp_zero};
 #[cfg(verus_keep_ghost)]
 use crate::math::pow::pow;
 #[cfg(verus_keep_ghost)]
@@ -925,6 +925,55 @@ pub proof fn lemma_dg_series_iff(
                 let ghost pf = gauss_pmf_partial(p, sigma2, t, e, n);
                 assert(pf <= eps);                                // instantiate the hypothesis
                 assert(v <= a * eps) by(nonlinear_arith) requires pf == v / a, pf <= eps, a > 0real;
+            }
+        }
+    }
+}
+
+/// `gauss_expectation_le` (σ² only) is `gauss_expectation_bounded_by` for any
+/// valid (p, t): the pmf const·kernel/a is kernel/Z_σ, since a = const·Z_σ.
+pub proof fn lemma_gauss_expectation_iff(p: real, sigma2: real, t: real, e: spec_fn(int) -> real, eps: real)
+    requires sigma2 > 0real, t > 0real, p == exp(-(1real / t)),
+    ensures
+        gauss_norm(sigma2) > 0real,
+        gauss_expectation_le(sigma2, e, eps) <==> gauss_expectation_bounded_by(p, sigma2, t, e, eps),
+{
+    assert(1real / t > 0real) by(nonlinear_arith) requires t > 0real;
+    axiom_exp_neg_range(1real / t);
+    axiom_exp_neg_strict(1real / t);
+    let cst = gauss_const(p, sigma2, t);
+    let a = gauss_accept_prob(p, sigma2, t);
+    lemma_gauss_const_pos(p, sigma2, t);
+    lemma_gauss_accept_prob(p, sigma2, t);
+    // Z_σ = a / const
+    let seq = accept_mass_seq(p, sigma2, t);
+    let km = kernel_mass_seq(sigma2);
+    let z = (1real / cst) * a;
+    lemma_limit_scale(seq, a, 1real / cst);
+    assert forall |m: nat| seq_at(|n: nat| (1real / cst) * seq_at(seq, n), m) == #[trigger] seq_at(km, m) by {
+        let v = gauss_kernel_partial(sigma2, dg_ones(), m);
+        assert((1real / cst) * (cst * v) == v) by(nonlinear_arith) requires cst > 0real;
+    }
+    lemma_limit_pointwise_eq(|n: nat| (1real / cst) * seq_at(seq, n), km, z);
+    lemma_limit_unique(km, gauss_norm(sigma2), z);
+    assert(z > 0real) by(nonlinear_arith) requires z == (1real / cst) * a, cst > 0real, a >= cst;
+    assert forall |n: nat| #[trigger] gauss_pmf_partial(p, sigma2, t, e, n)
+        == gauss_kernel_partial(sigma2, e, n) / gauss_norm(sigma2) by {
+        lemma_gauss_pmf_partial_eq(p, sigma2, t, e, n);
+        let v = gauss_kernel_partial(sigma2, e, n);
+        assert(cst * v / a == v / z) by(nonlinear_arith) requires z == (1real / cst) * a, cst > 0real, a >= cst;
+    }
+    assert(gauss_expectation_le(sigma2, e, eps) ==> gauss_expectation_bounded_by(p, sigma2, t, e, eps)) by {
+        if gauss_expectation_le(sigma2, e, eps) {
+            assert forall |n: nat| #[trigger] gauss_pmf_partial(p, sigma2, t, e, n) <= eps by {
+                assert(gauss_kernel_partial(sigma2, e, n) / gauss_norm(sigma2) <= eps);
+            }
+        }
+    }
+    assert(gauss_expectation_bounded_by(p, sigma2, t, e, eps) ==> gauss_expectation_le(sigma2, e, eps)) by {
+        if gauss_expectation_bounded_by(p, sigma2, t, e, eps) {
+            assert forall |n: nat| #[trigger] gauss_kernel_partial(sigma2, e, n) / gauss_norm(sigma2) <= eps by {
+                assert(gauss_pmf_partial(p, sigma2, t, e, n) <= eps);
             }
         }
     }
