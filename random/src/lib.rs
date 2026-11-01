@@ -7,10 +7,9 @@ pub fn rand_u64(bound: u64) -> u64 {
   opendp::traits::samplers::sample_uniform_uint_below(bound).unwrap()
 }
 
+// See: https://github.com/rust-random/rand/issues/1014#issuecomment-670987007
 // A fair random bit, served from a buffered 64-bit word of the same source
-// (opendp `fill_bytes`, OpenSSL by default). One `fill_bytes` call per 64
-// bits instead of one per bit; the bits of a uniform word are independent
-// fair coins.
+// (opendp `fill_bytes`, OpenSSL by default).
 thread_local! {
     static BIT_BUF: std::cell::Cell<(u64, u32)> = const { std::cell::Cell::new((0, 0)) };
 }
