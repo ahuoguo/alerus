@@ -85,7 +85,7 @@ proof fn lemma_gw(x: real, b: nat, k: nat)
     }
 }
 
-pub proof fn lemma_gk_range(x: real, k: nat)
+proof fn lemma_gk_range(x: real, k: nat)
     requires x > 0real,
     ensures 0real < gk(x, k) <= 1real, k == 0 ==> gk(x, k) == 1real,
 {
@@ -268,7 +268,7 @@ proof fn lemma_kp_tail_step(x: real, b: nat, jj: nat)
 }
 
 /// Every symmetric partial sum of the kernel is at most S + U.
-pub proof fn lemma_kp_tail(x: real, b: nat, m: nat)
+proof fn lemma_kp_tail(x: real, b: nat, m: nat)
     requires x > 0real,
     ensures
         gauss_kernel_partial(gauss_sigma2(x), dg_ones(), m)

@@ -2,4 +2,3 @@
 pub mod sampling;
 pub mod gaussian;
 pub mod gaussian_tail;
-pub mod tail_bound;

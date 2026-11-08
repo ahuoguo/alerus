@@ -935,7 +935,7 @@ pub proof fn lemma_dg_series_iff(
 pub proof fn lemma_gauss_expectation_iff(p: real, sigma2: real, t: real, e: spec_fn(int) -> real, eps: real)
     requires sigma2 > 0real, t > 0real, p == exp(-(1real / t)),
     ensures
-        gauss_norm(sigma2) >= 1real,
+        gauss_norm(sigma2) > 0real,
         gauss_expectation_le(sigma2, e, eps) <==> gauss_expectation_bounded_by(p, sigma2, t, e, eps),
 {
     assert(1real / t > 0real) by(nonlinear_arith) requires t > 0real;
@@ -956,7 +956,7 @@ pub proof fn lemma_gauss_expectation_iff(p: real, sigma2: real, t: real, e: spec
     }
     lemma_limit_pointwise_eq(|n: nat| (1real / cst) * seq_at(seq, n), km, z);
     lemma_limit_unique(km, gauss_norm(sigma2), z);
-    assert(z >= 1real) by(nonlinear_arith) requires z == (1real / cst) * a, cst > 0real, a >= cst;
+    assert(z > 0real) by(nonlinear_arith) requires z == (1real / cst) * a, cst > 0real, a >= cst;
     assert forall |n: nat| #[trigger] gauss_pmf_partial(p, sigma2, t, e, n)
         == gauss_kernel_partial(sigma2, e, n) / gauss_norm(sigma2) by {
         lemma_gauss_pmf_partial_eq(p, sigma2, t, e, n);

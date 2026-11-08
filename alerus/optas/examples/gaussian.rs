@@ -172,7 +172,7 @@ proof fn lemma_bracket(x: real, nt: nat)
 }
 
 /// (1/2)^n = 1 / 2^n.
-pub proof fn lemma_half_pow(n: nat)
+proof fn lemma_half_pow(n: nat)
     ensures pow(1real / 2real, n) * (pow2(n) as real) == 1real,
     decreases n,
 {
@@ -196,14 +196,6 @@ proof fn lemma_exp_tiny(x: real)
     requires x >= 128real,
     ensures 0real < exp(-x) <= 1real / (pow2(128) as real),
 {
-    lemma_exp_le_pow2(x, 128);
-}
-
-/// e^{−y} ≤ 2^{−n} for y ≥ n, from e^{−1} ≤ 1/2 (the Taylor bound).
-pub proof fn lemma_exp_le_pow2(y: real, n: nat)
-    requires y >= n as real,
-    ensures 0real < exp(-y) <= 1real / (pow2(n) as real),
-{
     let e1 = exp(-1real);
     axiom_exp_taylor_bounds(1real, 3);
     assert(factorial(0) == 1real);
@@ -219,24 +211,23 @@ pub proof fn lemma_exp_le_pow2(y: real, n: nat)
     assert(partial_sum(sq1, 3) == partial_sum(sq1, 2) + sq1(2));
     assert(e1 <= 1real / 2real);
     axiom_exp_neg_range(1real);
-    lemma_pow_gap(e1, 1real / 2real, n);
-    lemma_exp_pow(1real, n);
-    assert((n as real) * 1real == n as real);
-    lemma_half_pow(n);
-    lemma_pow2_pos(n);
-    let nr = n as real;
-    axiom_exp_add(nr, y - nr);
-    axiom_exp_neg_range(y - nr);
-    axiom_exp_neg_range(y);
-    axiom_exp_neg_range(nr);
-    assert(-(nr + (y - nr)) == -y);
-    assert(exp(-y) == exp(-(nr + (y - nr))));
-    let t = exp(-nr);
-    let p = pow2(n) as real;
+    lemma_pow_gap(e1, 1real / 2real, 128);
+    lemma_exp_pow(1real, 128);
+    assert(-((128nat as real) * 1real) == -128real);
+    lemma_half_pow(128);
+    lemma_pow2_pos(128);
+    axiom_exp_add(128real, x - 128real);
+    axiom_exp_neg_range(x - 128real);
+    axiom_exp_neg_range(x);
+    assert(-(128real + (x - 128real)) == -x);
+    assert(exp(-x) == exp(-(128real + (x - 128real))));
+    axiom_exp_neg_range(128real);
+    let t = exp(-128real);
+    let p = pow2(128) as real;
     assert(t * p <= 1real) by(nonlinear_arith)
-        requires t <= pow(1real / 2real, n), pow(1real / 2real, n) * p == 1real, p > 0real;
-    assert(exp(-y) <= 1real / p) by(nonlinear_arith)
-        requires exp(-y) == t * exp(-(y - nr)), exp(-(y - nr)) <= 1real, t * p <= 1real, p > 0real, t > 0real;
+        requires t <= pow(1real / 2real, 128), pow(1real / 2real, 128) * p == 1real, p > 0real;
+    assert(exp(-x) <= 1real / p) by(nonlinear_arith)
+        requires exp(-x) == t * exp(-(x - 128real)), exp(-(x - 128real)) <= 1real, t * p <= 1real, p > 0real, t > 0real;
 }
 
 /// 0 ≤ L ≤ c ≤ 1 ⟹ 0 ≤ L^N ≤ c^N ≤ 1 and c^N − L^N ≤ N(c − L).
