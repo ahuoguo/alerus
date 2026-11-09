@@ -1,0 +1,15 @@
+[package]
+name = "gcmp"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+alerus = { path = "${WORK}/cnt/alerus" }
+vstd = "=0.0.0-2026-10-18-0147"
+opendp = { version = "0.15.1", features = ["contrib"] }
+random = { path = "${WORK}/cnt/random" }
+
+[profile.release]
+debug = false
+
+[workspace]
