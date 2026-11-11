@@ -295,6 +295,8 @@ pub proof fn lemma_ddg_step(w: Seq<u128>, z: nat, j: nat, r: nat)
     let rho2 = (2 * a) % z;
     lemma_fundamental_div_mod((2 * a) as int, z as int);
     let bb = (2 * (a % z)) / z;
+    assert(2 * (a % z) == bb * z + rho2) by(nonlinear_arith)
+        requires 2 * (a % z) == z * bb + rho2;
     lemma_fundamental_div_mod_converse((2 * (a % z)) as int, z as int, bb as int, rho2 as int);
 }
 

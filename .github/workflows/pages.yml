@@ -24,8 +24,8 @@ concurrency:
 env:
   # Keep these in sync with the Verus version pinned in veris/Cargo.toml and
   # .github/workflows/main.yml.
-  VERUS_VER: 0.2026.10.18.7d82994
-  VERUS_TAG: release/0.2026.10.18.7d82994
+  VERUS_VER: 0.2026.11.02.8bf68ee
+  VERUS_TAG: release/0.2026.11.02.8bf68ee
 
 jobs:
   build:

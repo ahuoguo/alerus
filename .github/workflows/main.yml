@@ -9,7 +9,7 @@ on:
 env:
   # Keep these in sync with the vstd version pinned in alerus/Cargo.toml and
   # .github/workflows/pages.yml.
-  VERUS_VER: 0.2026.10.18.7d82994
+  VERUS_VER: 0.2026.11.02.8bf68ee
   RUST_VER: 1.99.1
 
 jobs:
