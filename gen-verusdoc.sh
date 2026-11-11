@@ -11,8 +11,10 @@
 #   VERUS_BIN_DIR  dir containing libverus_builtin.rlib, libverus_builtin_macros.<dyn>,
 #                  libverus_state_machines_macros.<dyn> and libvstd.rlib.
 #                  Both a local `target-verus/release` build and an unzipped
-#                  Verus release share these exact file names.
+#                  Verus release share these exact file names. Defaults to
+#                  the directory of the `verus` on PATH.
 #   VERUSDOC_BIN   path to the `verusdoc` HTML post-processor binary.
+#                  Defaults to `verusdoc` on PATH.
 #   RUSTDOC        rustdoc to invoke (defaults to the 1.99.1 toolchain's rustdoc).
 #
 # Output: ./doc/alerus/index.html
@@ -21,10 +23,15 @@ set -e
 ALERUS="$(cd "$(dirname "$0")" && pwd)"
 DEPS="$ALERUS/target/debug/deps"
 
-# Local defaults (a Verus source checkout next to this repo). CI overrides these.
-VERUS="${VERUS:-/Users/byc/Desktop/mpi/verus}"
-VERUS_BIN_DIR="${VERUS_BIN_DIR:-$VERUS/source/target-verus/release}"
-VERUSDOC_BIN="${VERUSDOC_BIN:-$VERUS/source/target/debug/verusdoc}"
+# Defaults: the directory of the `verus` on PATH, and `verusdoc` on PATH.
+if [ -z "${VERUS_BIN_DIR:-}" ]; then
+  VERUS_EXE="$(command -v verus)" || { echo "verus not on PATH; set VERUS_BIN_DIR" >&2; exit 1; }
+  VERUS_BIN_DIR="$(cd "$(dirname "$VERUS_EXE")" && pwd)"
+fi
+VERUSDOC_BIN="${VERUSDOC_BIN:-$(command -v verusdoc || true)}"
+if [ -z "$VERUSDOC_BIN" ]; then
+  echo "verusdoc not on PATH; set VERUSDOC_BIN" >&2; exit 1
+fi
 RUSTDOC="${RUSTDOC:-$(rustup which --toolchain 1.99.1 rustdoc)}"
 
 case "$(uname)" in
