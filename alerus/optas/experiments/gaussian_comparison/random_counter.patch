@@ -1,0 +1,25 @@
+3a4,11
+> // Instrumented copy (comparison harness only): count RNG calls and the
+> // information they deliver, log2(bound) bits per call.
+> pub static RNG_CALLS: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
+> pub static RNG_MBITS: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0); // millibits
+> pub fn rng_stats() -> (u64, f64) {
+>     (RNG_CALLS.load(std::sync::atomic::Ordering::Relaxed),
+>      RNG_MBITS.load(std::sync::atomic::Ordering::Relaxed) as f64 / 1000.0)
+> }
+4a13,18
+> fn count(bits: f64) {
+>     RNG_CALLS.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+>     RNG_MBITS.fetch_add((bits * 1000.0).round() as u64, std::sync::atomic::Ordering::Relaxed);
+> }
+> 
+> #[inline(always)]
+5a20
+>   count((bound as f64).log2());
+19a35
+>     count(1.0);
+36a53,56
+>     match u64::try_from(&bound) {
+>         Ok(b) => count((b as f64).log2()),
+>         Err(_) => count(dashu::base::BitTest::bit_len(&bound) as f64),
+>     }

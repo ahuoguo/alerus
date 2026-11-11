@@ -1,4 +1,4 @@
-//! optas's `tree.py`: build the DDG tree as a pointer structure, for any table
+//! Build the DDG tree as a pointer structure, for any table
 //! of leaves ([`Leaves`]). The nodes live in an arena (`Vec<Node>`) and a
 //! pointer is an index into it.
 //!
